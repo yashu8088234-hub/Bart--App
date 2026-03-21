@@ -1,18 +1,15 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from rapidfuzz import process, fuzz
-from background import set_background
-import time
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
 
-# -----------------------------
-# Background & UI Setup
-# -----------------------------
-set_background("barthomepage.jpg")
-st.set_page_config(page_title="Daily Stock Consumption", layout="wide")
+# ---------------- Page Config ----------------
+st.set_page_config(layout="wide", page_title="Manager Dashboard")
 
-# Hide Streamlit UI + remove number input spinners + button styling
-hide_streamlit = """
+# ---------------- Hide Streamlit UI ----------------
+st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
@@ -20,27 +17,12 @@ header {visibility:hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
-.stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
-div.stButton > button{height:60px;font-size:20px;border-radius:10px;transition:0.3s;}
-div.stButton > button:hover{background-color:#ff4b4b;color:white;}
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=number] { -moz-appearance: textfield; }
 </style>
-"""
-st.markdown(hide_streamlit, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# -----------------------------
-# Page Title
-# -----------------------------
-branch_name_display = st.session_state.get("selected_branch", "Unknown Branch")
-st.markdown(f"<h1 style='text-align:center; color:red; font-size:60px;'>{branch_name_display} - Daily Stock Consumption</h1>", unsafe_allow_html=True)
-
-# -----------------------------
-# Google Sheets Setup using Streamlit Secrets
-# -----------------------------
+# ---------------- Google Sheets Setup ----------------
 try:
-    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])  # <- use TOML secret as dict
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])  # Use your TOML secret
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
@@ -48,242 +30,109 @@ except Exception as e:
     st.error(f"Error connecting to Google API: {e}")
     st.stop()
 
-# -----------------------------
-# Ensure branch sheet & tab are selected
-# -----------------------------
-if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
-    st.error("No branch or tab selected. Please go back to Staff Dashboard.")
+# ---------------- Load Branches ----------------
+@st.cache_data
+def load_branches():
+    try:
+        sheet = client.open("MASTERBRANCHSHEET").sheet1
+        return sheet.get_all_records()
+    except Exception as e:
+        st.error(f"Error loading master branch sheet: {e}")
+        st.stop()
+
+branch_data = load_branches()
+branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
+
+# ---------------- Branch Selection ----------------
+if 'selected_branch' not in st.session_state:
+    st.session_state.selected_branch = "-- Select Branch --"
+
+st.session_state.selected_branch = st.selectbox(
+    "Select Branch",
+    ["-- Select Branch --"] + branches,
+    index=branches.index(st.session_state.selected_branch) + 1
+    if st.session_state.selected_branch != "-- Select Branch --" else 0
+)
+selected_branch = st.session_state.selected_branch
+
+if selected_branch == "-- Select Branch --":
+    st.info("Please select a branch to view sales.")
     st.stop()
 
-branch_sheet = client.open_by_key(st.session_state.sheet_id)
-sheet = branch_sheet.worksheet(st.session_state.tab_name)
-st.write(f"Using tab: {sheet.title}")
-
-# -----------------------------
-# Cached Sheet Data
-# -----------------------------
-@st.cache_data(ttl=300)
-def load_sheet(_sheet):
-    data = _sheet.get_all_values()
-    headers = data[0]
-    items = [row[0].strip() for row in data[1:]]
-    items_lower = [i.lower() for i in items]
-    return data, headers, items, items_lower
-
+# ---------------- Branch Sheet Setup ----------------
+branch_info = next(b for b in branch_data if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
 try:
-    sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
+    branch_sheet = client.open_by_key(branch_info['SheetID'])
+    sheet = branch_sheet.worksheet("Daily Sales")  # assuming tab name
 except Exception as e:
-    st.error(f"Error loading sheet data: {e}")
+    st.error(f"Error opening branch sheet: {e}")
     st.stop()
 
-# -----------------------------
-# Initialize Session States
-# -----------------------------
-st.session_state.setdefault("pending_updates", [])
-st.session_state.setdefault("selected_items", {})
-st.session_state.setdefault("pending_checkbox_state", {})
-st.session_state.setdefault("inventory_mode", "paste")
-st.session_state.setdefault("smart_review_ready", False)
+# ---------------- Load Sales Data ----------------
+@st.cache_data(ttl=300)
+def load_sales(sheet):
+    records = sheet.get_all_records()
+    df = pd.DataFrame(records)
+    if not df.empty:
+        df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
+        df["Unit Price (SAR)"] = pd.to_numeric(df["Unit Price (SAR)"], errors="coerce").fillna(0)
+        if "Total (SAR)" in df.columns:
+            df["Total (SAR)"] = pd.to_numeric(df["Total (SAR)"], errors="coerce").fillna(0)
+        else:
+            df["Total (SAR)"] = df["Quantity"] * df["Unit Price (SAR)"]
+    return df
 
-# -----------------------------
-# Date Input + Smart Inventory Button
-# -----------------------------
+df = load_sales(sheet)
+
+# ---------------- Page Title ----------------
+st.markdown(f"<h1 style='text-align:center;color:red;'>{selected_branch} - Manager Dashboard</h1>", unsafe_allow_html=True)
+
+if df.empty:
+    st.warning("No sales data found for this branch.")
+    st.stop()
+
+# ---------------- Date Filter ----------------
+selected_date = st.date_input("Select Date", datetime.today())
+date_str = selected_date.strftime("%Y-%m-%d")
+df_date = df[df["Date"] == date_str]
+
+if df_date.empty:
+    st.info(f"No sales found for {date_str}")
+    st.stop()
+
+# ---------------- Summary Metrics ----------------
+total_revenue = df_date["Total (SAR)"].sum()
+total_items = df_date["Quantity"].sum()
 col1, col2 = st.columns(2)
-with col1:
-    date = st.date_input("Select Inventory Date")
-    date_str = str(date)
-with col2:
-    if st.button("🧠 Smart Inventory"):
-        st.session_state.inventory_mode = "smart"
-        st.session_state.smart_review_ready = False
-        st.rerun()
-st.info(f"Inventory will be recorded under date: {date_str}")
+col1.metric("Total Revenue (SAR)", f"{total_revenue:.2f}")
+col2.metric("Total Items Sold", int(total_items))
 
-# -----------------------------
-# Smart Inventory Mode
-# -----------------------------
-if st.session_state.inventory_mode == "smart":
-    st.markdown("## 🧠 Smart Inventory Entry")
-    search = st.text_input("🔍 Search Item", placeholder="Type to filter items...")
-    smart_inputs = {}
-    filtered_items = [item for item in existing_items_list if search.lower() in item.lower()] if search else existing_items_list
-    st.write(f"Showing {len(filtered_items)} items")
+# ---------------- Sales Table ----------------
+st.markdown("### Sales Table")
+st.dataframe(df_date[["Item", "Quantity", "Unit Price (SAR)", "Total (SAR)"]], use_container_width=True)
 
-    for i in range(0, len(filtered_items), 4):
-        cols = st.columns(4)
-        for j, col in enumerate(cols):
-            if i + j < len(filtered_items):
-                item = filtered_items[i + j]
-                qty = col.number_input(f"{item}", min_value=0, step=1, format="%g", key=f"smart_{item}")
-                if qty != 0:
-                    smart_inputs[item] = qty
+# ---------------- Charts ----------------
+chart1, chart2 = st.columns(2)
 
-    # Review Button
-    if st.button("Review Smart Inventory"):
-        st.session_state.smart_review_ready = True
-        st.session_state.smart_inputs_to_submit = smart_inputs
-        st.rerun()
+# Bar Chart: Quantity Sold
+with chart1:
+    bar_data = df_date.groupby("Item")["Quantity"].sum()
+    fig1, ax1 = plt.subplots(figsize=(6,4))
+    ax1.bar(bar_data.index, bar_data.values, color="#4CAF50")
+    ax1.set_title("Items Sold")
+    ax1.set_ylabel("Quantity")
+    ax1.tick_params(axis='x', rotation=45)
+    st.pyplot(fig1)
 
-    # Display Review
-    if st.session_state.smart_review_ready:
-        st.markdown("### Review Inventory Before Submit")
-        left_col, right_col = st.columns(2)
-        for idx, (item, qty) in enumerate(st.session_state.smart_inputs_to_submit.items()):
-            col = left_col if idx % 2 == 0 else right_col
-            col.write(f"{item} → {qty}")
+# Pie Chart: Revenue Distribution
+with chart2:
+    pie_data = df_date.groupby("Item")["Total (SAR)"].sum()
+    fig2, ax2 = plt.subplots(figsize=(5,4))
+    ax2.pie(pie_data.values, labels=pie_data.index, autopct="%1.1f%%")
+    ax2.set_title("Revenue Distribution")
+    st.pyplot(fig2)
 
-        if st.button("Submit Smart Inventory"):
-            try:
-                sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-                col_index = headers.index(date_str) if date_str in headers else len(headers)
-                if date_str not in headers:
-                    sheet.update_cell(1, col_index + 1, date_str)
-                    headers.append(date_str)
-
-                updates = []
-                for item_name, qty in st.session_state.smart_inputs_to_submit.items():
-                    if item_name not in existing_items_list:
-                        st.warning(f"{item_name} not found in master inventory. Skipped.")
-                        continue
-                    row_index = existing_items_list.index(item_name) + 1
-                    try:
-                        cell_value = sheet_data[row_index][col_index]
-                    except:
-                        cell_value = ""
-                    if cell_value:
-                        st.warning(f"{item_name} already has data for {date_str}. Skipped.")
-                        continue
-                    cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
-                    updates.append({"range": cell, "values": [[qty]]})
-
-                if updates:
-                    sheet.batch_update(updates)
-                    st.success(f"{len(updates)} items updated successfully.")
-                else:
-                    st.info("No updates needed.")
-
-                time.sleep(2)
-                st.session_state.smart_review_ready = False
-                st.session_state.smart_inputs_to_submit = {}
-                st.session_state.inventory_mode = "paste"
-                st.switch_page("pages/staff_dashboard.py")
-            except Exception as e:
-                st.error(f"Error submitting updates: {e}")
-                st.switch_page("pages/staff_dashboard.py")
-
-    col1, col2 = st.columns(2)
-    with col2:
-        if st.button("⬅ Back to Paste Inventory"):
-            st.session_state.inventory_mode = "paste"
-            st.session_state.smart_review_ready = False
-            st.session_state.smart_inputs_to_submit = {}
-            st.rerun()
-    st.stop()
-
-# -----------------------------
-# Paste Inventory Workflow
-# -----------------------------
-inventory_text = st.text_area("Kindly paste the inventory here:", height=300)
-items_today = []
-if inventory_text:
-    for line in inventory_text.split("\n"):
-        line = line.strip()
-        if not line or "-" not in line:
-            continue
-        item, qty = line.rsplit("-", 1)
-        item = item.strip()
-        qty = qty.strip()
-        try:
-            qty = float(qty)
-        except:
-            st.warning(f"Invalid quantity for line: {line}. Skipping.")
-            continue
-        items_today.append((item, qty))
-
-# Match items with inventory
-for item_name, qty in items_today:
-    try:
-        matches = process.extract(item_name.lower(), existing_items_lower, scorer=fuzz.WRatio, limit=5)
-        best_matches = [m for m in matches if m[1] > 50]
-        if not best_matches:
-            st.warning(f"Item '{item_name}' not found in inventory.")
-            continue
-        best_matches_original = [existing_items_list[existing_items_lower.index(m[0])] for m in best_matches]
-        word_count = len(item_name.split())
-        if word_count > 2 or len(best_matches_original) == 1:
-            selected = best_matches_original[0]
-            st.session_state.selected_items[item_name] = selected
-            st.success(f"{selected} auto-selected")
-        else:
-            st.markdown(f"### Possible matches for '{item_name}' ({qty})")
-            selected_option = None
-            for option in best_matches_original:
-                key = f"{item_name}_{option}"
-                checked = st.checkbox(option, key=key,
-                                      value=(st.session_state.selected_items.get(item_name) == option))
-                if checked and selected_option is None:
-                    selected_option = option
-            if selected_option:
-                st.session_state.selected_items[item_name] = selected_option
-    except Exception as e:
-        st.error(f"Error matching item '{item_name}': {e}")
-
-# Add to pending updates
-if st.button("Add Inventory to Pending Updates"):
-    for item_name, qty in items_today:
-        if item_name in st.session_state.selected_items:
-            selected = st.session_state.selected_items[item_name]
-            if (selected, qty) not in st.session_state.pending_updates:
-                st.session_state.pending_updates.append((selected, qty))
-                st.session_state.pending_checkbox_state[selected] = True
-    st.success("Selected items added to pending updates")
-    
-
-# Display pending updates
-if st.session_state.pending_updates:
-    st.markdown("### Pending Updates (Check to update)")
-    for i, (iname, qty) in enumerate(st.session_state.pending_updates):
-        checked = st.checkbox(f"{iname} → {qty}", key=f"pending_{iname}",
-                              value=st.session_state.pending_checkbox_state.get(iname, True))
-        st.session_state.pending_checkbox_state[iname] = checked
-
-# Submit pending updates
-if st.button("Submit Pending Updates"):
-    try:
-        sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-        col_index = headers.index(date_str) if date_str in headers else len(headers)
-        if date_str not in headers:
-            sheet.update_cell(1, col_index + 1, date_str)
-            headers.append(date_str)
-        updates = []
-        for item_name, qty in st.session_state.pending_updates:
-            if not st.session_state.pending_checkbox_state.get(item_name, True):
-                continue
-            if item_name not in existing_items_list:
-                st.warning(f"{item_name} not found in master inventory. Skipped.")
-                continue
-            row_index = existing_items_list.index(item_name) + 1
-            try:
-                cell_value = sheet_data[row_index][col_index]
-            except:
-                cell_value = ""
-            if cell_value:
-                st.warning(f"{item_name} already has data for {date_str}. Skipped.")
-                continue
-            cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
-            updates.append({"range": cell, "values": [[qty]]})
-        if updates:
-            sheet.batch_update(updates)
-            st.success(f"{len(updates)} items updated successfully.")
-        else:
-            st.info("No updates needed.")
-        time.sleep(4)
-        st.session_state.pending_updates = []
-        st.session_state.pending_checkbox_state = {}
-        st.switch_page("pages/staff_dashboard.py")
-    except Exception as e:
-        st.error(f"Error submitting updates: {e}")
-        st.switch_page("pages/staff_dashboard.py")
-
+# ---------------- Back Button ----------------
 if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+    st.session_state.selected_branch = "-- Select Branch --"
+    st.experimental_rerun()
