@@ -20,13 +20,14 @@ header {visibility:hidden;}
 """, unsafe_allow_html=True)
 
 # ---------------- Google Sheets Connection ----------------
-scope = [
-"https://spreadsheets.google.com/feeds",
-"https://www.googleapis.com/auth/drive"
-]
-
 try:
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    # Use Streamlit secrets instead of credentials.json
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet = client.open("Master Inventory").worksheet("Daily Sales")
 except Exception as e:
@@ -46,7 +47,7 @@ def load_data():
     if df.empty:
         return df
 
-    # Convert numeric columns safely
+    # Ensure numeric columns are valid
     if "Quantity" in df.columns:
         df["Quantity"] = pd.to_numeric(df["Quantity"], errors="coerce").fillna(0)
 
@@ -54,7 +55,9 @@ def load_data():
         df["Unit Price (SAR)"] = pd.to_numeric(df["Unit Price (SAR)"], errors="coerce").fillna(0)
 
     if "Total (SAR)" in df.columns:
-        df["Total (SAR)"] = pd.to_numeric(df["Total (SAR)"], errors="coerce").fillna(0)
+        df["Total (SAR)"] = pd.to_numeric(df["Total (SAR)"], errors="coerce").fillna(
+            df["Quantity"] * df["Unit Price (SAR)"]
+        )
     else:
         df["Total (SAR)"] = df["Quantity"] * df["Unit Price (SAR)"]
 
@@ -84,7 +87,6 @@ total_revenue = df_date["Total (SAR)"].sum()
 total_items = df_date["Quantity"].sum()
 
 col1, col2 = st.columns(2)
-
 col1.metric("Total Revenue (SAR)", f"{total_revenue:.2f}")
 col2.metric("Total Items Sold", int(total_items))
 
@@ -97,26 +99,20 @@ chart1, chart2 = st.columns(2)
 
 # Bar Chart
 with chart1:
-
     bar_data = df_date.groupby("Item")["Quantity"].sum()
-
     fig1, ax1 = plt.subplots(figsize=(6,4))
     ax1.bar(bar_data.index, bar_data.values)
     ax1.set_title("Items Sold")
     ax1.set_ylabel("Quantity")
     ax1.tick_params(axis='x', rotation=45)
-
     st.pyplot(fig1)
 
 # Pie Chart
 with chart2:
-
     pie_data = df_date.groupby("Item")["Total (SAR)"].sum()
-
     fig2, ax2 = plt.subplots(figsize=(5,4))
     ax2.pie(pie_data.values, labels=pie_data.index, autopct="%1.1f%%")
     ax2.set_title("Revenue Distribution")
-
     st.pyplot(fig2)
 
 # ---------------- Back Button ----------------
