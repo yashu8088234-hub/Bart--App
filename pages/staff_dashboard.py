@@ -32,10 +32,10 @@ body {
 # -----------------------------
 # Google Sheets Setup (Master Branch Sheet)
 # -----------------------------
+creds_dict = json.loads(st.secrets["GOOGLE_CREDS_JSON"])
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
-
 @st.cache_data
 def load_branches():
     try:
