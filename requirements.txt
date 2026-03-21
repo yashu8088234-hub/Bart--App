@@ -4,3 +4,5 @@ oauth2client
 rapidfuzz
 pandas
 matplotlib
+pdfplumber
+openpyxl
