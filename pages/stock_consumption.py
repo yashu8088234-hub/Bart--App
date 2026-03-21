@@ -237,7 +237,7 @@ if st.button("Add Inventory to Pending Updates"):
                 st.session_state.pending_updates.append((selected, qty))
                 st.session_state.pending_checkbox_state[selected] = True
     st.success("Selected items added to pending updates")
-    st.experimental_rerun()
+    
 
 # Display pending updates
 if st.session_state.pending_updates:
