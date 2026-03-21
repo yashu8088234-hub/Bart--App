@@ -40,7 +40,7 @@ st.markdown(f"<h1 style='text-align:center; color:red; font-size:60px;'>{branch_
 # Google Sheets Setup using Streamlit Secrets
 # -----------------------------
 try:
-    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])  # <- use TOML secret as dict
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
@@ -148,9 +148,9 @@ if st.session_state.inventory_mode == "smart":
                     row_index = existing_items_list.index(item_name) + 1
                     try:
                         cell_value = sheet_data[row_index][col_index]
-                    except:
+                    except IndexError:
                         cell_value = ""
-                    if cell_value:
+                    if cell_value:  # <-- CHECK EXISTING DATA
                         st.warning(f"{item_name} already has data for {date_str}. Skipped.")
                         continue
                     cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
@@ -237,7 +237,6 @@ if st.button("Add Inventory to Pending Updates"):
                 st.session_state.pending_updates.append((selected, qty))
                 st.session_state.pending_checkbox_state[selected] = True
     st.success("Selected items added to pending updates")
-    
 
 # Display pending updates
 if st.session_state.pending_updates:
@@ -265,9 +264,9 @@ if st.button("Submit Pending Updates"):
             row_index = existing_items_list.index(item_name) + 1
             try:
                 cell_value = sheet_data[row_index][col_index]
-            except:
+            except IndexError:
                 cell_value = ""
-            if cell_value:
+            if cell_value:  # <-- CHECK EXISTING DATA
                 st.warning(f"{item_name} already has data for {date_str}. Skipped.")
                 continue
             cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
