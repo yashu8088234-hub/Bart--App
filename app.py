@@ -95,6 +95,15 @@ header {{visibility:hidden;}}
     cursor: pointer;
 }}
 
+/* Feature Card Button inside */
+.feature-card button {{
+    all: unset;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}}
+
+/* Hover effect */
 .feature-card:hover {{
     transform: translateY(-5px);
     box-shadow: 0 8px 25px rgba(0,0,0,0.3);
@@ -144,34 +153,32 @@ header {{visibility:hidden;}}
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ---------------- Hero Section with Clickable Cards ----------------
-st.markdown(f"""
+# ---------------- Hero Section with Functional Cards ----------------
+st.markdown("""
 <div class="hero">
     <h1>BART (بارت)</h1>
     <h2>Coffee. French Toast. Fresh Bites.</h2>
     <div class="features">
-        <div class="feature-card" onclick="window.location.href='#staff'">👩 Staff Login</div>
-        <div class="feature-card" onclick="window.location.href='#management'">🛠 Management Login</div>
-        <div class="feature-card" onclick="window.location.href='#manager'">🧑 Manager Login</div>
+""", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns([1,1,1])
+with col1:
+    if st.button("👩 Staff Login"):
+        st.switch_page("pages/staff_dashboard.py")
+with col2:
+    if st.button("🛠 Management Login"):
+        st.info("COMING SOON")
+with col3:
+    if st.button("🧑 Manager Login"):
+        st.switch_page("pages/manager_dashboard.py")
+
+st.markdown("""
     </div>
     <p>
         Enjoy fresh snacks and specialty drinks at multiple locations in Jeddah. Fast service, friendly staff, and cozy environment.
     </p>
 </div>
 """, unsafe_allow_html=True)
-
-# ---------------- Handle Card Clicks ----------------
-hash_val = st.experimental_get_query_params().get("", [""])[0]
-
-if hash_val == "staff":
-    st.experimental_set_query_params()  # clear params
-    st.switch_page("pages/staff_dashboard.py")
-elif hash_val == "manager":
-    st.experimental_set_query_params()  # clear params
-    st.switch_page("pages/manager_dashboard.py")
-elif hash_val == "management":
-    st.experimental_set_query_params()  # clear params
-    st.info("COMING SOON")
 
 # ---------------- Sections ----------------
 st.markdown("""
