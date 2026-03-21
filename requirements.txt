@@ -6,3 +6,4 @@ pandas
 matplotlib
 pdfplumber
 openpyxl
+pdfminer.six
