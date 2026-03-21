@@ -85,6 +85,21 @@ header {{visibility:hidden;}}
     margin-top: 20px;
 }}
 
+.cta-buttons button {{
+    height: 65px;
+    font-size: 20px;
+    border-radius: 12px;
+    padding: 0 25px;
+    transition: 0.3s;
+    font-weight: bold;
+    cursor: pointer;
+}}
+
+.cta-buttons button:hover {{
+    background-color: #ff4b4b;
+    color: white;
+}}
+
 /* Section Cards */
 .section {{
     padding: 60px 20px;
@@ -153,7 +168,8 @@ header {{visibility:hidden;}}
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ---------------- Hero Section ----------------
+# ---------------- Hero Section with Functional Buttons ----------------
+# Use HTML buttons + JS to set session state
 st.markdown(f"""
 <div class="hero">
     <h1>BART (بارت)</h1>
@@ -163,24 +179,55 @@ st.markdown(f"""
         <b>Nutella/Kinder French Toast</b> and <b>Mango & Hibiscus Slush</b>.
     </p>
     <div class="cta-buttons">
-        <!-- Streamlit buttons will go here -->
+        <button onclick="window.parent.postMessage({{'event':'staff_click'}}, '*')">Staff Login 👨‍💼</button>
+        <button onclick="window.parent.postMessage({{'event':'management_click'}}, '*')">Management 👩‍💼</button>
+        <button onclick="window.parent.postMessage({{'event':'manager_click'}}, '*')">Manager 🏆</button>
     </div>
 </div>
+
+<script>
+window.addEventListener('message', function(e) {{
+    if(e.data.event === 'staff_click') {{
+        document.dispatchEvent(new CustomEvent('staff_click'));
+    }} else if(e.data.event === 'management_click') {{
+        document.dispatchEvent(new CustomEvent('management_click'));
+    }} else if(e.data.event === 'manager_click') {{
+        document.dispatchEvent(new CustomEvent('manager_click'));
+    }}
+}});
+</script>
 """, unsafe_allow_html=True)
 
-# ---------------- Functional Hero Buttons ----------------
+# ---------------- Handle Clicks in Streamlit ----------------
+if 'staff_click' not in st.session_state:
+    st.session_state.staff_click = False
+if 'management_click' not in st.session_state:
+    st.session_state.management_click = False
+if 'manager_click' not in st.session_state:
+    st.session_state.manager_click = False
+
+# Invisible JS triggers
+st.write("""
+<script>
+document.addEventListener('staff_click', () => {window.parent.postMessage({event:'staff_trigger'}, '*')});
+document.addEventListener('management_click', () => {window.parent.postMessage({event:'management_trigger'}, '*')});
+document.addEventListener('manager_click', () => {window.parent.postMessage({event:'manager_trigger'}, '*')});
+</script>
+""", unsafe_allow_html=True)
+
+# ---------------- Bottom Section Buttons as Fallback ----------------
 col1b, col2b, col3b = st.columns([1,1,1])
 with col1b:
-    if st.button("Staff Login", use_container_width=True):
+    if st.button("Staff Login", key="staff_bottom", use_container_width=True):
         st.experimental_set_query_params(page="Staff_dashboard")
 with col2b:
-    if st.button("Management Login", use_container_width=True):
+    if st.button("Management Login", key="management_bottom", use_container_width=True):
         st.write("COMING SOON")
 with col3b:
-    if st.button("Manager Login", use_container_width=True):
+    if st.button("Manager Login", key="manager_bottom", use_container_width=True):
         st.experimental_set_query_params(page="manager_dashboard")
 
-# ---------------- Section 1: Our Experience ----------------
+# ---------------- Sections ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
@@ -188,7 +235,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Section 2: Visit Us ----------------
 st.markdown("""
 <div class="section">
 <h2>Visit Us</h2>
@@ -197,7 +243,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Section 3: Popular Items Carousel ----------------
 st.markdown("""
 <div class="section">
 <h2>Popular Menu Items</h2>
@@ -226,7 +271,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Footer ----------------
 st.markdown("""
 <div class="section">
 <p>© 2026 BART | Follow us on 
