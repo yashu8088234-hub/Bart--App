@@ -174,7 +174,7 @@ st.markdown(f"""
 col1b, col2b, col3b = st.columns([1,1,1])
 with col1b:
     if st.button("Staff Login", use_container_width=True):
-        st.switch_page("pages/Staff_dashboard.py")
+        st.switch_page("pages/staff_dashboard.py")
 with col2b:
     if st.button("Management Login", use_container_width=True):
         st.write("COMING SOON ")
