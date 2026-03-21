@@ -4,11 +4,14 @@ from oauth2client.service_account import ServiceAccountCredentials
 from rapidfuzz import process, fuzz
 from datetime import datetime
 import time
+import pandas as pd
+import pdfplumber
+import re
 
-# ---------------- Page Config ----------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART - Daily Sales")
 
-# ---------------- Hide Streamlit UI ----------------
+# ---------------- HIDE UI ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -16,129 +19,214 @@ footer {visibility:hidden;}
 header {visibility:hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
-div.stButton > button {height:65px; font-size:20px; border-radius:12px; margin:8px; width:230px;}
-div.stButton > button:hover {background-color:#ff4b4b; color:white;}
+div.stButton > button {
+    height:60px; 
+    font-size:18px; 
+    border-radius:12px; 
+    margin:8px; 
+    width:240px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Load Valid Items ----------------
+# ---------------- SESSION SAFETY ----------------
+if "sheet_id" not in st.session_state or "selected_branch" not in st.session_state:
+    st.warning("⚠️ Please select a branch from dashboard first")
+    st.switch_page("pages/staff_dashboard.py")
+    st.stop()
+
+# ---------------- LOAD ITEMS ----------------
 with open("bart_items.txt", "r", encoding="utf-8") as f:
     valid_items = [line.strip() for line in f.readlines()]
 
-# ---------------- Google Sheets Setup ----------------
+# ---------------- GOOGLE SHEETS ----------------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 try:
     creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
+    sheet = client.open_by_key(st.session_state.sheet_id).worksheet("Sales")
 except Exception as e:
-    st.error(f"Google Sheets connection failed: {e}")
+    st.error(f"Google Sheets Error: {e}")
     st.stop()
 
-# ---------------- Get Branch Sheet ID ----------------
-if "sheet_id" not in st.session_state:
-    st.error("No branch selected. Go back to dashboard and select a branch.")
-    st.stop()
+# ---------------- TITLE ----------------
+st.markdown(f"<h1 style='text-align:center; color:red;'>Daily Sales Entry</h1>", unsafe_allow_html=True)
+st.success(f"📍 Active Branch: {st.session_state.selected_branch}")
 
-try:
-    branch_file = client.open_by_key(st.session_state.sheet_id)
-    sheet = branch_file.worksheet("Sales")
-except Exception as e:
-    st.error(f"Cannot access Daily Sales worksheet: {e}")
-    st.stop()
-
-# ---------------- Page Title ----------------
-st.markdown(f"<h1 style='text-align:center; color:red;'>Daily Sales Entry - {st.session_state.selected_branch}</h1>", unsafe_allow_html=True)
-
-# ---------------- Date Input ----------------
-date = st.date_input("Select Sales Date", value=datetime.today())
+# ---------------- DATE ----------------
+date = st.date_input("Select Date", value=datetime.today())
 date_str = date.strftime("%Y-%m-%d")
-st.info(f"Sales will be recorded under date: {date_str}")
 
-# ---------------- Sales Input ----------------
-sales_text = st.text_area("Paste daily sales here (format: Item - Quantity - Unit Price)", height=300)
+# ---------------- FILE UPLOAD ----------------
+st.markdown("## 📤 Upload Sales Report")
+uploaded_file = st.file_uploader("Upload PDF / Excel / CSV / TXT", type=["pdf", "xlsx", "csv", "txt"])
 
-# ---------------- Parse Sales ----------------
+# ---------------- MANUAL INPUT ----------------
+st.markdown("## ✍️ Or Paste Sales Data")
+sales_text = st.text_area("Format: Item - Qty - Price", height=150)
+
+# ---------------- SMART PARSER ----------------
+def smart_parse_line(line):
+    line = line.strip()
+
+    if not line or any(x in line.lower() for x in ["daily", "date", "currency", "time"]):
+        return None
+
+    numbers = re.findall(r"\d+\.?\d*", line)
+    if len(numbers) < 2:
+        return None
+
+    try:
+        if len(numbers) >= 3:
+            qty = float(numbers[-3])
+            price = float(numbers[-2])
+        else:
+            qty = float(numbers[-2])
+            price = float(numbers[-1])
+
+        text_part = re.sub(r"\d+\.?\d*", "", line)
+        text_part = re.sub(r"\b\d{1,2}:\d{2}\b", "", text_part)
+
+        item = " ".join(text_part.split()).strip()
+
+        if not item:
+            return None
+
+        return (item, qty, price)
+
+    except:
+        return None
+
+def parse_sales_lines(lines):
+    parsed = []
+    for line in lines:
+        result = smart_parse_line(line)
+        if result:
+            parsed.append(result)
+    return parsed
+
+# ---------------- EXTRACT DATA ----------------
 sales_today = []
-if sales_text:
-    for line in sales_text.split("\n"):
-        line = line.strip()
-        if not line or "-" not in line:
-            continue
-        try:
-            item, qty, price = line.rsplit("-", 2)
-            item = item.strip()
-            qty = float(qty.strip())
-            price = float(price.strip())
-            sales_today.append((item, qty, price))
-        except:
-            st.warning(f"Invalid format: {line}")
 
-# ---------------- Session State ----------------
+# FILE INPUT
+if uploaded_file is not None:
+    try:
+        lines = []
+
+        if uploaded_file.type == "application/pdf":
+            with pdfplumber.open(uploaded_file) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        lines.extend(text.split("\n"))
+
+        elif uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+            lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
+
+        elif uploaded_file.name.endswith(".xlsx"):
+            df = pd.read_excel(uploaded_file)
+            lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
+
+        elif uploaded_file.name.endswith(".txt"):
+            text = uploaded_file.read().decode("utf-8")
+            lines = text.split("\n")
+
+        sales_today = parse_sales_lines(lines)
+
+        st.success(f"✅ Extracted {len(sales_today)} records")
+
+    except Exception as e:
+        st.error(f"File Error: {e}")
+
+# MANUAL INPUT
+elif sales_text:
+    for line in sales_text.split("\n"):
+        if "-" in line:
+            try:
+                item, qty, price = line.rsplit("-", 2)
+                sales_today.append((item.strip(), float(qty), float(price)))
+            except:
+                st.warning(f"Invalid: {line}")
+
+# ---------------- PREVIEW ----------------
+if sales_today:
+    st.markdown("### 🔍 Extracted Preview")
+    for item, qty, price in sales_today[:20]:
+        st.write(f"{item} → {qty} x {price}")
+
+# ---------------- SESSION ----------------
 if "pending_sales" not in st.session_state:
     st.session_state.pending_sales = []
 if "confirm_items" not in st.session_state:
     st.session_state.confirm_items = {}
 
-# ---------------- Match Items ----------------
+# ---------------- MATCHING ----------------
 for item_name, qty, price in sales_today:
     if item_name not in st.session_state.confirm_items and not any(item_name == x[0] for x in st.session_state.pending_sales):
-        matches = process.extract(item_name, valid_items, scorer=fuzz.token_set_ratio, limit=len(valid_items))
+
+        matches = process.extract(item_name, valid_items, scorer=fuzz.token_set_ratio, limit=5)
         best_matches = [m for m in matches if m[1] > 70]
 
         if not best_matches:
-            st.warning(f"Item '{item_name}' not recognized")
+            st.warning(f"❌ Unknown item: {item_name}")
+
         elif len(best_matches) == 1:
             st.session_state.pending_sales.append((best_matches[0][0], qty, price))
-            st.success(f"{best_matches[0][0]} added automatically")
+
         else:
             options = [m[0] for m in best_matches]
             st.session_state.confirm_items[item_name] = st.radio(
-                f"Select correct item for '{item_name}' ({qty} @ {price})",
+                f"Select correct item for '{item_name}'",
                 options,
                 key=f"match_{item_name}"
             )
 
-# ---------------- Confirm Selections ----------------
-if st.session_state.confirm_items and st.button("✅ Confirm All Selected Items"):
-    for item_name, selected_item in st.session_state.confirm_items.items():
+# ---------------- CONFIRM ----------------
+if st.session_state.confirm_items and st.button("✅ Confirm Selected Items"):
+    for item_name, selected in st.session_state.confirm_items.items():
         qty, price = next((q, p) for i, q, p in sales_today if i == item_name)
-        st.session_state.pending_sales.append((selected_item, qty, price))
-    st.success("Items confirmed")
+        st.session_state.pending_sales.append((selected, qty, price))
     st.session_state.confirm_items.clear()
+    st.success("Items confirmed")
 
-# ---------------- Show Pending ----------------
+# ---------------- SUMMARY ----------------
 if st.session_state.pending_sales:
-    st.markdown("### Pending Sales")
-    for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
-        st.checkbox(f"{iname} → Qty: {qty} | Price: {price} | Total: {qty*price}", value=True, key=f"chk_{i}")
+    total = sum(q * p for _, q, p in st.session_state.pending_sales)
+    st.markdown(f"### 📊 Total Sales: SAR {total:.2f}")
 
-# ---------------- Submit Function ----------------
+# ---------------- SHOW PENDING ----------------
+for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
+    st.checkbox(
+        f"{iname} → Qty: {qty} | Price: {price} | Total: {qty*price}",
+        value=True,
+        key=f"chk_{i}"
+    )
+
+# ---------------- GOOGLE UPLOAD ----------------
 def safe_append(row):
     for attempt in range(3):
         try:
             sheet.append_row(row)
             return True
-        except Exception as e:
-            if attempt < 2:
-                time.sleep(2)
-            else:
-                st.error(f"Google API error: {e}")
-                return False
+        except:
+            time.sleep(2)
+    return False
 
-# ---------------- Submit ----------------
-if st.button("Submit Pending Sales"):
+if st.button("🚀 Submit Sales"):
     success = True
     for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
         if st.session_state.get(f"chk_{i}", True):
-            row = [date_str, iname, qty, price, qty*price]
+            row = [date_str, iname, qty, price, qty * price]
             if not safe_append(row):
                 success = False
+
     if success:
-        st.success("Sales successfully uploaded to branch Google Sheet ✅")
+        st.success("✅ Sales uploaded successfully")
         st.session_state.pending_sales = []
 
-# ---------------- Back Button ----------------
+# ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("pages/staff_dashboard.py")
