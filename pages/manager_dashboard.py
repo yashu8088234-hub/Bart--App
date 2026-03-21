@@ -65,7 +65,7 @@ sheet_id = branch_info["SheetID"]
 
 # ---------------- Load Branch Sales Sheet ----------------
 try:
-    branch_sheet = client.open_by_key(sheet_id).worksheet("Daily Sales")
+    branch_sheet = client.open_by_key(sheet_id).worksheet("Sales")
     records = branch_sheet.get_all_records()
     df = pd.DataFrame(records)
 except Exception as e:
