@@ -237,13 +237,9 @@ if st.button("🚀 Submit Sales"):
 st.session_state.pending_sales = []
 
 # Auto-redirect after 4 seconds
-st.components.v1.html("""
-    <script>
-        setTimeout(function(){
-            window.location.href = "/pages/staff_dashboard.py";
-        }, 4000);
-    </script>
-""", height=0)
+time.sleep(4)
+        
+        st.switch_page("pages/staff_dashboard.py")s
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
