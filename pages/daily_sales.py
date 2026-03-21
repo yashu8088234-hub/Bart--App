@@ -238,5 +238,8 @@ if st.button("🚀 Submit Sales"):
 st.session_state.pending_sales = []
 
 # ---------------- BACK ----------------
+
+
+st.switch_page("pages/staff_dashboard.py")
 if st.button("⬅ Back"):
     st.switch_page("pages/staff_dashboard.py")
