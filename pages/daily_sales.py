@@ -236,7 +236,6 @@ if st.button("🚀 Submit Sales"):
     st.success("✅ Uploaded successfully. Redirecting to dashboard in 4 seconds...")
     time.sleep(4)
 st.session_state.pending_sales = []
-st.switch_page("pages/staff_dashboard.py")
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
