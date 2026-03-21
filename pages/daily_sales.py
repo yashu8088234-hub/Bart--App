@@ -239,7 +239,7 @@ st.session_state.pending_sales = []
 # Auto-redirect after 4 seconds
 time.sleep(4)
         
-        st.switch_page("pages/staff_dashboard.py")s
+        st.switch_page("pages/staff_dashboard.py")
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
