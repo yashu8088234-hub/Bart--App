@@ -233,8 +233,17 @@ if st.button("🚀 Submit Sales"):
         if st.session_state.get(f"chk_{i}", True):
             safe_append([date_str, iname, qty, price, qty * price])
 
-    st.success("✅ Uploaded successfully")
-    st.session_state.pending_sales = []
+    st.success("✅ Uploaded successfully. Redirecting to dashboard in 4 seconds...")
+st.session_state.pending_sales = []
+
+# Auto-redirect after 4 seconds
+st.components.v1.html("""
+    <script>
+        setTimeout(function(){
+            window.location.href = "/pages/staff_dashboard.py";
+        }, 4000);
+    </script>
+""", height=0)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
