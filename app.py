@@ -178,9 +178,9 @@ st.markdown(f"""
         <b>Nutella/Kinder French Toast</b> and <b>Mango & Hibiscus Slush</b>.
     </p>
     <div class="cta-buttons">
-        <button onclick="window.location.href='#'">Staff Login 👨‍💼</button>
-        <button onclick="window.location.href='#'">Management 👩‍💼</button>
-        <button onclick="window.location.href='#'">Manager 🏆</button>
+        <button onclick="window.location.href='#'">Staff Login </button>
+        <button onclick="window.location.href='#'">Management </button>
+        <button onclick="window.location.href='#'">Manager </button>
     </div>
 </div>
 """, unsafe_allow_html=True)
