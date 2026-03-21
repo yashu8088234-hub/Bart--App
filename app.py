@@ -202,34 +202,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Section 3: Popular Items Carousel ----------------
-st.markdown("""
-<div class="section">
-<h2>Popular Menu Items</h2>
-<div class="card-container">
-    <div class="card">
-        <img src="https://i.imgur.com/2QpWQWa.jpg" alt="Nutella French Toast">
-        <h3>Nutella French Toast</h3>
-        <p>SAR 28</p>
-    </div>
-    <div class="card">
-        <img src="https://i.imgur.com/A3o3rYy.jpg" alt="Mango Slush">
-        <h3>Mango Slush</h3>
-        <p>SAR 15</p>
-    </div>
-    <div class="card">
-        <img src="https://i.imgur.com/3T9d7Dm.jpg" alt="Hibiscus Slush">
-        <h3>Hibiscus Slush</h3>
-        <p>SAR 15</p>
-    </div>
-    <div class="card">
-        <img src="https://i.imgur.com/7vGQ9qX.jpg" alt="Dubai Chocolate Pudding">
-        <h3>Dubai Chocolate Pudding</h3>
-        <p>SAR 22</p>
-    </div>
-</div>
-</div>
-""", unsafe_allow_html=True)
+
 
 # ---------------- Footer ----------------
 st.markdown("""
