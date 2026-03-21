@@ -11,7 +11,7 @@ import time
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Daily Stock Consumption", layout="wide")
 
-# Hide Streamlit UI + remove number input spinners
+# Hide Streamlit UI + remove number input spinners + button styling
 hide_streamlit = """
 <style>
 #MainMenu {visibility:hidden;}
@@ -37,21 +37,19 @@ branch_name_display = st.session_state.get("selected_branch", "Unknown Branch")
 st.markdown(f"<h1 style='text-align:center; color:red; font-size:60px;'>{branch_name_display} - Daily Stock Consumption</h1>", unsafe_allow_html=True)
 
 # -----------------------------
-# Google Sheets Setup
+# Google Sheets Setup using Streamlit Secrets
 # -----------------------------
 try:
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])  # <- use TOML secret as dict
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
     st.error(f"Error connecting to Google API: {e}")
     st.stop()
 
 # -----------------------------
-# Dynamic Branch Sheet & Tab
+# Ensure branch sheet & tab are selected
 # -----------------------------
 if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
     st.error("No branch or tab selected. Please go back to Staff Dashboard.")
@@ -79,22 +77,13 @@ except Exception as e:
     st.stop()
 
 # -----------------------------
-# Session States
+# Initialize Session States
 # -----------------------------
-if "pending_updates" not in st.session_state:
-    st.session_state.pending_updates = []
-
-if "selected_items" not in st.session_state:
-    st.session_state.selected_items = {}
-
-if "pending_checkbox_state" not in st.session_state:
-    st.session_state.pending_checkbox_state = {}
-
-if "inventory_mode" not in st.session_state:
-    st.session_state.inventory_mode = "paste"
-
-if "smart_review_ready" not in st.session_state:
-    st.session_state.smart_review_ready = False
+st.session_state.setdefault("pending_updates", [])
+st.session_state.setdefault("selected_items", {})
+st.session_state.setdefault("pending_checkbox_state", {})
+st.session_state.setdefault("inventory_mode", "paste")
+st.session_state.setdefault("smart_review_ready", False)
 
 # -----------------------------
 # Date Input + Smart Inventory Button
@@ -120,32 +109,25 @@ if st.session_state.inventory_mode == "smart":
     filtered_items = [item for item in existing_items_list if search.lower() in item.lower()] if search else existing_items_list
     st.write(f"Showing {len(filtered_items)} items")
 
-    # 4 columns side-by-side
     for i in range(0, len(filtered_items), 4):
         cols = st.columns(4)
         for j, col in enumerate(cols):
             if i + j < len(filtered_items):
                 item = filtered_items[i + j]
-                qty = col.number_input(
-                    f"{item}",
-                    min_value=0,
-                    step=1,
-                    format="%g",
-                    key=f"smart_{item}"
-                )
+                qty = col.number_input(f"{item}", min_value=0, step=1, format="%g", key=f"smart_{item}")
                 if qty != 0:
                     smart_inputs[item] = qty
 
-    # Review
+    # Review Button
     if st.button("Review Smart Inventory"):
         st.session_state.smart_review_ready = True
         st.session_state.smart_inputs_to_submit = smart_inputs
         st.rerun()
 
+    # Display Review
     if st.session_state.smart_review_ready:
         st.markdown("### Review Inventory Before Submit")
-        review_cols = st.columns(2)
-        left_col, right_col = review_cols
+        left_col, right_col = st.columns(2)
         for idx, (item, qty) in enumerate(st.session_state.smart_inputs_to_submit.items()):
             col = left_col if idx % 2 == 0 else right_col
             col.write(f"{item} → {qty}")
@@ -153,10 +135,8 @@ if st.session_state.inventory_mode == "smart":
         if st.button("Submit Smart Inventory"):
             try:
                 sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-                if date_str in headers:
-                    col_index = headers.index(date_str)
-                else:
-                    col_index = len(headers)
+                col_index = headers.index(date_str) if date_str in headers else len(headers)
+                if date_str not in headers:
                     sheet.update_cell(1, col_index + 1, date_str)
                     headers.append(date_str)
 
@@ -182,8 +162,7 @@ if st.session_state.inventory_mode == "smart":
                 else:
                     st.info("No updates needed.")
 
-                # Wait 2 seconds then go back to dashboard
-                time.sleep(4)
+                time.sleep(2)
                 st.session_state.smart_review_ready = False
                 st.session_state.smart_inputs_to_submit = {}
                 st.session_state.inventory_mode = "paste"
@@ -202,7 +181,7 @@ if st.session_state.inventory_mode == "smart":
     st.stop()
 
 # -----------------------------
-# Paste Inventory Workflow (unchanged)
+# Paste Inventory Workflow
 # -----------------------------
 inventory_text = st.text_area("Kindly paste the inventory here:", height=300)
 items_today = []
@@ -221,14 +200,10 @@ if inventory_text:
             continue
         items_today.append((item, qty))
 
+# Match items with inventory
 for item_name, qty in items_today:
     try:
-        matches = process.extract(
-            item_name.lower(),
-            existing_items_lower,
-            scorer=fuzz.WRatio,
-            limit=5
-        )
+        matches = process.extract(item_name.lower(), existing_items_lower, scorer=fuzz.WRatio, limit=5)
         best_matches = [m for m in matches if m[1] > 50]
         if not best_matches:
             st.warning(f"Item '{item_name}' not found in inventory.")
@@ -253,36 +228,31 @@ for item_name, qty in items_today:
     except Exception as e:
         st.error(f"Error matching item '{item_name}': {e}")
 
+# Add to pending updates
 if st.button("Add Inventory to Pending Updates"):
-    try:
-        for item_name, qty in items_today:
-            if item_name in st.session_state.selected_items:
-                selected = st.session_state.selected_items[item_name]
-                if (selected, qty) not in st.session_state.pending_updates:
-                    st.session_state.pending_updates.append((selected, qty))
-                    st.session_state.pending_checkbox_state[selected] = True
-        st.success("Selected items added to pending updates")
-    except Exception as e:
-        st.error(f"Error adding items: {e}")
-        st.experimental_rerun()
+    for item_name, qty in items_today:
+        if item_name in st.session_state.selected_items:
+            selected = st.session_state.selected_items[item_name]
+            if (selected, qty) not in st.session_state.pending_updates:
+                st.session_state.pending_updates.append((selected, qty))
+                st.session_state.pending_checkbox_state[selected] = True
+    st.success("Selected items added to pending updates")
+    st.experimental_rerun()
 
+# Display pending updates
 if st.session_state.pending_updates:
     st.markdown("### Pending Updates (Check to update)")
     for i, (iname, qty) in enumerate(st.session_state.pending_updates):
-        try:
-            checked = st.checkbox(f"{iname} → {qty}", key=f"pending_{iname}",
-                                  value=st.session_state.pending_checkbox_state.get(iname, True))
-            st.session_state.pending_checkbox_state[iname] = checked
-        except Exception as e:
-            st.error(f"Error displaying pending update for {iname}: {e}")
+        checked = st.checkbox(f"{iname} → {qty}", key=f"pending_{iname}",
+                              value=st.session_state.pending_checkbox_state.get(iname, True))
+        st.session_state.pending_checkbox_state[iname] = checked
 
+# Submit pending updates
 if st.button("Submit Pending Updates"):
     try:
         sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-        if date_str in headers:
-            col_index = headers.index(date_str)
-        else:
-            col_index = len(headers)
+        col_index = headers.index(date_str) if date_str in headers else len(headers)
+        if date_str not in headers:
             sheet.update_cell(1, col_index + 1, date_str)
             headers.append(date_str)
         updates = []
@@ -307,7 +277,6 @@ if st.button("Submit Pending Updates"):
             st.success(f"{len(updates)} items updated successfully.")
         else:
             st.info("No updates needed.")
-        # Wait 4 seconds then back to dashboard
         time.sleep(4)
         st.session_state.pending_updates = []
         st.session_state.pending_checkbox_state = {}
