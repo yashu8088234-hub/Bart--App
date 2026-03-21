@@ -43,7 +43,7 @@ if "sheet_id" not in st.session_state:
 
 try:
     branch_file = client.open_by_key(st.session_state.sheet_id)
-    sheet = branch_file.worksheet("Daily Sales")
+    sheet = branch_file.worksheet("Sales")
 except Exception as e:
     st.error(f"Cannot access Daily Sales worksheet: {e}")
     st.stop()
