@@ -1,14 +1,18 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from rapidfuzz import process, fuzz
-from datetime import datetime
-import time
+from background import set_background
 
-# ---------------- Page Config ----------------
-st.set_page_config(layout="wide", page_title="BART - Daily Sales")
+# -----------------------------
+# Background & UI Setup
+# -----------------------------
+set_background("barthomepage.jpg")
+st.set_page_config(layout="wide", page_title="BART - Staff Dashboard")
+st.title("BART")
+st.markdown("## Staff Dashboard")
+st.write("## Kindly choose your Branch Name")
 
-# ---------------- Hide Streamlit UI ----------------
+# Hide Streamlit default UI
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -16,178 +20,120 @@ footer {visibility:hidden;}
 header {visibility:hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
+.block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
+body {
+    background-size: cover !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+}
 div.stButton > button {height:65px; font-size:20px; border-radius:12px; margin:8px; width:230px;}
 div.stButton > button:hover {background-color:#ff4b4b; color:white;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Load Valid Items ----------------
-with open("bart_items.txt", "r", encoding="utf-8") as f:
-    valid_items = [line.strip() for line in f.readlines()]
-
-# ---------------- Google Sheets Setup ----------------
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
+# -----------------------------
+# Google Sheets Setup (Credentials)
+# -----------------------------
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 try:
     creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     client = gspread.authorize(creds)
-    sheet = client.open("Master Inventory").worksheet("Daily Sales")
 except Exception as e:
-    st.error(f"Google Sheets connection error: {e}")
+    st.error(f"Google Sheets connection failed: {e}")
     st.stop()
 
-# ---------------- Page Title ----------------
-st.markdown("<h1 style='text-align:center; color:red;'>Daily Sales Entry</h1>", unsafe_allow_html=True)
+# -----------------------------
+# Load Branch Data
+# -----------------------------
+@st.cache_data
+def load_branches():
+    try:
+        sheet = client.open("MASTERBRANCHSHEET").sheet1
+        return sheet.get_all_records()
+    except gspread.exceptions.SpreadsheetNotFound:
+        st.error("MASTERBRANCHSHEET not found. Make sure the service account has access and the sheet name is correct.")
+        st.stop()
 
-# ---------------- Date Input ----------------
-date = st.date_input("Select Sales Date", value=datetime.today())
-date_str = date.strftime("%Y-%m-%d")
-st.info(f"Sales will be recorded under date: {date_str}")
+branch_data = load_branches()
+branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# ---------------- Sales Input ----------------
-sales_text = st.text_area(
-    "Paste daily sales here (format: Item - Quantity - Unit Price)",
-    height=300
+# -----------------------------
+# Branch Selection Dropdown
+# -----------------------------
+if 'selected_branch' not in st.session_state:
+    st.session_state.selected_branch = "-- Select Branch --"
+
+try:
+    default_index = branches.index(st.session_state.selected_branch) + 1
+except ValueError:
+    default_index = 0
+
+st.session_state.selected_branch = st.selectbox(
+    "Select Branch",
+    ["-- Select Branch --"] + branches,
+    index=default_index
 )
+selected_branch = st.session_state.selected_branch
 
-# ---------------- Parse Sales ----------------
-sales_today = []
+# -----------------------------
+# Show Buttons Only After Branch Selection
+# -----------------------------
+if selected_branch != "-- Select Branch --":
+    branch_info = next(b for b in branch_data if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
+    st.write(f"### Selected Branch: {selected_branch}")
 
-if sales_text:
-    lines = sales_text.split("\n")
+    # Buttons in a row
+    col1, col2, col3, col4, col5 = st.columns(5, gap="medium")
 
-    for line in lines:
-        line = line.strip()
+    def switch_to_page(tab_name):
+        st.session_state.sheet_id = branch_info['SheetID']
+        st.session_state.selected_branch = selected_branch
+        st.session_state.tab_name = tab_name
 
-        if not line or "-" not in line:
-            continue
+    # Buttons
+    if col1.button("📦 Daily Stock Consumption"):
+        switch_to_page("Stocks")
+        st.switch_page("pages/stock_consumption.py")
 
-        try:
-            item, qty, price = line.rsplit("-", 2)
+    if col2.button("💰 Daily Sales Report"):
+        switch_to_page("Sales")
+        st.switch_page("pages/daily_sales.py")
 
-            item = item.strip()
-            qty = float(qty.strip())
-            price = float(price.strip())
+    if col3.button("🆕 New Stock Report"):
+        switch_to_page("NewStocks")
+        st.switch_page("pages/new_stock.py")
 
-            sales_today.append((item, qty, price))
-
-        except:
-            st.warning(f"Invalid format: {line}")
-
-# ---------------- Session State ----------------
-if "pending_sales" not in st.session_state:
-    st.session_state.pending_sales = []
-
-if "confirm_items" not in st.session_state:
-    st.session_state.confirm_items = {}
-
-# ---------------- Match Items ----------------
-for item_name, qty, price in sales_today:
-
-    if item_name not in st.session_state.confirm_items and \
-       not any(item_name == x[0] for x in st.session_state.pending_sales):
-
-        matches = process.extract(
-            item_name,
-            valid_items,
-            scorer=fuzz.token_set_ratio,
-            limit=len(valid_items)
-        )
-
-        best_matches = [m for m in matches if m[1] > 70]
-
-        if not best_matches:
-
-            st.warning(f"Item '{item_name}' not recognized")
-
-        elif len(best_matches) == 1:
-
-            st.session_state.pending_sales.append(
-                (best_matches[0][0], qty, price)
-            )
-
-            st.success(f"{best_matches[0][0]} added automatically")
-
-        else:
-
-            options = [m[0] for m in best_matches]
-
-            st.session_state.confirm_items[item_name] = st.radio(
-                f"Select correct item for '{item_name}' ({qty} @ {price})",
-                options,
-                key=f"match_{item_name}"
-            )
-
-# ---------------- Confirm Selections ----------------
-if st.session_state.confirm_items:
-
-    if st.button("✅ Confirm All Selected Items"):
-
-        for item_name, selected_item in st.session_state.confirm_items.items():
-
-            qty, price = next(
-                (q, p) for i, q, p in sales_today if i == item_name
-            )
-
-            st.session_state.pending_sales.append(
-                (selected_item, qty, price)
-            )
-
-        st.success("Items confirmed")
-
-        st.session_state.confirm_items.clear()
-
-# ---------------- Show Pending ----------------
-if st.session_state.pending_sales:
-
-    st.markdown("### Pending Sales")
-
-    for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
-
-        st.checkbox(
-            f"{iname} → Qty: {qty} | Price: {price} | Total: {qty*price}",
-            value=True,
-            key=f"chk_{i}"
-        )
-
-# ---------------- Submit Function ----------------
-def safe_append(row):
-
-    for attempt in range(3):
-
-        try:
-            sheet.append_row(row)
-            return True
-
-        except Exception as e:
-
-            if attempt < 2:
-                time.sleep(2)  # retry delay
+    if col4.button("🔍 Stock View"):
+        if branch_info.get('SheetID'):
+            try:
+                branch_file = client.open_by_key(branch_info['SheetID'])
+                stock_sheet = branch_file.worksheet("Stocks")
+                stock_data = stock_sheet.get_all_records()
+            except Exception as e:
+                st.error(f"Failed to load stock data: {e}")
             else:
-                st.error(f"Google API error: {e}")
-                return False
+                with st.expander("Stock Items (expand to view)", expanded=True):
+                    st.dataframe(stock_data, use_container_width=True)
+        else:
+            st.error("No SheetID found for this branch.")
 
-# ---------------- Submit ----------------
-if st.button("Submit Pending Sales"):
+    if col5.button("📊 Daily Sales View"):
+        if branch_info.get('SheetID'):
+            try:
+                branch_file = client.open_by_key(branch_info['SheetID'])
+                sales_sheet = branch_file.worksheet("Sales")
+                sales_data = sales_sheet.get_all_records()
+            except Exception as e:
+                st.error(f"Failed to load sales data: {e}")
+            else:
+                with st.expander("Daily Sales (expand to view)", expanded=True):
+                    st.dataframe(sales_data, use_container_width=True)
+        else:
+            st.error("No SheetID found for this branch.")
 
-    success = True
-
-    for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
-
-        if st.session_state.get(f"chk_{i}", True):
-
-            row = [date_str, iname, qty, price, qty * price]
-
-            if not safe_append(row):
-                success = False
-
-    if success:
-        st.success("Sales successfully uploaded to Google Sheet ✅")
-        st.session_state.pending_sales = []
-
-# ---------------- Back Button ----------------
+# -----------------------------
+# Back Button
+# -----------------------------
 if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+    st.switch_page("app.py")
