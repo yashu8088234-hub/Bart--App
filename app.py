@@ -85,21 +85,6 @@ header {{visibility:hidden;}}
     margin-top: 20px;
 }}
 
-.cta-buttons button {{
-    height: 65px;
-    font-size: 20px;
-    border-radius: 12px;
-    padding: 0 25px;
-    transition: 0.3s;
-    font-weight: bold;
-    cursor: pointer;
-}}
-
-.cta-buttons button:hover {{
-    background-color: #ff4b4b;
-    color: white;
-}}
-
 /* Section Cards */
 .section {{
     padding: 60px 20px;
@@ -178,12 +163,22 @@ st.markdown(f"""
         <b>Nutella/Kinder French Toast</b> and <b>Mango & Hibiscus Slush</b>.
     </p>
     <div class="cta-buttons">
-        <button onclick="window.location.href='#'">Staff Login 👨‍💼</button>
-        <button onclick="window.location.href='#'">Management 👩‍💼</button>
-        <button onclick="window.location.href='#'">Manager 🏆</button>
+        <!-- Streamlit buttons will go here -->
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# ---------------- Functional Hero Buttons ----------------
+col1b, col2b, col3b = st.columns([1,1,1])
+with col1b:
+    if st.button("Staff Login", use_container_width=True):
+        st.experimental_set_query_params(page="Staff_dashboard")
+with col2b:
+    if st.button("Management Login", use_container_width=True):
+        st.write("COMING SOON")
+with col3b:
+    if st.button("Manager Login", use_container_width=True):
+        st.experimental_set_query_params(page="manager_dashboard")
 
 # ---------------- Section 1: Our Experience ----------------
 st.markdown("""
