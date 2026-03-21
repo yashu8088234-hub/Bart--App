@@ -7,6 +7,7 @@ import time
 import pandas as pd
 import pdfplumber
 import re
+import string
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART - Daily Sales")
@@ -66,7 +67,6 @@ uploaded_file = st.file_uploader("Upload PDF / Excel / CSV / TXT", type=["pdf", 
 # ---------------- PARSER ----------------
 def smart_parse_line(line):
     line = line.strip()
-
     if not line or any(x in line.lower() for x in ["daily", "date", "currency", "time"]):
         return None
 
@@ -84,14 +84,10 @@ def smart_parse_line(line):
 
         text_part = re.sub(r"\d+\.?\d*", "", line)
         text_part = re.sub(r"\b\d{1,2}:\d{2}\b", "", text_part)
-
         item = " ".join(text_part.split()).strip()
-
         if not item:
             return None
-
         return (item, qty, price)
-
     except:
         return None
 
@@ -112,7 +108,7 @@ if uploaded_file is not None:
     try:
         lines = []
 
-        # -------- PDF (FIXED VERSION) --------
+        # -------- PDF --------
         if uploaded_file.type == "application/pdf":
             words = []
             with pdfplumber.open(uploaded_file) as pdf:
@@ -130,29 +126,25 @@ if uploaded_file is not None:
                 line = " ".join(lines_dict[y])
                 lines.append(line)
 
-        # -------- OTHER FILES --------
+        # -------- CSV / XLSX / TXT --------
         elif uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
             lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
-
         elif uploaded_file.name.endswith(".xlsx"):
             df = pd.read_excel(uploaded_file)
             lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
-
         elif uploaded_file.name.endswith(".txt"):
             text = uploaded_file.read().decode("utf-8")
             lines = text.split("\n")
 
-        # -------- EXTRACT TOTALS FROM PDF --------
+        # -------- EXTRACT TOTALS --------
         for line in lines:
             if "Total Items Sold" in line:
                 pdf_total_items = int(re.findall(r"\d+", line)[0])
             if "Gross Revenue" in line:
                 pdf_revenue = float(re.findall(r"\d+", line)[0])
 
-        # -------- PARSE SALES --------
         sales_today = parse_sales_lines(lines)
-
         st.success(f"✅ Extracted {len(sales_today)} records")
 
     except Exception as e:
@@ -173,52 +165,54 @@ if sales_today:
     st.write(f"Total Items: {total_items_calc}")
     st.write(f"Total Revenue: SAR {total_revenue_calc:.2f}")
 
-    # -------- VALIDATION --------
-    if pdf_total_items:
-        if total_items_calc != pdf_total_items:
-            st.error(f"⚠️ Items mismatch! PDF: {pdf_total_items} | Calculated: {total_items_calc}")
-        else:
-            st.success("✅ Items count matches PDF")
+    if pdf_total_items and total_items_calc != pdf_total_items:
+        st.error(f"⚠️ Items mismatch! PDF: {pdf_total_items} | Calculated: {total_items_calc}")
+    elif pdf_total_items:
+        st.success("✅ Items count matches PDF")
 
-    if pdf_revenue:
-        if abs(total_revenue_calc - pdf_revenue) > 5:
-            st.error(f"⚠️ Revenue mismatch! PDF: {pdf_revenue} | Calculated: {total_revenue_calc}")
-        else:
-            st.success("✅ Revenue matches PDF")
+    if pdf_revenue and abs(total_revenue_calc - pdf_revenue) > 5:
+        st.error(f"⚠️ Revenue mismatch! PDF: {pdf_revenue} | Calculated: {total_revenue_calc}")
+    elif pdf_revenue:
+        st.success("✅ Revenue matches PDF")
 
 # ---------------- SESSION ----------------
 if "pending_sales" not in st.session_state:
     st.session_state.pending_sales = []
-if "confirm_items" not in st.session_state:
-    st.session_state.confirm_items = {}
 
-# ---------------- MATCHING ----------------
+# ---------------- NORMALIZATION & MATCHING ----------------
+def normalize(text):
+    return text.lower().translate(str.maketrans("", "", string.punctuation)).strip()
+
+def find_best_match(item_name, valid_items):
+    # Exact match
+    for v in valid_items:
+        if normalize(item_name) == normalize(v):
+            return v, True
+
+    # Fuzzy ratio
+    matches = process.extract(item_name, valid_items, scorer=fuzz.ratio, limit=3)
+    for m in matches:
+        if m[1] > 85:
+            return m[0], False
+
+    # Token set ratio fallback
+    matches = process.extract(item_name, valid_items, scorer=fuzz.token_set_ratio, limit=3)
+    for m in matches:
+        if m[1] > 90:
+            return m[0], False
+
+    return None, False
+
+# ---------------- APPLY MATCHING ----------------
 for item_name, qty, price in sales_today:
-    if item_name not in st.session_state.confirm_items and not any(item_name == x[0] for x in st.session_state.pending_sales):
-
-        matches = process.extract(item_name, valid_items, scorer=fuzz.token_set_ratio, limit=5)
-        best_matches = [m for m in matches if m[1] > 70]
-
-        if not best_matches:
-            st.warning(f"❌ Unknown item: {item_name}")
-
-        elif len(best_matches) == 1:
-            st.session_state.pending_sales.append((best_matches[0][0], qty, price))
-
+    if not any(item_name == x[0] for x in st.session_state.pending_sales):
+        match, exact = find_best_match(item_name, valid_items)
+        if match:
+            st.session_state.pending_sales.append((match, qty, price))
+            if not exact:
+                st.info(f"⚠️ Review match: '{item_name}' → '{match}'")
         else:
-            options = [m[0] for m in best_matches]
-            st.session_state.confirm_items[item_name] = st.radio(
-                f"Select correct item for '{item_name}'",
-                options,
-                key=f"match_{item_name}"
-            )
-
-# ---------------- CONFIRM ----------------
-if st.session_state.confirm_items and st.button("✅ Confirm Items"):
-    for item_name, selected in st.session_state.confirm_items.items():
-        qty, price = next((q, p) for i, q, p in sales_today if i == item_name)
-        st.session_state.pending_sales.append((selected, qty, price))
-    st.session_state.confirm_items.clear()
+            st.warning(f"❌ Unknown item: {item_name}")
 
 # ---------------- SHOW ----------------
 for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
