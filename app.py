@@ -1,22 +1,20 @@
 import streamlit as st
 import base64
 
-# ---------------- Page Config ----------------
 st.set_page_config(
     page_title="BART",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- Encode Local Image to Base64 ----------------
+# ---------------- Encode Local Image ----------------
 def get_base64_image(image_path):
     with open(image_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+        return base64.b64encode(f.read()).decode()
 
-bg_image = get_base64_image("barthome.png")  # background image
+bg_image = get_base64_image("barthome.png")
 
-# ---------------- Custom CSS ----------------
+# ---------------- Custom CSS with Carousel Effect ----------------
 custom_css = f"""
 <style>
 #MainMenu {{visibility:hidden;}}
@@ -24,13 +22,11 @@ footer {{visibility:hidden;}}
 header {{visibility:hidden;}}
 [data-testid="stToolbar"] {{display:none;}}
 [data-testid="stSidebar"] {{display:none;}}
-
 .block-container {{
     padding:0 !important;
     margin:0 auto !important;
     max-width: 100% !important;
 }}
-
 .stApp {{
     min-height: 100vh;
     background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url("data:image/png;base64,{bg_image}");
@@ -40,7 +36,6 @@ header {{visibility:hidden;}}
     background-attachment: fixed;
 }}
 
-/* Hero Section */
 .hero {{
     min-height: 100vh;
     display: flex;
@@ -52,26 +47,40 @@ header {{visibility:hidden;}}
     padding: 20px;
 }}
 
-.hero h1, .hero h2, .hero p {{
-    opacity: 0;
-    transform: translateY(30px);
-    animation: fadeUp 1s forwards;
+/* Carousel text effect */
+.carousel-text {{
+    position: relative;
+    height: 80px;
+    overflow: hidden;
 }}
 
-.hero h1 {{
-    color: #ff0000;
+.carousel-text span {{
+    position: absolute;
+    opacity: 0;
     font-size: 70px;
     font-weight: bold;
+    color: #ff0000;
     text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
-    margin-bottom: 10px;
-    animation-delay: 0.2s;
+    width: 100%;
+    animation: slideText 9s infinite;
+}}
+
+.carousel-text span:nth-child(1) {{ animation-delay: 0s; }}
+.carousel-text span:nth-child(2) {{ animation-delay: 3s; }}
+.carousel-text span:nth-child(3) {{ animation-delay: 6s; }}
+
+@keyframes slideText {{
+    0% {{ opacity: 0; transform: translateY(100%); }}
+    10% {{ opacity: 1; transform: translateY(0); }}
+    30% {{ opacity: 1; transform: translateY(0); }}
+    40% {{ opacity: 0; transform: translateY(-100%); }}
+    100% {{ opacity: 0; }}
 }}
 
 .hero h2 {{
     font-size: 28px;
     text-shadow: 1px 1px 5px rgba(0,0,0,0.7);
     margin-bottom: 20px;
-    animation-delay: 0.4s;
 }}
 
 .hero p {{
@@ -80,10 +89,9 @@ header {{visibility:hidden;}}
     margin: 10px auto;
     text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
     line-height:1.6;
-    animation-delay: 0.6s;
 }}
 
-/* Login Buttons */
+/* Login buttons */
 .login-buttons {{
     display: flex;
     justify-content: center;
@@ -108,7 +116,6 @@ div.stButton > button:hover {{
     box-shadow: 0px 8px 25px rgba(0,0,0,0.4);
 }}
 
-/* Section Cards */
 .section {{
     padding: 60px 20px;
     text-align: center;
@@ -116,14 +123,8 @@ div.stButton > button:hover {{
     backdrop-filter: blur(4px);
     margin: 40px 20px;
     border-radius: 12px;
-    opacity: 0;
     color: white;
-    transform: translateY(50px);
-    animation: fadeUp 1s forwards;
 }}
-
-.section:nth-of-type(2) {{animation-delay:0.3s;}}
-.section:nth-of-type(3) {{animation-delay:0.6s;}}
 
 .section h2 {{
     font-size: 40px;
@@ -138,13 +139,8 @@ div.stButton > button:hover {{
     line-height:1.6;
 }}
 
-@keyframes fadeUp {{
-    0% {{opacity:0; transform: translateY(30px);}}
-    100% {{opacity:1; transform: translateY(0);}}
-}}
-
 @media only screen and (max-width:768px) {{
-    .hero h1 {{ font-size: 50px; }}
+    .carousel-text span {{ font-size: 50px; }}
     .hero h2 {{ font-size: 20px; }}
     .hero p {{ font-size: 16px; }}
     div.stButton > button {{ height:55px; font-size:18px; width:180px; }}
@@ -156,16 +152,19 @@ div.stButton > button:hover {{
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ---------------- Hero Section ----------------
-st.markdown(f"""
+# ---------------- Hero Section with Carousel ----------------
+st.markdown("""
 <div class="hero">
-    <h1>BART (بارت)</h1>
+    <div class="carousel-text">
+        <span>BART</span>
+        <span>B A R T</span>
+        <span>بارت</span>
+    </div>
     <h2>Coffee, French Toast & Fresh Bites in Jeddah</h2>
     <p>
         A Saudi Arabian café chain specializing in <b>quick, on-the-go specialty coffee</b>, <b>desserts</b>, and <b>fresh snacks</b>.<br>
         Popular items include <b>Dubai Chocolate Pudding</b>, <b>Nutella/Kinder French Toast</b>, and various slush drinks.<br>
         📍 Locations: Jeddah – Al Rahman, Al-Safa <br>
-        📱 Ordering: Delivery via HungerStation, Keeta  <br>
         🌐 Website: <a href='https://bart.sa' target='_blank' style='color:#ffcc00;'>bart.sa</a>
     </p>
 </div>
@@ -185,7 +184,7 @@ with col3:
         st.switch_page("pages/manager_dashboard.py")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Section 2 ----------------
+# ---------------- Sections ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
@@ -193,7 +192,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Section 3 ----------------
 st.markdown("""
 <div class="section">
 <h2>Visit Us</h2>
