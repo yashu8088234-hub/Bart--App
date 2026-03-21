@@ -179,9 +179,9 @@ st.markdown(f"""
     <h1>BART (بارت)</h1>
     <h2>Coffee. French Toast. Fresh Bites.</h2>
     <div class="features">
-        <div class="feature-card">☕ Specialty Coffee</div>
-        <div class="feature-card">🍞 French Toast</div>
-        <div class="feature-card">🥤 Slush Drinks</div>
+        <div class="feature-card">🛠 Staff Login</div>
+        <div class="feature-card">🛠 Manager Login</div>
+        <div class="feature-card">🛠 Management Login</div>
     </div>
     <p>
         Enjoy fresh snacks and specialty drinks at multiple locations in Jeddah. Fast service, friendly staff, and cozy environment.
