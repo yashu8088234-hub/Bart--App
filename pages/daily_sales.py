@@ -31,7 +31,7 @@ div.stButton > button {
 
 # ---------------- SESSION SAFETY ----------------
 if "sheet_id" not in st.session_state or "selected_branch" not in st.session_state:
-    st.warning("⚠️ Please select a branch from dashboard first")
+    st.warning("⚠️ Please select a branch first")
     st.switch_page("pages/staff_dashboard.py")
     st.stop()
 
@@ -59,15 +59,11 @@ st.success(f"📍 Active Branch: {st.session_state.selected_branch}")
 date = st.date_input("Select Date", value=datetime.today())
 date_str = date.strftime("%Y-%m-%d")
 
-# ---------------- FILE UPLOAD ----------------
+# ---------------- UPLOAD ----------------
 st.markdown("## 📤 Upload Sales Report")
 uploaded_file = st.file_uploader("Upload PDF / Excel / CSV / TXT", type=["pdf", "xlsx", "csv", "txt"])
 
-# ---------------- MANUAL INPUT ----------------
-st.markdown("## ✍️ Or Paste Sales Data")
-sales_text = st.text_area("Format: Item - Qty - Price", height=150)
-
-# ---------------- SMART PARSER ----------------
+# ---------------- PARSER ----------------
 def smart_parse_line(line):
     line = line.strip()
 
@@ -109,19 +105,32 @@ def parse_sales_lines(lines):
 
 # ---------------- EXTRACT DATA ----------------
 sales_today = []
+pdf_total_items = None
+pdf_revenue = None
 
-# FILE INPUT
 if uploaded_file is not None:
     try:
         lines = []
 
+        # -------- PDF (FIXED VERSION) --------
         if uploaded_file.type == "application/pdf":
+            words = []
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        lines.extend(text.split("\n"))
+                    words.extend(page.extract_words())
 
+            lines_dict = {}
+            for w in words:
+                y = round(w['top'])
+                if y not in lines_dict:
+                    lines_dict[y] = []
+                lines_dict[y].append(w['text'])
+
+            for y in sorted(lines_dict.keys()):
+                line = " ".join(lines_dict[y])
+                lines.append(line)
+
+        # -------- OTHER FILES --------
         elif uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
             lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
@@ -134,6 +143,14 @@ if uploaded_file is not None:
             text = uploaded_file.read().decode("utf-8")
             lines = text.split("\n")
 
+        # -------- EXTRACT TOTALS FROM PDF --------
+        for line in lines:
+            if "Total Items Sold" in line:
+                pdf_total_items = int(re.findall(r"\d+", line)[0])
+            if "Gross Revenue" in line:
+                pdf_revenue = float(re.findall(r"\d+", line)[0])
+
+        # -------- PARSE SALES --------
         sales_today = parse_sales_lines(lines)
 
         st.success(f"✅ Extracted {len(sales_today)} records")
@@ -141,21 +158,33 @@ if uploaded_file is not None:
     except Exception as e:
         st.error(f"File Error: {e}")
 
-# MANUAL INPUT
-elif sales_text:
-    for line in sales_text.split("\n"):
-        if "-" in line:
-            try:
-                item, qty, price = line.rsplit("-", 2)
-                sales_today.append((item.strip(), float(qty), float(price)))
-            except:
-                st.warning(f"Invalid: {line}")
-
 # ---------------- PREVIEW ----------------
 if sales_today:
-    st.markdown("### 🔍 Extracted Preview")
+    st.markdown("### 🔍 Preview")
     for item, qty, price in sales_today[:20]:
         st.write(f"{item} → {qty} x {price}")
+
+# ---------------- SUMMARY ----------------
+if sales_today:
+    total_items_calc = sum(q for _, q, _ in sales_today)
+    total_revenue_calc = sum(q * p for _, q, p in sales_today)
+
+    st.markdown("## 📊 Calculated Summary")
+    st.write(f"Total Items: {total_items_calc}")
+    st.write(f"Total Revenue: SAR {total_revenue_calc:.2f}")
+
+    # -------- VALIDATION --------
+    if pdf_total_items:
+        if total_items_calc != pdf_total_items:
+            st.error(f"⚠️ Items mismatch! PDF: {pdf_total_items} | Calculated: {total_items_calc}")
+        else:
+            st.success("✅ Items count matches PDF")
+
+    if pdf_revenue:
+        if abs(total_revenue_calc - pdf_revenue) > 5:
+            st.error(f"⚠️ Revenue mismatch! PDF: {pdf_revenue} | Calculated: {total_revenue_calc}")
+        else:
+            st.success("✅ Revenue matches PDF")
 
 # ---------------- SESSION ----------------
 if "pending_sales" not in st.session_state:
@@ -185,29 +214,19 @@ for item_name, qty, price in sales_today:
             )
 
 # ---------------- CONFIRM ----------------
-if st.session_state.confirm_items and st.button("✅ Confirm Selected Items"):
+if st.session_state.confirm_items and st.button("✅ Confirm Items"):
     for item_name, selected in st.session_state.confirm_items.items():
         qty, price = next((q, p) for i, q, p in sales_today if i == item_name)
         st.session_state.pending_sales.append((selected, qty, price))
     st.session_state.confirm_items.clear()
-    st.success("Items confirmed")
 
-# ---------------- SUMMARY ----------------
-if st.session_state.pending_sales:
-    total = sum(q * p for _, q, p in st.session_state.pending_sales)
-    st.markdown(f"### 📊 Total Sales: SAR {total:.2f}")
-
-# ---------------- SHOW PENDING ----------------
+# ---------------- SHOW ----------------
 for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
-    st.checkbox(
-        f"{iname} → Qty: {qty} | Price: {price} | Total: {qty*price}",
-        value=True,
-        key=f"chk_{i}"
-    )
+    st.checkbox(f"{iname} → {qty} x {price} = {qty*price}", value=True, key=f"chk_{i}")
 
-# ---------------- GOOGLE UPLOAD ----------------
+# ---------------- SUBMIT ----------------
 def safe_append(row):
-    for attempt in range(3):
+    for _ in range(3):
         try:
             sheet.append_row(row)
             return True
@@ -216,16 +235,12 @@ def safe_append(row):
     return False
 
 if st.button("🚀 Submit Sales"):
-    success = True
     for i, (iname, qty, price) in enumerate(st.session_state.pending_sales):
         if st.session_state.get(f"chk_{i}", True):
-            row = [date_str, iname, qty, price, qty * price]
-            if not safe_append(row):
-                success = False
+            safe_append([date_str, iname, qty, price, qty * price])
 
-    if success:
-        st.success("✅ Sales uploaded successfully")
-        st.session_state.pending_sales = []
+    st.success("✅ Uploaded successfully")
+    st.session_state.pending_sales = []
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
