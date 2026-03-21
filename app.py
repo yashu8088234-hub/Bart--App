@@ -208,8 +208,8 @@ st.markdown("""
 st.markdown("""
 <div class="section">
 <p>© 2026 BART | Follow us on 
-<a href="https://instagram.com/bart" target="_blank" style='color:#ffcc00;'>Instagram</a> | 
-<a href="https://facebook.com/bart" target="_blank" style='color:#ffcc00;'>Facebook</a> | 
+<a href="https://instagram.com/bart_ksa" target="_blank" style='color:#ffcc00;'>Instagram</a> | 
+<a href="https://facebook.com/" target="_blank" style='color:#ffcc00;'>Facebook</a> | 
 <a href="https://bart.sa" target="_blank" style='color:#ffcc00;'>Website</a></p>
 </div>
 """, unsafe_allow_html=True)
