@@ -76,7 +76,7 @@ if df.empty:
     st.warning("No sales data found for this branch.")
     st.stop()
 
-# Convert numeric columns safely
+# ---------------- Convert numeric columns safely ----------------
 for col in ["Quantity", "Unit Price (SAR)"]:
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -95,6 +95,7 @@ if df_date.empty:
 total_revenue = df_date["Total (SAR)"].sum()
 total_items = df_date["Quantity"].sum()
 top_item = df_date.groupby("Item")["Quantity"].sum().idxmax()
+low_item = df_date.groupby("Item")["Quantity"].sum().idxmin()
 
 col1, col2, col3 = st.columns(3)
 col1.metric("💰 Total Revenue (SAR)", f"{total_revenue:.2f}")
@@ -114,29 +115,31 @@ st.dataframe(df_date[["Item", "Quantity", "Unit Price (SAR)", "Total (SAR)"]], u
 # ---------------- Charts ----------------
 chart1, chart2 = st.columns(2)
 
-# Bar Chart - Items Sold
+# Top 10 Items Sold Horizontal Bar Chart
 with chart1:
-    bar_data = df_date.groupby("Item")["Quantity"].sum()
-    fig1, ax1 = plt.subplots(figsize=(6,4))
-    ax1.bar(bar_data.index, bar_data.values, color="#4CAF50")
-    ax1.set_title("Items Sold")
-    ax1.set_ylabel("Quantity")
-    ax1.tick_params(axis='x', rotation=45)
+    top10_items = df_date.groupby("Item")["Quantity"].sum().sort_values(ascending=False).head(10)
+    fig1, ax1 = plt.subplots(figsize=(7,5))
+    ax1.barh(top10_items.index[::-1], top10_items.values[::-1], color="#4CAF50")
+    ax1.set_xlabel("Quantity Sold")
+    ax1.set_title("Top 10 Items Sold")
     st.pyplot(fig1)
 
-# Pie Chart - Revenue Distribution
+# 7-Day Revenue Trend Line Chart
 with chart2:
-    pie_data = df_date.groupby("Item")["Total (SAR)"].sum()
-    fig2, ax2 = plt.subplots(figsize=(5,4))
-    ax2.pie(pie_data.values, labels=pie_data.index, autopct="%1.1f%%", colors=plt.cm.Paired.colors)
-    ax2.set_title("Revenue Distribution")
+    last_7_days = [(selected_date - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+    revenue_trend = []
+    for d in last_7_days:
+        revenue_trend.append(df[df["Date"] == d]["Total (SAR)"].sum())
+    fig2, ax2 = plt.subplots(figsize=(7,5))
+    ax2.plot(last_7_days, revenue_trend, marker="o", color="#FF5733")
+    ax2.set_xlabel("Date")
+    ax2.set_ylabel("Revenue (SAR)")
+    ax2.set_title("Last 7 Days Revenue Trend")
+    ax2.tick_params(axis='x', rotation=45)
     st.pyplot(fig2)
 
-# ---------------- Top N Items ----------------
-top_n = st.slider("Top N items by quantity", 1, 20, 5)
-top_items = df_date.groupby("Item")["Quantity"].sum().sort_values(ascending=False).head(top_n)
-st.markdown(f"### Top {top_n} Items Sold")
-st.table(top_items)
+# ---------------- Top & Low Performers ----------------
+st.markdown(f"**Lowest Selling Item Today:** {low_item}")
 
 # ---------------- Export CSV ----------------
 csv = df_date.to_csv(index=False).encode('utf-8')
