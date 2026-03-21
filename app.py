@@ -92,40 +92,11 @@ header {{visibility:hidden;}}
     text-align: center;
     min-width: 160px;
     transition: all 0.3s ease;
-    cursor: default;
+    cursor: pointer;
 }}
 
 .feature-card:hover {{
     transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-}}
-
-/* Login Cards */
-.login-cards {{
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 40px;
-    flex-wrap: wrap;
-}}
-
-.login-card {{
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(5px);
-    border-radius: 12px;
-    padding: 25px 30px;
-    text-align: center;
-    width: 230px;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    font-size: 20px;
-    font-weight: bold;
-}}
-
-.login-card:hover {{
-    transform: scale(1.05);
-    background-color: #ff4b4b;
-    color: white;
     box-shadow: 0 8px 25px rgba(0,0,0,0.3);
 }}
 
@@ -164,7 +135,7 @@ header {{visibility:hidden;}}
     .hero h1 {{ font-size: 50px; }}
     .hero h2 {{ font-size: 20px; }}
     .hero p {{ font-size: 16px; }}
-    .feature-card, .login-card {{ width: 160px; font-size:16px; padding:15px 20px; }}
+    .feature-card {{ width: 160px; font-size:16px; padding:15px 20px; }}
     .section h2 {{ font-size: 32px; }}
     .section p {{ font-size:16px; }}
 }}
@@ -173,15 +144,15 @@ header {{visibility:hidden;}}
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ---------------- Hero Section ----------------
+# ---------------- Hero Section with Clickable Cards ----------------
 st.markdown(f"""
 <div class="hero">
     <h1>BART (بارت)</h1>
     <h2>Coffee. French Toast. Fresh Bites.</h2>
     <div class="features">
-        <div class="feature-card">🛠 Staff Login</div>
-        <div class="feature-card">🛠 Manager Login</div>
-        <div class="feature-card">🛠 Management Login</div>
+        <div class="feature-card" onclick="window.location.href='#staff'">👩 Staff Login</div>
+        <div class="feature-card" onclick="window.location.href='#management'">🛠 Management Login</div>
+        <div class="feature-card" onclick="window.location.href='#manager'">🧑 Manager Login</div>
     </div>
     <p>
         Enjoy fresh snacks and specialty drinks at multiple locations in Jeddah. Fast service, friendly staff, and cozy environment.
@@ -189,19 +160,18 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- Login Cards ----------------
-st.markdown('<div class="login-cards">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
-    if st.button("👩 Staff Login"):
-        st.switch_page("pages/staff_dashboard.py")
-with col2:
-    if st.button("🛠 Management Login"):
-        st.write("COMING SOON")
-with col3:
-    if st.button("🧑 Manager Login"):
-        st.switch_page("pages/manager_dashboard.py")
-st.markdown('</div>', unsafe_allow_html=True)
+# ---------------- Handle Card Clicks ----------------
+hash_val = st.experimental_get_query_params().get("", [""])[0]
+
+if hash_val == "staff":
+    st.experimental_set_query_params()  # clear params
+    st.switch_page("pages/staff_dashboard.py")
+elif hash_val == "manager":
+    st.experimental_set_query_params()  # clear params
+    st.switch_page("pages/manager_dashboard.py")
+elif hash_val == "management":
+    st.experimental_set_query_params()  # clear params
+    st.info("COMING SOON")
 
 # ---------------- Sections ----------------
 st.markdown("""
