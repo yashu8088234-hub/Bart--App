@@ -194,6 +194,31 @@ with st.sidebar:
             "sales": []
         }
         st.success(run_ai(query, context))
+
+
+
+st.markdown("## 🤖 AI Assistant")
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+user_input = st.text_input("Talk to AI...")
+
+if user_input:
+    context = {
+        "revenue": total_revenue_calc if "total_revenue_calc" in locals() else 0,
+        "items": total_items_calc if "total_items_calc" in locals() else 0,
+        "sales": st.session_state.get("pending_sales", [])
+    }
+
+    response = run_ai(user_input, context)
+
+    st.session_state.chat.append(("You", user_input))
+    st.session_state.chat.append(("AI", response))
+
+# DISPLAY CHAT
+for sender, msg in st.session_state.chat[-10:]:
+    st.write(f"**{sender}:** {msg}")
 # ---------------- Info Sections ----------------
 st.markdown("""
 <div class="section">
