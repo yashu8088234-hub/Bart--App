@@ -177,6 +177,23 @@ if query:
     answer = run_ai(query, context)
     st.success(answer)
 
+
+
+
+
+
+
+with st.sidebar:
+    st.markdown("### 🤖 AI Assistant")
+    query = st.text_input("Ask AI")
+
+    if query:
+        context = {
+            "revenue": 0,
+            "items": 0,
+            "sales": []
+        }
+        st.success(run_ai(query, context))
 # ---------------- Info Sections ----------------
 st.markdown("""
 <div class="section">
