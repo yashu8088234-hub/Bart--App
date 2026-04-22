@@ -1,4 +1,7 @@
 import streamlit as st
+
+
+from ai_core import run_ai
 import base64
 
 # ---------------- Page Config ----------------
@@ -157,6 +160,22 @@ with col3:
     if st.button("Manager Login"):
         st.switch_page("pages/manager_dashboard.py")
 st.markdown('</div>', unsafe_allow_html=True)
+
+
+
+st.markdown("## 🤖 AI Assistant")
+
+query = st.text_input("Ask AI...")
+
+if query:
+    context = {
+        "revenue":  total_revenue_calc if "total_revenue_calc" in locals() else 0,
+        "items": total_items_calc if "total_items_calc" in locals() else 0,
+        "sales": st.session_state.get("pending_sales", [])
+    }
+
+    answer = run_ai(query, context)
+    st.success(answer)
 
 # ---------------- Info Sections ----------------
 st.markdown("""
