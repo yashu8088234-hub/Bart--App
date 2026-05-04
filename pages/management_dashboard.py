@@ -8,20 +8,29 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 
 st.title("📦 BART - Stock Management (All Branches)")
 
-# ---------------- GOOGLE AUTH ----------------
+# ---------------- GOOGLE AUTH (OPTIMIZED) ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
 
-# ---------------- LOAD MASTER ----------------
-master = client.open("MASTERBRANCHSHEET").sheet1
-branches = master.get_all_records()
+@st.cache_resource
+def get_client():
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
 
-# ⚠️ KEEP EXACT NAMES FROM SHEET (NO CHANGES)
+client = get_client()
+
+# ---------------- LOAD MASTER (CACHE ONLY) ----------------
+@st.cache_data(ttl=600)
+def load_branches():
+    master = client.open("MASTERBRANCHSHEET").sheet1
+    return master.get_all_records()
+
+branches = load_branches()
+
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
@@ -29,22 +38,27 @@ selected_date = st.date_input("📅 Select Stock Date")
 
 all_items = {}
 
+# ---------------- CACHE SHEET DATA ONLY ----------------
+@st.cache_data(ttl=300)
+def get_sheet_data(sheet_id):
+    file = client.open_by_key(sheet_id)
+    sheet = file.worksheet("Stocks")
+    return sheet.get_all_records()
+
 # ---------------- FETCH DATA ----------------
 for branch in branches:
-    branch_name = branch["BranchName"]   # ✅ EXACT NAME USED (NO MODIFICATION)
+    branch_name = branch["BranchName"]
     sheet_id = branch["SheetID"]
 
     try:
-        file = client.open_by_key(sheet_id)
-        stock_sheet = file.worksheet("Stocks")
-        data = pd.DataFrame(stock_sheet.get_all_records())
+        data = pd.DataFrame(get_sheet_data(sheet_id))
 
         if data.empty:
             continue
 
         item_col = data.columns[0]
 
-        # ---------------- MAP DATE COLUMNS ----------------
+        # ---------------- DATE MAP ----------------
         date_map = {}
         for col in data.columns[1:]:
             try:
@@ -53,7 +67,6 @@ for branch in branches:
             except:
                 pass
 
-        # ---------------- CHECK DATE ----------------
         if selected_date not in date_map:
             continue
 
@@ -65,7 +78,6 @@ for branch in branches:
             qty = row[chosen_col]
 
             if item not in all_items:
-                # ⚠️ KEEP EXACT BRANCH KEYS (NO CHANGES)
                 all_items[item] = {bn: 0 for bn in branch_names}
 
             all_items[item][branch_name] = qty
@@ -103,8 +115,3 @@ def highlight_low(val):
 styled_df = df.style.applymap(highlight_low, subset=branch_names)
 
 st.dataframe(styled_df, use_container_width=True)
-
-
-
-
-
