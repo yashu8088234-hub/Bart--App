@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+from datetime import datetime
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 
@@ -17,13 +18,18 @@ client = gspread.authorize(creds)
 master = client.open("MASTERBRANCHSHEET").sheet1
 branches = master.get_all_records()
 
-branch_names = [b["BranchName"] for b in branches]
+# 🔁 CHANGED: Branch Name → Branch Code
+branch_codes = [b["BranchCode"] for b in branches]
 
 all_items = {}
 
+# ---------------- DATE PICKER ----------------
+selected_date = st.date_input("📅 Select Date")
+selected_date_str = selected_date.strftime("%d/%m/%y").lstrip("0").replace("/0", "/")
+
 # ---------------- FETCH DATA ----------------
 for branch in branches:
-    branch_name = branch["BranchName"]
+    branch_code = branch["BranchCode"]
     sheet_id = branch["SheetID"]
 
     try:
@@ -33,25 +39,35 @@ for branch in branches:
 
         if not data.empty:
             item_col = data.columns[0]
-            latest_col = data.columns[-1]
 
             for _, row in data.iterrows():
                 item = str(row[item_col]).strip()
-                qty = row[latest_col]
 
                 if item not in all_items:
-                    all_items[item] = {bn: 0 for bn in branch_names}
+                    all_items[item] = {"raw_data": {}}
 
-                all_items[item][branch_name] = qty
+                # 🔁 CHANGED: store by branch_code
+                all_items[item]["raw_data"][branch_code] = row
 
     except Exception as e:
-        st.error(f"{branch_name} error: {e}")
+        st.error(f"{branch_code} error: {e}")
 
 # ---------------- BUILD FINAL TABLE ----------------
 rows = []
+
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
-    row.update(values)
+
+    # 🔁 CHANGED: branch_code used
+    for branch_code in branch_codes:
+        try:
+            branch_row = values.get("raw_data", {}).get(branch_code, {})
+            qty = branch_row.get(selected_date_str, 0)
+        except:
+            qty = 0
+
+        row[branch_code] = qty
+
     rows.append(row)
 
 df = pd.DataFrame(rows)
@@ -72,6 +88,7 @@ def highlight_low(val):
         return ""
     return ""
 
-styled_df = df.style.applymap(highlight_low, subset=branch_names)
+# 🔁 CHANGED: subset uses branch_codes
+styled_df = df.style.applymap(highlight_low, subset=branch_codes)
 
 st.dataframe(styled_df, use_container_width=True)
