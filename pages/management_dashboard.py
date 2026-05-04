@@ -8,7 +8,7 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 
 st.title("📦 BART - Stock Management (All Branches)")
 
-# ---------------- GOOGLE AUTH (OPTIMIZED) ----------------
+# ---------------- GOOGLE AUTH ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -23,7 +23,7 @@ def get_client():
 
 client = get_client()
 
-# ---------------- LOAD MASTER (CACHE ONLY) ----------------
+# ---------------- LOAD MASTER ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     master = client.open("MASTERBRANCHSHEET").sheet1
@@ -31,6 +31,7 @@ def load_branches():
 
 branches = load_branches()
 
+# ⚠️ KEEP EXACT NAMES
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
@@ -38,29 +39,34 @@ selected_date = st.date_input("📅 Select Stock Date")
 
 all_items = {}
 
-# ---------------- CACHE SHEET DATA ONLY ----------------
+# ---------------- FETCH SHEET DATA (FIXED) ----------------
 @st.cache_data(ttl=300)
 def get_sheet_data(sheet_id):
     file = client.open_by_key(sheet_id)
     sheet = file.worksheet("Stocks")
-    return sheet.get_all_records()
+    return sheet.get_all_values()
 
-# ---------------- FETCH DATA ----------------
+# ---------------- PROCESS DATA ----------------
 for branch in branches:
     branch_name = branch["BranchName"]
     sheet_id = branch["SheetID"]
 
     try:
-        data = pd.DataFrame(get_sheet_data(sheet_id))
+        raw = get_sheet_data(sheet_id)
 
-        if data.empty:
+        if not raw or len(raw) < 2:
             continue
 
-        item_col = data.columns[0]
+        headers = raw[0]
+        rows = raw[1:]
+
+        data = pd.DataFrame(rows, columns=headers)
+
+        item_col = headers[0]
 
         # ---------------- DATE MAP ----------------
         date_map = {}
-        for col in data.columns[1:]:
+        for col in headers[1:]:
             try:
                 col_date = datetime.datetime.strptime(col, "%d/%m/%y").date()
                 date_map[col_date] = col
