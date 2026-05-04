@@ -5,7 +5,7 @@ import time
 from background import set_background
 
 # -----------------------------
-# UI SETUP
+# UI
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
@@ -37,7 +37,7 @@ st.markdown(
 )
 
 # -----------------------------
-# GOOGLE SHEETS AUTH
+# GOOGLE SHEETS
 # -----------------------------
 try:
     creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
@@ -76,13 +76,12 @@ def load_data(_sheet):
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# MODE SELECTION
+# MODE
 # -----------------------------
 if "mode" not in st.session_state:
     st.session_state.mode = None
 
 if st.session_state.mode is None:
-
     st.markdown("## Select Stock Type")
 
     c1, c2 = st.columns(2)
@@ -113,9 +112,18 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# STRICT INPUT (NO DEFAULT, NO ZERO AUTO)
+# INIT DRAFT STORAGE (NO API)
 # -----------------------------
-st.markdown("## Enter Stock (Manual Mandatory Input)")
+if "draft_data" not in st.session_state:
+    st.session_state.draft_data = {}
+
+if "review_mode" not in st.session_state:
+    st.session_state.review_mode = False
+
+# -----------------------------
+# INPUT (NO DEFAULT VALUES)
+# -----------------------------
+st.markdown("## Enter Stock (Stored Locally)")
 
 inputs = {}
 
@@ -128,54 +136,45 @@ for i in range(0, len(filtered_items), 4):
             item = filtered_items[i + j]
 
             value = col.text_input(
-                label=item,
+                item,
                 placeholder="Enter quantity (required)",
                 key=f"{mode}_{item}"
             )
 
-            if value.strip() == "":
-                inputs[item] = None
-            else:
-                try:
-                    inputs[item] = float(value)
-                except:
-                    st.error(f"Invalid input for {item}")
-                    inputs[item] = None
+            inputs[item] = value.strip() if value.strip() != "" else None
 
 # -----------------------------
-# REVIEW STEP (VALIDATION)
+# REVIEW (NO API)
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
     missing = [k for k, v in inputs.items() if v is None]
 
     if missing:
-        st.error("🚨 Missing Inputs Found")
-
-        st.warning("You must enter values for ALL items. No defaults allowed.")
+        st.error("🚨 Missing values detected")
 
         for m in missing[:20]:
-            st.write(f"❌ Missing: {m}")
+            st.warning(f"Fill: {m}")
 
         st.stop()
 
-    st.session_state.pending = inputs
-    st.session_state.review = True
+    st.session_state.draft_data = inputs
+    st.session_state.review_mode = True
 
 # -----------------------------
-# PENDING SCREEN
+# REVIEW SCREEN
 # -----------------------------
-if st.session_state.get("review"):
+if st.session_state.review_mode:
 
-    st.markdown("## 🟡 Pending Review (NOT SAVED YET)")
+    st.markdown("## 🟡 Pending Review (NOT SAVED)")
 
-    for k, v in st.session_state.pending.items():
+    for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    st.warning("⚠️ Nothing is saved yet")
+    st.warning("⚠️ Data is stored locally only. Not sent yet.")
 
     # -----------------------------
-    # FINAL SUBMIT (API SAFE)
+    # FINAL SUBMIT (ONLY API CALL HERE)
     # -----------------------------
     if st.button("✅ Final Submit"):
 
@@ -191,7 +190,7 @@ if st.session_state.get("review"):
 
             updates = []
 
-            for item, qty in st.session_state.pending.items():
+            for item, qty in st.session_state.draft_data.items():
 
                 if not item or item.strip() == "":
                     continue
@@ -199,39 +198,36 @@ if st.session_state.get("review"):
                 if item not in items_list:
                     continue
 
-                row_index = items_list.index(item) + 2
+                row = items_list.index(item) + 2
 
-                # SAFE: ignore blank master rows
-                master_value = sheet.cell(row_index, 1).value
-                if not master_value or master_value.strip() == "":
+                master_value = sheet.cell(row, 1).value
+                if not master_value:
                     continue
 
-                cell = gspread.utils.rowcol_to_a1(row_index, col_index)
+                cell = gspread.utils.rowcol_to_a1(row, col_index)
 
                 updates.append({
                     "range": cell,
                     "values": [[qty]]
                 })
 
-            # -----------------------------
             # SINGLE API CALL ONLY
-            # -----------------------------
             if updates:
                 sheet.batch_update(updates)
                 st.success(f"✅ {len(updates)} items saved successfully")
 
             # RESET
-            st.session_state.pending = {}
-            st.session_state.review = False
+            st.session_state.draft_data = {}
+            st.session_state.review_mode = False
 
             time.sleep(2)
             st.rerun()
 
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"API Error: {e}")
 
 # -----------------------------
-# BACK BUTTON
+# BACK
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
