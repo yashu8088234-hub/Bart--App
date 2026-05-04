@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-from datetime import datetime
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 
@@ -14,76 +13,45 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- MASTER ----------------
+# ---------------- LOAD MASTER ----------------
 master = client.open("MASTERBRANCHSHEET").sheet1
 branches = master.get_all_records()
 
-# 🔥 IMPORTANT:
-# Code = display
-# Name = real sheet source
-branch_codes = [b["BranchCode"] for b in branches]
+branch_names = [b["BranchName"] for b in branches]
 
-# mapping
-branch_map = {
-    b["BranchCode"]: {
-        "name": b["BranchName"],   # used for sheet access
-        "sheet": b["SheetID"]
-    }
-    for b in branches
-}
-
-# ---------------- CACHE ----------------
-@st.cache_data(ttl=300)
-def load_data(sheet_id):
-    file = client.open_by_key(sheet_id)
-    sheet = file.worksheet("Stocks")
-    return pd.DataFrame(sheet.get_all_records())
-
-# ---------------- DATE ----------------
-selected_date = st.date_input("📅 Select Date")
-selected_date_str = selected_date.strftime("%d/%m/%y").lstrip("0").replace("/0", "/")
-
-# ---------------- DATA ----------------
 all_items = {}
 
-# ---------------- FETCH (IMPORTANT FIX HERE) ----------------
-for code in branch_codes:
-    branch_name = branch_map[code]["name"]   # 👈 REAL SHEET SOURCE
-    sheet_id = branch_map[code]["sheet"]
+# ---------------- FETCH DATA ----------------
+for branch in branches:
+    branch_name = branch["BranchName"]
+    sheet_id = branch["SheetID"]
 
     try:
-        data = load_data(sheet_id)
+        file = client.open_by_key(sheet_id)
+        stock_sheet = file.worksheet("Stocks")
+        data = pd.DataFrame(stock_sheet.get_all_records())
 
         if not data.empty:
             item_col = data.columns[0]
+            latest_col = data.columns[-1]
 
             for _, row in data.iterrows():
                 item = str(row[item_col]).strip()
+                qty = row[latest_col]
 
                 if item not in all_items:
-                    all_items[item] = {"branches": {}}
+                    all_items[item] = {bn: 0 for bn in branch_names}
 
-                # store using CODE but data comes from NAME sheet
-                all_items[item]["branches"][code] = row
+                all_items[item][branch_name] = qty
 
     except Exception as e:
-        st.error(f"{code} ({branch_name}) error: {e}")
+        st.error(f"{branch_name} error: {e}")
 
-# ---------------- BUILD TABLE ----------------
+# ---------------- BUILD FINAL TABLE ----------------
 rows = []
-
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
-
-    for code in branch_codes:
-        try:
-            branch_row = values.get("branches", {}).get(code, {})
-            qty = branch_row.get(selected_date_str, 0)
-        except:
-            qty = 0
-
-        row[code] = qty   # 👈 DISPLAY IS CODE
-
+    row.update(values)
     rows.append(row)
 
 df = pd.DataFrame(rows)
@@ -91,7 +59,9 @@ df = pd.DataFrame(rows)
 # ---------------- DISPLAY ----------------
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK ----------------
+# ---------------- LOW STOCK ALERT ----------------
+st.markdown("## ⚠️ Low Stock Highlight")
+
 def highlight_low(val):
     try:
         if float(val) == 0:
@@ -102,6 +72,15 @@ def highlight_low(val):
         return ""
     return ""
 
-styled_df = df.style.applymap(highlight_low, subset=branch_codes)
+styled_df = df.style.applymap(highlight_low, subset=branch_names)
 
 st.dataframe(styled_df, use_container_width=True)
+
+
+
+
+
+
+
+
+
