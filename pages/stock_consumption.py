@@ -5,7 +5,7 @@ import time
 from background import set_background
 
 # -----------------------------
-# BACKGROUND + UI
+# UI SETUP
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
@@ -32,7 +32,7 @@ div.stButton > button{
 branch = st.session_state.get("selected_branch", "Branch")
 st.markdown(
     f"<h1 style='text-align:center;color:red;'>"
-    f"{branch} - Stock Management System</h1>",
+    f"{branch} - Stock System</h1>",
     unsafe_allow_html=True
 )
 
@@ -48,7 +48,7 @@ try:
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
-    st.error(f"Google Auth Error: {e}")
+    st.error(e)
     st.stop()
 
 if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
@@ -58,7 +58,7 @@ if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
 sheet = client.open_by_key(st.session_state.sheet_id).worksheet(st.session_state.tab_name)
 
 # -----------------------------
-# LOAD DATA (IGNORE EMPTY ROWS SAFELY)
+# LOAD DATA (IGNORE EMPTY ROWS)
 # -----------------------------
 @st.cache_data(ttl=300)
 def load_data(_sheet):
@@ -87,11 +87,11 @@ if st.session_state.mode is None:
 
     c1, c2 = st.columns(2)
 
-    if c1.button("📦 Daily Stock (0–99)"):
+    if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
         st.rerun()
 
-    if c2.button("📊 Weekly Stock (100+)"):
+    if c2.button("📊 Weekly Stock"):
         st.session_state.mode = "weekly"
         st.rerun()
 
@@ -102,10 +102,7 @@ mode = st.session_state.mode
 # -----------------------------
 # FILTER ITEMS
 # -----------------------------
-if mode == "daily":
-    filtered_items = items_list[:99]
-else:
-    filtered_items = items_list[99:]
+filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
@@ -116,16 +113,9 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUT SECTION (NO DEFAULTS)
+# STRICT INPUT (NO DEFAULT, NO ZERO AUTO)
 # -----------------------------
-st.markdown("## Enter Stock Manually (No Defaults Allowed)")
-
-search = st.text_input("Search Item")
-
-if search:
-    filtered_items = [
-        i for i in filtered_items if search.lower() in i.lower()
-    ]
+st.markdown("## Enter Stock (Manual Mandatory Input)")
 
 inputs = {}
 
@@ -137,87 +127,98 @@ for i in range(0, len(filtered_items), 4):
 
             item = filtered_items[i + j]
 
-            qty = col.number_input(
-                item,
-                min_value=0,
-                step=1,
+            value = col.text_input(
+                label=item,
+                placeholder="Enter quantity (required)",
                 key=f"{mode}_{item}"
             )
 
-            inputs[item] = qty
+            if value.strip() == "":
+                inputs[item] = None
+            else:
+                try:
+                    inputs[item] = float(value)
+                except:
+                    st.error(f"Invalid input for {item}")
+                    inputs[item] = None
 
 # -----------------------------
-# STEP 1: REVIEW
+# REVIEW STEP (VALIDATION)
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
     missing = [k for k, v in inputs.items() if v is None]
 
     if missing:
-        st.error("Missing values detected!")
-        for m in missing:
-            st.warning(f"Enter value for: {m}")
+        st.error("🚨 Missing Inputs Found")
+
+        st.warning("You must enter values for ALL items. No defaults allowed.")
+
+        for m in missing[:20]:
+            st.write(f"❌ Missing: {m}")
+
         st.stop()
 
     st.session_state.pending = inputs
     st.session_state.review = True
 
 # -----------------------------
-# STEP 2: PENDING LIST
+# PENDING SCREEN
 # -----------------------------
 if st.session_state.get("review"):
 
-    st.markdown("## 🟡 Pending Review List (NOT SAVED YET)")
+    st.markdown("## 🟡 Pending Review (NOT SAVED YET)")
 
     for k, v in st.session_state.pending.items():
         st.write(f"{k} → {v}")
 
-    st.warning("⚠️ Data is NOT saved to Google Sheets yet.")
+    st.warning("⚠️ Nothing is saved yet")
 
     # -----------------------------
-    # FINAL SUBMIT
+    # FINAL SUBMIT (API SAFE)
     # -----------------------------
-    if st.button("✅ Final Submit to Google Sheet"):
+    if st.button("✅ Final Submit"):
 
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
-            col_index = headers.index(date_str) if date_str in headers else len(headers)
-
-            if date_str not in headers:
-                sheet.update_cell(1, col_index + 1, date_str)
+            if date_str in headers:
+                col_index = headers.index(date_str) + 1
+            else:
+                col_index = len(headers) + 1
+                sheet.update_cell(1, col_index, date_str)
                 headers.append(date_str)
 
             updates = []
 
             for item, qty in st.session_state.pending.items():
 
-                # -----------------------------
-                # IGNORE EMPTY / FUTURE ROWS
-                # -----------------------------
                 if not item or item.strip() == "":
                     continue
 
                 if item not in items_list:
                     continue
 
-                row = items_list.index(item) + 2
+                row_index = items_list.index(item) + 2
 
-                master_value = sheet.cell(row, 1).value
-
+                # SAFE: ignore blank master rows
+                master_value = sheet.cell(row_index, 1).value
                 if not master_value or master_value.strip() == "":
                     continue
 
-                cell = gspread.utils.rowcol_to_a1(row, col_index + 1)
+                cell = gspread.utils.rowcol_to_a1(row_index, col_index)
 
                 updates.append({
                     "range": cell,
                     "values": [[qty]]
                 })
 
+            # -----------------------------
+            # SINGLE API CALL ONLY
+            # -----------------------------
             if updates:
                 sheet.batch_update(updates)
-                st.success(f"✅ {len(updates)} items successfully saved")
+                st.success(f"✅ {len(updates)} items saved successfully")
 
             # RESET
             st.session_state.pending = {}
