@@ -23,36 +23,38 @@ def get_client():
 
 client = get_client()
 
-# ---------------- LOAD MASTER ----------------
+# ---------------- LOAD MASTER SHEET ----------------
 @st.cache_data(ttl=600)
 def load_branches():
-    master = client.open("MASTERBRANCHSHEET").sheet1
-    return master.get_all_records()
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    return sheet.get_all_records()
 
 branches = load_branches()
 
-# ⚠️ KEEP EXACT NAMES (DO NOT CHANGE)
+# KEEP EXACT NAMES (IMPORTANT)
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 
+selected_date_str = selected_date.strftime("%Y-%m-%d")
+
 all_items = {}
 
-# ---------------- FETCH SHEET DATA ----------------
+# ---------------- FETCH SHEET ----------------
 @st.cache_data(ttl=300)
-def get_sheet_data(sheet_id):
+def get_sheet(sheet_id):
     file = client.open_by_key(sheet_id)
-    sheet = file.worksheet("Stocks")
-    return sheet.get_all_values()
+    ws = file.worksheet("Stocks")
+    return ws.get_all_values()
 
-# ---------------- PROCESS DATA ----------------
+# ---------------- PROCESS ----------------
 for branch in branches:
     branch_name = branch["BranchName"]
     sheet_id = branch["SheetID"]
 
     try:
-        raw = get_sheet_data(sheet_id)
+        raw = get_sheet(sheet_id)
 
         if not raw or len(raw) < 2:
             continue
@@ -60,33 +62,28 @@ for branch in branches:
         headers = raw[0]
         rows = raw[1:]
 
-        data = pd.DataFrame(rows, columns=headers)
+        df = pd.DataFrame(rows, columns=headers)
 
         item_col = headers[0]
 
-        # ---------------- DATE MAP ----------------
-        date_map = {}
-        for col in headers[1:]:
-            try:
-                col_date = datetime.datetime.strptime(col, "%d/%m/%y").date()
-                date_map[col_date] = col
-            except:
-                pass
-
-        if selected_date not in date_map:
+        # ---------------- FIND DATE COLUMN (YOUR FORMAT: YYYY-MM-DD) ----------------
+        if selected_date_str not in headers:
             continue
 
-        chosen_col = date_map[selected_date]
+        chosen_col = selected_date_str
 
         # ---------------- BUILD DATA ----------------
-        for _, row in data.iterrows():
+        for _, row in df.iterrows():
             item = str(row[item_col]).strip()
-            qty = row[chosen_col]
+            qty = row.get(chosen_col, "")
 
             if item not in all_items:
                 all_items[item] = {bn: 0 for bn in branch_names}
 
-            all_items[item][branch_name] = qty
+            try:
+                all_items[item][branch_name] = float(qty) if qty != "" else 0
+            except:
+                all_items[item][branch_name] = 0
 
     except Exception as e:
         st.error(f"{branch_name} error: {e}")
@@ -104,11 +101,11 @@ df = pd.DataFrame(rows)
 st.subheader("📊 Stock Data")
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK ----------------
+# ---------------- LOW STOCK HIGHLIGHT ----------------
 st.markdown("## ⚠️ Low Stock Highlight")
 
 if df.empty:
-    st.warning("No data found for selected date")
+    st.warning("No stock data found for selected date")
     st.stop()
 
 def highlight_low(val):
@@ -122,7 +119,7 @@ def highlight_low(val):
         return ""
     return ""
 
-# SAFE COLUMN FILTER (FIX CRASH)
+# SAFE COLUMN SELECTION
 valid_columns = [col for col in branch_names if col in df.columns]
 
 styled_df = df.style.applymap(highlight_low, subset=valid_columns)
