@@ -14,33 +14,45 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- LOAD MASTER ----------------
+# ---------------- MASTER ----------------
 master = client.open("MASTERBRANCHSHEET").sheet1
 branches = master.get_all_records()
 
+# 🔥 IMPORTANT:
+# Code = display
+# Name = real sheet source
 branch_codes = [b["BranchCode"] for b in branches]
+
+# mapping
+branch_map = {
+    b["BranchCode"]: {
+        "name": b["BranchName"],   # used for sheet access
+        "sheet": b["SheetID"]
+    }
+    for b in branches
+}
 
 # ---------------- CACHE ----------------
 @st.cache_data(ttl=300)
-def load_branch_data(sheet_id):
+def load_data(sheet_id):
     file = client.open_by_key(sheet_id)
-    stock_sheet = file.worksheet("Stocks")
-    return pd.DataFrame(stock_sheet.get_all_records())
+    sheet = file.worksheet("Stocks")
+    return pd.DataFrame(sheet.get_all_records())
 
 # ---------------- DATE ----------------
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%d/%m/%y").lstrip("0").replace("/0", "/")
 
-# ---------------- DATA STORE ----------------
+# ---------------- DATA ----------------
 all_items = {}
 
-# ---------------- FETCH ----------------
-for branch in branches:
-    branch_code = branch["BranchCode"]
-    sheet_id = branch["SheetID"]
+# ---------------- FETCH (IMPORTANT FIX HERE) ----------------
+for code in branch_codes:
+    branch_name = branch_map[code]["name"]   # 👈 REAL SHEET SOURCE
+    sheet_id = branch_map[code]["sheet"]
 
     try:
-        data = load_branch_data(sheet_id)
+        data = load_data(sheet_id)
 
         if not data.empty:
             item_col = data.columns[0]
@@ -49,16 +61,13 @@ for branch in branches:
                 item = str(row[item_col]).strip()
 
                 if item not in all_items:
-                    all_items[item] = {}
+                    all_items[item] = {"branches": {}}
 
-                # ✅ FIX: store per branch_code directly
-                if "branches" not in all_items[item]:
-                    all_items[item]["branches"] = {}
-
-                all_items[item]["branches"][branch_code] = row
+                # store using CODE but data comes from NAME sheet
+                all_items[item]["branches"][code] = row
 
     except Exception as e:
-        st.error(f"{branch_code} error: {e}")
+        st.error(f"{code} ({branch_name}) error: {e}")
 
 # ---------------- BUILD TABLE ----------------
 rows = []
@@ -66,14 +75,14 @@ rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
 
-    for branch_code in branch_codes:
+    for code in branch_codes:
         try:
-            branch_row = values.get("branches", {}).get(branch_code, {})
+            branch_row = values.get("branches", {}).get(code, {})
             qty = branch_row.get(selected_date_str, 0)
         except:
             qty = 0
 
-        row[branch_code] = qty
+        row[code] = qty   # 👈 DISPLAY IS CODE
 
     rows.append(row)
 
