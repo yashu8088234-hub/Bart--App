@@ -167,15 +167,6 @@ st.markdown("## 🤖 AI Assistant")
 
 
 
-if query:
-    context = {
-        "revenue":  total_revenue_calc if "total_revenue_calc" in locals() else 0,
-        "items": total_items_calc if "total_items_calc" in locals() else 0,
-        "sales": st.session_state.get("pending_sales", [])
-    }
-
-    answer = run_ai(query, context)
-    st.success(answer)
 
 
 
