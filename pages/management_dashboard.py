@@ -18,24 +18,28 @@ client = gspread.authorize(creds)
 master = client.open("MASTERBRANCHSHEET").sheet1
 branches = master.get_all_records()
 
-# 🔁 CHANGED: Branch Name → Branch Code
 branch_codes = [b["BranchCode"] for b in branches]
 
 all_items = {}
+
+# ---------------- CACHE FUNCTION (FIX QUOTA + SPEED) ----------------
+@st.cache_data(ttl=300)
+def load_branch_data(sheet_id):
+    file = client.open_by_key(sheet_id)
+    stock_sheet = file.worksheet("Stocks")
+    return pd.DataFrame(stock_sheet.get_all_records())
 
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%d/%m/%y").lstrip("0").replace("/0", "/")
 
-# ---------------- FETCH DATA ----------------
+# ---------------- FETCH DATA (OPTIMIZED) ----------------
 for branch in branches:
     branch_code = branch["BranchCode"]
     sheet_id = branch["SheetID"]
 
     try:
-        file = client.open_by_key(sheet_id)
-        stock_sheet = file.worksheet("Stocks")
-        data = pd.DataFrame(stock_sheet.get_all_records())
+        data = load_branch_data(sheet_id)
 
         if not data.empty:
             item_col = data.columns[0]
@@ -46,7 +50,6 @@ for branch in branches:
                 if item not in all_items:
                     all_items[item] = {"raw_data": {}}
 
-                # 🔁 CHANGED: store by branch_code
                 all_items[item]["raw_data"][branch_code] = row
 
     except Exception as e:
@@ -58,7 +61,6 @@ rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
 
-    # 🔁 CHANGED: branch_code used
     for branch_code in branch_codes:
         try:
             branch_row = values.get("raw_data", {}).get(branch_code, {})
@@ -75,7 +77,7 @@ df = pd.DataFrame(rows)
 # ---------------- DISPLAY ----------------
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK ALERT ----------------
+# ---------------- LOW STOCK HIGHLIGHT ----------------
 st.markdown("## ⚠️ Low Stock Highlight")
 
 def highlight_low(val):
@@ -88,7 +90,6 @@ def highlight_low(val):
         return ""
     return ""
 
-# 🔁 CHANGED: subset uses branch_codes
 styled_df = df.style.applymap(highlight_low, subset=branch_codes)
 
 st.dataframe(styled_df, use_container_width=True)
