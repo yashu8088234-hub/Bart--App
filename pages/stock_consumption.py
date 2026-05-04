@@ -1,288 +1,196 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from rapidfuzz import process, fuzz
-from background import set_background
 import time
+from background import set_background
 
 # -----------------------------
 # Background & UI Setup
 # -----------------------------
 set_background("barthomepage.jpg")
-st.set_page_config(page_title="Daily Stock Consumption", layout="wide")
+st.set_page_config(page_title="Stock Count System", layout="wide")
 
-# Hide Streamlit UI + remove number input spinners + button styling
 hide_streamlit = """
 <style>
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 header {visibility:hidden;}
-[data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
-.block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
+.block-container {padding:0 !important; margin:0 auto !important; max-width:100% !important;}
 .stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
 div.stButton > button{height:60px;font-size:20px;border-radius:10px;transition:0.3s;}
 div.stButton > button:hover{background-color:#ff4b4b;color:white;}
 input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+input[type=number] { -moz-appearance:textfield; }
 </style>
 """
 st.markdown(hide_streamlit, unsafe_allow_html=True)
 
 # -----------------------------
-# Page Title
+# Title
 # -----------------------------
 branch_name_display = st.session_state.get("selected_branch", "Unknown Branch")
-st.markdown(f"<h1 style='text-align:center; color:red; font-size:60px;'>{branch_name_display} - Daily Stock Consumption</h1>", unsafe_allow_html=True)
+st.markdown(
+    f"<h1 style='text-align:center;color:red;font-size:55px;'>"
+    f"{branch_name_display} - Stock Count System</h1>",
+    unsafe_allow_html=True
+)
 
 # -----------------------------
-# Google Sheets Setup using Streamlit Secrets
+# Google Sheets Auth
 # -----------------------------
 try:
     creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
-    st.error(f"Error connecting to Google API: {e}")
+    st.error(f"Google Auth Error: {e}")
     st.stop()
 
 # -----------------------------
-# Ensure branch sheet & tab are selected
+# Sheet Validation
 # -----------------------------
 if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
-    st.error("No branch or tab selected. Please go back to Staff Dashboard.")
+    st.error("No branch selected. Go back to dashboard.")
     st.stop()
 
 branch_sheet = client.open_by_key(st.session_state.sheet_id)
 sheet = branch_sheet.worksheet(st.session_state.tab_name)
-st.write(f"Using tab: {sheet.title}")
 
 # -----------------------------
-# Cached Sheet Data
+# Load Sheet Data (cached)
 # -----------------------------
 @st.cache_data(ttl=300)
 def load_sheet(_sheet):
     data = _sheet.get_all_values()
     headers = data[0]
-    items = [row[0].strip() for row in data[1:]]
-    items_lower = [i.lower() for i in items]
-    return data, headers, items, items_lower
+    items = [row[0].strip() for row in data[1:] if row]
+    return data, headers, items
 
-try:
-    sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-except Exception as e:
-    st.error(f"Error loading sheet data: {e}")
-    st.stop()
+sheet_data, headers, existing_items_list = load_sheet(sheet)
 
 # -----------------------------
-# Initialize Session States
+# Session State
 # -----------------------------
-st.session_state.setdefault("pending_updates", [])
-st.session_state.setdefault("selected_items", {})
-st.session_state.setdefault("pending_checkbox_state", {})
-st.session_state.setdefault("inventory_mode", "paste")
-st.session_state.setdefault("smart_review_ready", False)
+st.session_state.setdefault("smart_inputs", {})
+st.session_state.setdefault("smart_review", False)
+st.session_state.setdefault("view_mode", "daily")
 
 # -----------------------------
-# Date Input + Smart Inventory Button
+# MODE SELECTION
 # -----------------------------
 col1, col2 = st.columns(2)
+
 with col1:
-    date = st.date_input("Select Inventory Date")
-    date_str = str(date)
+    if st.button("📦 Daily Stock Count"):
+        st.session_state.view_mode = "daily"
+        st.session_state.smart_review = False
+
 with col2:
-    if st.button("🧠 Smart Inventory"):
-        st.session_state.inventory_mode = "smart"
-        st.session_state.smart_review_ready = False
-        st.rerun()
-st.info(f"Inventory will be recorded under date: {date_str}")
+    if st.button("📊 Weekly Stock Count"):
+        st.session_state.view_mode = "weekly"
+        st.session_state.smart_review = False
+
+mode = st.session_state.view_mode
 
 # -----------------------------
-# Smart Inventory Mode
+# FILTER ITEMS (KEY CHANGE)
 # -----------------------------
-if st.session_state.inventory_mode == "smart":
-    st.markdown("## 🧠 Smart Inventory Entry")
-    search = st.text_input("🔍 Search Item", placeholder="Type to filter items...")
-    smart_inputs = {}
-    filtered_items = [item for item in existing_items_list if search.lower() in item.lower()] if search else existing_items_list
-    st.write(f"Showing {len(filtered_items)} items")
-
-    for i in range(0, len(filtered_items), 4):
-        cols = st.columns(4)
-        for j, col in enumerate(cols):
-            if i + j < len(filtered_items):
-                item = filtered_items[i + j]
-                qty = col.number_input(f"{item}", min_value=0, step=1, format="%g", key=f"smart_{item}")
-                if qty != 0:
-                    smart_inputs[item] = qty
-
-    # Review Button
-    if st.button("Review Smart Inventory"):
-        st.session_state.smart_review_ready = True
-        st.session_state.smart_inputs_to_submit = smart_inputs
-        st.rerun()
-
-    # Display Review
-    if st.session_state.smart_review_ready:
-        st.markdown("### Review Inventory Before Submit")
-        left_col, right_col = st.columns(2)
-        for idx, (item, qty) in enumerate(st.session_state.smart_inputs_to_submit.items()):
-            col = left_col if idx % 2 == 0 else right_col
-            col.write(f"{item} → {qty}")
-
-        if st.button("Submit Smart Inventory"):
-            try:
-                sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-                col_index = headers.index(date_str) if date_str in headers else len(headers)
-                if date_str not in headers:
-                    sheet.update_cell(1, col_index + 1, date_str)
-                    headers.append(date_str)
-
-                updates = []
-                for item_name, qty in st.session_state.smart_inputs_to_submit.items():
-                    if item_name not in existing_items_list:
-                        st.warning(f"{item_name} not found in master inventory. Skipped.")
-                        continue
-                    row_index = existing_items_list.index(item_name) + 1
-                    try:
-                        cell_value = sheet_data[row_index][col_index]
-                    except IndexError:
-                        cell_value = ""
-                    if cell_value:  # <-- CHECK EXISTING DATA
-                        st.warning(f"{item_name} already has data for {date_str}. Skipped.")
-                        continue
-                    cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
-                    updates.append({"range": cell, "values": [[qty]]})
-
-                if updates:
-                    sheet.batch_update(updates)
-                    st.success(f"{len(updates)} items updated successfully.")
-                else:
-                    st.info("No updates needed.")
-
-                time.sleep(2)
-                st.session_state.smart_review_ready = False
-                st.session_state.smart_inputs_to_submit = {}
-                st.session_state.inventory_mode = "paste"
-                st.switch_page("pages/staff_dashboard.py")
-            except Exception as e:
-                st.error(f"Error submitting updates: {e}")
-                st.switch_page("pages/staff_dashboard.py")
-
-    col1, col2 = st.columns(2)
-    with col2:
-        if st.button("⬅ Back to Paste Inventory"):
-            st.session_state.inventory_mode = "paste"
-            st.session_state.smart_review_ready = False
-            st.session_state.smart_inputs_to_submit = {}
-            st.rerun()
-    st.stop()
+if mode == "daily":
+    filtered_items = existing_items_list[:99]
+    st.info("📦 Daily Mode: Showing first 99 items")
+else:
+    filtered_items = existing_items_list[99:]
+    st.info("📊 Weekly Mode: Showing items after 99")
 
 # -----------------------------
-# Paste Inventory Workflow
+# DATE
 # -----------------------------
-inventory_text = st.text_area("Kindly paste the inventory here:", height=300)
-items_today = []
-if inventory_text:
-    for line in inventory_text.split("\n"):
-        line = line.strip()
-        if not line or "-" not in line:
-            continue
-        item, qty = line.rsplit("-", 1)
-        item = item.strip()
-        qty = qty.strip()
+date = st.date_input("Select Date")
+date_str = str(date)
+
+st.write(f"Recording stock for: {date_str}")
+
+# -----------------------------
+# SMART INVENTORY UI
+# -----------------------------
+st.markdown("## 🧠 Smart Inventory Entry")
+
+search = st.text_input("Search Item")
+
+if search:
+    filtered_items = [i for i in filtered_items if search.lower() in i.lower()]
+
+smart_inputs = {}
+
+cols_per_row = 4
+
+for i in range(0, len(filtered_items), cols_per_row):
+    cols = st.columns(cols_per_row)
+    for j, col in enumerate(cols):
+        if i + j < len(filtered_items):
+            item = filtered_items[i + j]
+            qty = col.number_input(
+                item,
+                min_value=0,
+                step=1,
+                key=f"{mode}_{item}"
+            )
+            if qty > 0:
+                smart_inputs[item] = qty
+
+# -----------------------------
+# REVIEW
+# -----------------------------
+if st.button("Review Stock"):
+    st.session_state.smart_inputs = smart_inputs
+    st.session_state.smart_review = True
+
+if st.session_state.smart_review:
+    st.markdown("## 🔍 Review")
+    for k, v in st.session_state.smart_inputs.items():
+        st.write(f"{k} → {v}")
+
+    if st.button("Submit Stock"):
         try:
-            qty = float(qty)
-        except:
-            st.warning(f"Invalid quantity for line: {line}. Skipping.")
-            continue
-        items_today.append((item, qty))
+            sheet_data, headers, existing_items_list = load_sheet(sheet)
 
-# Match items with inventory
-for item_name, qty in items_today:
-    try:
-        matches = process.extract(item_name.lower(), existing_items_lower, scorer=fuzz.WRatio, limit=5)
-        best_matches = [m for m in matches if m[1] > 50]
-        if not best_matches:
-            st.warning(f"Item '{item_name}' not found in inventory.")
-            continue
-        best_matches_original = [existing_items_list[existing_items_lower.index(m[0])] for m in best_matches]
-        word_count = len(item_name.split())
-        if word_count > 2 or len(best_matches_original) == 1:
-            selected = best_matches_original[0]
-            st.session_state.selected_items[item_name] = selected
-            st.success(f"{selected} auto-selected")
-        else:
-            st.markdown(f"### Possible matches for '{item_name}' ({qty})")
-            selected_option = None
-            for option in best_matches_original:
-                key = f"{item_name}_{option}"
-                checked = st.checkbox(option, key=key,
-                                      value=(st.session_state.selected_items.get(item_name) == option))
-                if checked and selected_option is None:
-                    selected_option = option
-            if selected_option:
-                st.session_state.selected_items[item_name] = selected_option
-    except Exception as e:
-        st.error(f"Error matching item '{item_name}': {e}")
+            col_index = headers.index(date_str) if date_str in headers else len(headers)
 
-# Add to pending updates
-if st.button("Add Inventory to Pending Updates"):
-    for item_name, qty in items_today:
-        if item_name in st.session_state.selected_items:
-            selected = st.session_state.selected_items[item_name]
-            if (selected, qty) not in st.session_state.pending_updates:
-                st.session_state.pending_updates.append((selected, qty))
-                st.session_state.pending_checkbox_state[selected] = True
-    st.success("Selected items added to pending updates")
+            if date_str not in headers:
+                sheet.update_cell(1, col_index + 1, date_str)
+                headers.append(date_str)
 
-# Display pending updates
-if st.session_state.pending_updates:
-    st.markdown("### Pending Updates (Check to update)")
-    for i, (iname, qty) in enumerate(st.session_state.pending_updates):
-        checked = st.checkbox(f"{iname} → {qty}", key=f"pending_{iname}",
-                              value=st.session_state.pending_checkbox_state.get(iname, True))
-        st.session_state.pending_checkbox_state[iname] = checked
+            updates = []
 
-# Submit pending updates
-if st.button("Submit Pending Updates"):
-    try:
-        sheet_data, headers, existing_items_list, existing_items_lower = load_sheet(sheet)
-        col_index = headers.index(date_str) if date_str in headers else len(headers)
-        if date_str not in headers:
-            sheet.update_cell(1, col_index + 1, date_str)
-            headers.append(date_str)
-        updates = []
-        for item_name, qty in st.session_state.pending_updates:
-            if not st.session_state.pending_checkbox_state.get(item_name, True):
-                continue
-            if item_name not in existing_items_list:
-                st.warning(f"{item_name} not found in master inventory. Skipped.")
-                continue
-            row_index = existing_items_list.index(item_name) + 1
-            try:
-                cell_value = sheet_data[row_index][col_index]
-            except IndexError:
-                cell_value = ""
-            if cell_value:  # <-- CHECK EXISTING DATA
-                st.warning(f"{item_name} already has data for {date_str}. Skipped.")
-                continue
-            cell = gspread.utils.rowcol_to_a1(row_index + 1, col_index + 1)
-            updates.append({"range": cell, "values": [[qty]]})
-        if updates:
-            sheet.batch_update(updates)
-            st.success(f"{len(updates)} items updated successfully.")
-        else:
-            st.info("No updates needed.")
-        time.sleep(4)
-        st.session_state.pending_updates = []
-        st.session_state.pending_checkbox_state = {}
-        st.switch_page("pages/staff_dashboard.py")
-    except Exception as e:
-        st.error(f"Error submitting updates: {e}")
-        st.switch_page("pages/staff_dashboard.py")
+            for item, qty in st.session_state.smart_inputs.items():
+                if item not in existing_items_list:
+                    continue
 
+                row = existing_items_list.index(item) + 2
+                cell = gspread.utils.rowcol_to_a1(row, col_index + 1)
+                updates.append({"range": cell, "values": [[qty]]})
+
+            if updates:
+                sheet.batch_update(updates)
+                st.success(f"{len(updates)} items updated")
+
+            st.session_state.smart_inputs = {}
+            st.session_state.smart_review = False
+
+            time.sleep(2)
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Submit error: {e}")
+
+# -----------------------------
+# BACK BUTTON
+# -----------------------------
 if st.button("⬅ Back"):
     st.switch_page("pages/staff_dashboard.py")
