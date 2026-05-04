@@ -155,7 +155,7 @@ with col1:
         st.switch_page("pages/staff_dashboard.py")
 with col2:
     if st.button("Management Login"):
-        st.write("COMING SOON")
+        st.switch_page("pages/management_dashboard.py")
 with col3:
     if st.button("Manager Login"):
         st.switch_page("pages/manager_dashboard.py")
