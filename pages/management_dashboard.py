@@ -20,20 +20,21 @@ branches = master.get_all_records()
 
 branch_codes = [b["BranchCode"] for b in branches]
 
-all_items = {}
-
-# ---------------- CACHE FUNCTION (FIX QUOTA + SPEED) ----------------
+# ---------------- CACHE ----------------
 @st.cache_data(ttl=300)
 def load_branch_data(sheet_id):
     file = client.open_by_key(sheet_id)
     stock_sheet = file.worksheet("Stocks")
     return pd.DataFrame(stock_sheet.get_all_records())
 
-# ---------------- DATE PICKER ----------------
+# ---------------- DATE ----------------
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%d/%m/%y").lstrip("0").replace("/0", "/")
 
-# ---------------- FETCH DATA (OPTIMIZED) ----------------
+# ---------------- DATA STORE ----------------
+all_items = {}
+
+# ---------------- FETCH ----------------
 for branch in branches:
     branch_code = branch["BranchCode"]
     sheet_id = branch["SheetID"]
@@ -48,14 +49,18 @@ for branch in branches:
                 item = str(row[item_col]).strip()
 
                 if item not in all_items:
-                    all_items[item] = {"raw_data": {}}
+                    all_items[item] = {}
 
-                all_items[item]["raw_data"][branch_code] = row
+                # ✅ FIX: store per branch_code directly
+                if "branches" not in all_items[item]:
+                    all_items[item]["branches"] = {}
+
+                all_items[item]["branches"][branch_code] = row
 
     except Exception as e:
         st.error(f"{branch_code} error: {e}")
 
-# ---------------- BUILD FINAL TABLE ----------------
+# ---------------- BUILD TABLE ----------------
 rows = []
 
 for i, (item, values) in enumerate(all_items.items(), start=1):
@@ -63,7 +68,7 @@ for i, (item, values) in enumerate(all_items.items(), start=1):
 
     for branch_code in branch_codes:
         try:
-            branch_row = values.get("raw_data", {}).get(branch_code, {})
+            branch_row = values.get("branches", {}).get(branch_code, {})
             qty = branch_row.get(selected_date_str, 0)
         except:
             qty = 0
@@ -77,9 +82,7 @@ df = pd.DataFrame(rows)
 # ---------------- DISPLAY ----------------
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK HIGHLIGHT ----------------
-st.markdown("## ⚠️ Low Stock Highlight")
-
+# ---------------- LOW STOCK ----------------
 def highlight_low(val):
     try:
         if float(val) == 0:
