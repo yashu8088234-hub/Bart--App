@@ -31,7 +31,7 @@ def load_branches():
 
 branches = load_branches()
 
-# ⚠️ KEEP EXACT NAMES
+# ⚠️ KEEP EXACT NAMES (DO NOT CHANGE)
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
@@ -39,7 +39,7 @@ selected_date = st.date_input("📅 Select Stock Date")
 
 all_items = {}
 
-# ---------------- FETCH SHEET DATA (FIXED) ----------------
+# ---------------- FETCH SHEET DATA ----------------
 @st.cache_data(ttl=300)
 def get_sheet_data(sheet_id):
     file = client.open_by_key(sheet_id)
@@ -91,7 +91,7 @@ for branch in branches:
     except Exception as e:
         st.error(f"{branch_name} error: {e}")
 
-# ---------------- FINAL TABLE ----------------
+# ---------------- FINAL DATAFRAME ----------------
 rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
@@ -107,6 +107,10 @@ st.dataframe(df, use_container_width=True)
 # ---------------- LOW STOCK ----------------
 st.markdown("## ⚠️ Low Stock Highlight")
 
+if df.empty:
+    st.warning("No data found for selected date")
+    st.stop()
+
 def highlight_low(val):
     try:
         val = float(val)
@@ -118,6 +122,9 @@ def highlight_low(val):
         return ""
     return ""
 
-styled_df = df.style.applymap(highlight_low, subset=branch_names)
+# SAFE COLUMN FILTER (FIX CRASH)
+valid_columns = [col for col in branch_names if col in df.columns]
+
+styled_df = df.style.applymap(highlight_low, subset=valid_columns)
 
 st.dataframe(styled_df, use_container_width=True)
