@@ -57,7 +57,7 @@ def get_sheet(sheet_id):
 
 # ---------------- PROCESS ----------------
 for branch in branches:
-    branch_name = branch["BranchName"]
+    branch_name = branch["BranchCode"]
     sheet_id = branch["SheetID"]
 
     try:
