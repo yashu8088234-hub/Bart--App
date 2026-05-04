@@ -2,52 +2,90 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import datetime
 
+# ================= SPEED OPTIMIZATION =================
 st.set_page_config(layout="wide", page_title="Stock Overview")
 
 st.title("📦 BART - Stock Management (All Branches)")
 
-# ---------------- GOOGLE AUTH ----------------
-creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+# ---------------- CACHE GOOGLE CLIENT ----------------
+@st.cache_resource
+def get_client():
+    creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
 
-# ---------------- LOAD MASTER ----------------
-master = client.open("MASTERBRANCHSHEET").sheet1
-branches = master.get_all_records()
+client = get_client()
 
+# ---------------- CACHE MASTER SHEET ----------------
+@st.cache_data(ttl=600)
+def load_branches():
+    master = client.open("MASTERBRANCHSHEET").sheet1
+    return master.get_all_records()
+
+branches = load_branches()
+
+# KEEP EXACT NAMES (NO CHANGE)
 branch_names = [b["BranchName"] for b in branches]
+
+# ---------------- DATE PICKER ----------------
+selected_date = st.date_input("📅 Select Stock Date")
 
 all_items = {}
 
+# ---------------- CACHE EACH BRANCH DATA ----------------
+@st.cache_data(ttl=300)
+def load_stock(sheet_id):
+    file = client.open_by_key(sheet_id)
+    sheet = file.worksheet("Stocks")
+    return pd.DataFrame(sheet.get_all_records())
+
 # ---------------- FETCH DATA ----------------
 for branch in branches:
-    branch_name = branch["BranchName"]
+    branch_name = branch["BranchName"]   # ❗ DO NOT MODIFY NAME
     sheet_id = branch["SheetID"]
 
     try:
-        file = client.open_by_key(sheet_id)
-        stock_sheet = file.worksheet("Stocks")
-        data = pd.DataFrame(stock_sheet.get_all_records())
+        data = load_stock(sheet_id)
 
-        if not data.empty:
-            item_col = data.columns[0]
-            latest_col = data.columns[-1]
+        if data.empty:
+            continue
 
-            for _, row in data.iterrows():
-                item = str(row[item_col]).strip()
-                qty = row[latest_col]
+        item_col = data.columns[0]
 
-                if item not in all_items:
-                    all_items[item] = {bn: 0 for bn in branch_names}
+        # -------- MAP DATE COLUMNS --------
+        date_map = {}
+        for col in data.columns[1:]:
+            try:
+                col_date = datetime.datetime.strptime(col, "%d/%m/%y").date()
+                date_map[col_date] = col
+            except:
+                pass
 
-                all_items[item][branch_name] = qty
+        if selected_date not in date_map:
+            continue
+
+        chosen_col = date_map[selected_date]
+
+        # -------- PROCESS DATA --------
+        for _, row in data.iterrows():
+            item = str(row[item_col]).strip()
+            qty = row[chosen_col]
+
+            if item not in all_items:
+                all_items[item] = {bn: 0 for bn in branch_names}
+
+            all_items[item][branch_name] = qty
 
     except Exception as e:
         st.error(f"{branch_name} error: {e}")
 
-# ---------------- BUILD FINAL TABLE ----------------
+# ---------------- FINAL DATAFRAME ----------------
 rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
@@ -57,16 +95,18 @@ for i, (item, values) in enumerate(all_items.items(), start=1):
 df = pd.DataFrame(rows)
 
 # ---------------- DISPLAY ----------------
+st.subheader("📊 Stock Data")
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK ALERT ----------------
+# ---------------- LOW STOCK HIGHLIGHT ----------------
 st.markdown("## ⚠️ Low Stock Highlight")
 
 def highlight_low(val):
     try:
-        if float(val) == 0:
+        val = float(val)
+        if val == 0:
             return "background-color: red; color: white;"
-        elif float(val) < 5:
+        elif val < 5:
             return "background-color: orange;"
     except:
         return ""
@@ -75,12 +115,3 @@ def highlight_low(val):
 styled_df = df.style.applymap(highlight_low, subset=branch_names)
 
 st.dataframe(styled_df, use_container_width=True)
-
-
-
-
-
-
-
-
-
