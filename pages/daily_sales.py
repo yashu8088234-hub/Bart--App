@@ -33,12 +33,15 @@ div.stButton > button {
 # ---------------- SESSION SAFETY ----------------
 if "sheet_id" not in st.session_state or "selected_branch" not in st.session_state:
     st.warning("⚠️ Please select a branch first")
-    st.switch_page("pages/staff_dashboard.py")
     st.stop()
 
 # ---------------- LOAD ITEMS ----------------
 with open("bart_items.txt", "r", encoding="utf-8") as f:
     valid_items = [line.strip() for line in f.readlines()]
+
+if not valid_items:
+    st.error("Items list is empty")
+    st.stop()
 
 # ---------------- GOOGLE SHEETS ----------------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -87,9 +90,11 @@ def smart_parse_line(line):
         item = " ".join(text_part.split()).strip()
         if not item:
             return None
+
         return (item, qty, price)
     except:
         return None
+
 
 def parse_sales_lines(lines):
     parsed = []
@@ -113,14 +118,14 @@ if uploaded_file is not None:
             words = []
             with pdfplumber.open(uploaded_file) as pdf:
                 for page in pdf.pages:
-                    words.extend(page.extract_words())
+                    page_words = page.extract_words()
+                    if page_words:
+                        words.extend(page_words)
 
             lines_dict = {}
             for w in words:
                 y = round(w['top'])
-                if y not in lines_dict:
-                    lines_dict[y] = []
-                lines_dict[y].append(w['text'])
+                lines_dict.setdefault(y, []).append(w['text'])
 
             for y in sorted(lines_dict.keys()):
                 line = " ".join(lines_dict[y])
@@ -130,19 +135,30 @@ if uploaded_file is not None:
         elif uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
             lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
+
         elif uploaded_file.name.endswith(".xlsx"):
             df = pd.read_excel(uploaded_file)
             lines = df.astype(str).apply(lambda x: " ".join(x), axis=1).tolist()
+
         elif uploaded_file.name.endswith(".txt"):
             text = uploaded_file.read().decode("utf-8")
             lines = text.split("\n")
 
-        # -------- EXTRACT TOTALS --------
+        if not lines:
+            st.warning("No readable data found in file")
+            st.stop()
+
+        # -------- TOTALS SAFE PARSING --------
         for line in lines:
             if "Total Items Sold" in line:
-                pdf_total_items = int(re.findall(r"\d+", line)[0])
+                nums = re.findall(r"\d+", line)
+                if nums:
+                    pdf_total_items = int(nums[0])
+
             if "Gross Revenue" in line:
-                pdf_revenue = float(re.findall(r"\d+", line)[0])
+                nums = re.findall(r"\d+", line)
+                if nums:
+                    pdf_revenue = float(nums[0])
 
         sales_today = parse_sales_lines(lines)
         st.success(f"✅ Extracted {len(sales_today)} records")
@@ -179,23 +195,20 @@ if sales_today:
 if "pending_sales" not in st.session_state:
     st.session_state.pending_sales = []
 
-# ---------------- NORMALIZATION & MATCHING ----------------
+# ---------------- NORMALIZATION ----------------
 def normalize(text):
     return text.lower().translate(str.maketrans("", "", string.punctuation)).strip()
 
 def find_best_match(item_name, valid_items):
-    # Exact match
     for v in valid_items:
         if normalize(item_name) == normalize(v):
             return v, True
 
-    # Fuzzy ratio
     matches = process.extract(item_name, valid_items, scorer=fuzz.ratio, limit=3)
     for m in matches:
         if m[1] > 85:
             return m[0], False
 
-    # Token set ratio fallback
     matches = process.extract(item_name, valid_items, scorer=fuzz.token_set_ratio, limit=3)
     for m in matches:
         if m[1] > 90:
@@ -224,7 +237,7 @@ def safe_append(row):
         try:
             sheet.append_row(row)
             return True
-        except:
+        except Exception as e:
             time.sleep(2)
     return False
 
@@ -233,13 +246,14 @@ if st.button("🚀 Submit Sales"):
         if st.session_state.get(f"chk_{i}", True):
             safe_append([date_str, iname, qty, price, qty * price])
 
+    st.session_state["just_submitted"] = True
+
     st.success("✅ Uploaded successfully. Redirecting to dashboard in 4 seconds...")
     time.sleep(4)
-st.session_state.pending_sales = []
+    st.switch_page("pages/staff_dashboard.py")
+
+    st.session_state.pending_sales = []
 
 # ---------------- BACK ----------------
-
-
-st.switch_page("pages/staff_dashboard.py")
 if st.button("⬅ Back"):
     st.switch_page("pages/staff_dashboard.py")
