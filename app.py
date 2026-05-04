@@ -161,19 +161,6 @@ with col3:
         st.switch_page("pages/manager_dashboard.py")
 st.markdown('</div>', unsafe_allow_html=True)
 
-
-
-st.markdown("## 🤖 AI Assistant")
-
-
-
-
-
-
-
-
-
-
 with st.sidebar:
     st.markdown("### 🤖 AI Assistant")
     query = st.text_input("Ask AI")
@@ -188,7 +175,6 @@ with st.sidebar:
 
 
 
-st.markdown("## 🤖 AI Assistant")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
