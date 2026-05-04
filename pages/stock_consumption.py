@@ -27,6 +27,31 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
+# TOAST FUNCTION (BOTTOM POPUP)
+# -----------------------------
+def success_toast(message):
+    st.markdown(
+        f"""
+        <div style="
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e7e34;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            font-size: 18px;
+            z-index: 9999;
+            box-shadow: 0px 5px 15px rgba(0,0,0,0.3);
+        ">
+            ✔ {message}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+# -----------------------------
 # TITLE
 # -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
@@ -76,7 +101,7 @@ def load_data(_sheet):
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# MODE SELECTION
+# MODE SELECTION SCREEN
 # -----------------------------
 if "mode" not in st.session_state:
     st.session_state.mode = None
@@ -95,6 +120,9 @@ if st.session_state.mode is None:
         st.session_state.mode = "weekly"
         st.rerun()
 
+    if st.button("⬅ Back to Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
+
     st.stop()
 
 mode = st.session_state.mode
@@ -107,13 +135,22 @@ filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
+# BACK BUTTON (INSIDE PAGE)
+# -----------------------------
+if st.button("⬅ Back"):
+    st.session_state.mode = None
+    st.session_state.review_mode = False
+    st.session_state.draft_data = {}
+    st.rerun()
+
+# -----------------------------
 # DATE
 # -----------------------------
 date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INIT SESSION STORAGE
+# SESSION STORAGE
 # -----------------------------
 if "draft_data" not in st.session_state:
     st.session_state.draft_data = {}
@@ -122,9 +159,9 @@ if "review_mode" not in st.session_state:
     st.session_state.review_mode = False
 
 # -----------------------------
-# INPUT (STRICT MANUAL ONLY)
+# INPUT (STRICT MANUAL)
 # -----------------------------
-st.markdown("## Enter Stock (Manual Only - No Defaults)")
+st.markdown("## Enter Stock (Manual Only)")
 
 inputs = {}
 
@@ -172,7 +209,7 @@ if st.session_state.review_mode:
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    st.warning("⚠️ Data is stored locally only")
+    st.warning("⚠️ Data stored locally only")
 
     # -----------------------------
     # FINAL SUBMIT
@@ -182,7 +219,6 @@ if st.session_state.review_mode:
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
-            # COLUMN SETUP
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
@@ -213,36 +249,23 @@ if st.session_state.review_mode:
                     "values": [[qty]]
                 })
 
-            # SINGLE API CALL ONLY
             if updates:
                 sheet.batch_update(updates)
 
             # -----------------------------
-            # SUCCESS SCREEN
+            # SUCCESS TOAST (BOTTOM POPUP)
             # -----------------------------
-            st.markdown("""
-                <div style='text-align:center;padding:40px;'>
-                    <div style='font-size:90px;color:green;'>✔</div>
-                    <h2 style='color:green;'>Stock Submitted Successfully</h2>
-                    <p>Redirecting to main page...</p>
-                </div>
-            """, unsafe_allow_html=True)
+            success_toast("Stock Submitted Successfully")
 
-            # RESET
-            st.session_state.draft_data = {}
-            st.session_state.review_mode = False
-
+            # WAIT 4 SECONDS
             time.sleep(4)
 
+            # RESET + BACK TO MAIN SCREEN
+            st.session_state.draft_data = {}
+            st.session_state.review_mode = False
             st.session_state.mode = None
+
             st.rerun()
 
         except Exception as e:
             st.error(f"API Error: {e}")
-
-# -----------------------------
-# BACK BUTTON
-# -----------------------------
-if st.button("⬅ Back"):
-    st.session_state.mode = None
-    st.rerun()
