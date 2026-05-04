@@ -41,6 +41,13 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
+
+
+
+
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
 # ---------------- FETCH SHEET ----------------
 @st.cache_data(ttl=300)
 def get_sheet(sheet_id):
