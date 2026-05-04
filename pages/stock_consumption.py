@@ -5,10 +5,10 @@ import time
 from background import set_background
 
 # -----------------------------
-# Background & UI Setup
+# UI SETUP
 # -----------------------------
 set_background("barthomepage.jpg")
-st.set_page_config(page_title="Stock Count System", layout="wide")
+st.set_page_config(page_title="Stock System", layout="wide")
 
 hide_streamlit = """
 <style>
@@ -16,97 +16,79 @@ hide_streamlit = """
 footer {visibility:hidden;}
 header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
-.block-container {padding:0 !important; margin:0 auto !important; max-width:100% !important;}
+.block-container {padding:0 !important; max-width:100% !important;}
 .stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
-div.stButton > button{height:60px;font-size:20px;border-radius:10px;transition:0.3s;}
-div.stButton > button:hover{background-color:#ff4b4b;color:white;}
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
-input[type=number] { -moz-appearance:textfield; }
+div.stButton > button{height:55px;font-size:18px;border-radius:10px;}
 </style>
 """
 st.markdown(hide_streamlit, unsafe_allow_html=True)
 
 # -----------------------------
-# Title
+# TITLE
 # -----------------------------
-branch_name_display = st.session_state.get("selected_branch", "Unknown Branch")
-st.markdown(
-    f"<h1 style='text-align:center;color:red;font-size:55px;'>"
-    f"{branch_name_display} - Stock Count System</h1>",
-    unsafe_allow_html=True
-)
+branch = st.session_state.get("selected_branch", "Branch")
+st.markdown(f"<h1 style='text-align:center;color:red'>{branch} - Stock System</h1>", unsafe_allow_html=True)
 
 # -----------------------------
-# Google Sheets Auth
+# GOOGLE SHEET
 # -----------------------------
 try:
     creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
+    scope = ["https://spreadsheets.google.com/feeds",
+             "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
 except Exception as e:
-    st.error(f"Google Auth Error: {e}")
+    st.error(e)
     st.stop()
 
-# -----------------------------
-# Sheet Validation
-# -----------------------------
 if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
-    st.error("No branch selected. Go back to dashboard.")
+    st.error("No branch selected")
     st.stop()
 
-branch_sheet = client.open_by_key(st.session_state.sheet_id)
-sheet = branch_sheet.worksheet(st.session_state.tab_name)
+sheet = client.open_by_key(st.session_state.sheet_id).worksheet(st.session_state.tab_name)
 
 # -----------------------------
-# Load Sheet Data (cached)
+# LOAD DATA
 # -----------------------------
 @st.cache_data(ttl=300)
-def load_sheet(_sheet):
+def load_data(_sheet):
     data = _sheet.get_all_values()
     headers = data[0]
-    items = [row[0].strip() for row in data[1:] if row]
+    items = [r[0].strip() for r in data[1:]]
     return data, headers, items
 
-sheet_data, headers, existing_items_list = load_sheet(sheet)
+sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# Session State
+# MODE SELECTION (STEP 1)
 # -----------------------------
-st.session_state.setdefault("smart_inputs", {})
-st.session_state.setdefault("smart_review", False)
-st.session_state.setdefault("view_mode", "daily")
+if "mode" not in st.session_state:
+    st.session_state.mode = None
+
+if st.session_state.mode is None:
+    st.markdown("## Select Mode")
+
+    c1, c2 = st.columns(2)
+
+    if c1.button("📦 Daily Stock"):
+        st.session_state.mode = "daily"
+        st.rerun()
+
+    if c2.button("📊 Weekly Stock"):
+        st.session_state.mode = "weekly"
+        st.rerun()
+
+    st.stop()
+
+mode = st.session_state.mode
 
 # -----------------------------
-# MODE SELECTION
+# FILTER ITEMS
 # -----------------------------
-col1, col2 = st.columns(2)
+filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 
-with col1:
-    if st.button("📦 Daily Stock Count"):
-        st.session_state.view_mode = "daily"
-        st.session_state.smart_review = False
-
-with col2:
-    if st.button("📊 Weekly Stock Count"):
-        st.session_state.view_mode = "weekly"
-        st.session_state.smart_review = False
-
-mode = st.session_state.view_mode
-
-# -----------------------------
-# FILTER ITEMS (KEY CHANGE)
-# -----------------------------
-if mode == "daily":
-    filtered_items = existing_items_list[:99]
-    st.info("📦 Daily Mode: Showing first 99 items")
-else:
-    filtered_items = existing_items_list[99:]
-    st.info("📊 Weekly Mode: Showing items after 99")
+st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
 # DATE
@@ -114,51 +96,65 @@ else:
 date = st.date_input("Select Date")
 date_str = str(date)
 
-st.write(f"Recording stock for: {date_str}")
-
 # -----------------------------
-# SMART INVENTORY UI
+# INPUT SECTION
 # -----------------------------
-st.markdown("## 🧠 Smart Inventory Entry")
+st.markdown("## Enter Stock (Manual Only)")
 
-search = st.text_input("Search Item")
+search = st.text_input("Search item")
 
 if search:
     filtered_items = [i for i in filtered_items if search.lower() in i.lower()]
 
-smart_inputs = {}
+inputs = {}
 
-cols_per_row = 4
-
-for i in range(0, len(filtered_items), cols_per_row):
-    cols = st.columns(cols_per_row)
+for i in range(0, len(filtered_items), 4):
+    cols = st.columns(4)
     for j, col in enumerate(cols):
         if i + j < len(filtered_items):
             item = filtered_items[i + j]
+
             qty = col.number_input(
                 item,
                 min_value=0,
                 step=1,
                 key=f"{mode}_{item}"
             )
-            if qty > 0:
-                smart_inputs[item] = qty
+
+            inputs[item] = qty
 
 # -----------------------------
-# REVIEW
+# STEP 1: REVIEW (PENDING LIST)
 # -----------------------------
 if st.button("Review Stock"):
-    st.session_state.smart_inputs = smart_inputs
-    st.session_state.smart_review = True
 
-if st.session_state.smart_review:
-    st.markdown("## 🔍 Review")
-    for k, v in st.session_state.smart_inputs.items():
+    missing = [k for k, v in inputs.items() if v is None]
+
+    if missing:
+        st.error("Missing values detected!")
+        for m in missing:
+            st.warning(f"Enter value for: {m}")
+        st.stop()
+
+    st.session_state.pending = inputs
+    st.session_state.review = True
+
+# -----------------------------
+# STEP 2: SHOW PENDING LIST
+# -----------------------------
+if st.session_state.get("review"):
+
+    st.markdown("## 🟡 Pending Approval List")
+
+    for k, v in st.session_state.pending.items():
         st.write(f"{k} → {v}")
 
-    if st.button("Submit Stock"):
+    st.warning("⚠️ Nothing saved yet. This is only preview.")
+
+    if st.button("✅ Submit Final to Sheet"):
+
         try:
-            sheet_data, headers, existing_items_list = load_sheet(sheet)
+            sheet_data, headers, items_list = load_data(sheet)
 
             col_index = headers.index(date_str) if date_str in headers else len(headers)
 
@@ -168,29 +164,36 @@ if st.session_state.smart_review:
 
             updates = []
 
-            for item, qty in st.session_state.smart_inputs.items():
-                if item not in existing_items_list:
+            for item, qty in st.session_state.pending.items():
+
+                if item not in items_list:
                     continue
 
-                row = existing_items_list.index(item) + 2
+                row = items_list.index(item) + 2
                 cell = gspread.utils.rowcol_to_a1(row, col_index + 1)
-                updates.append({"range": cell, "values": [[qty]]})
+
+                updates.append({
+                    "range": cell,
+                    "values": [[qty]]
+                })
 
             if updates:
                 sheet.batch_update(updates)
-                st.success(f"{len(updates)} items updated")
+                st.success(f"✅ {len(updates)} items saved successfully")
 
-            st.session_state.smart_inputs = {}
-            st.session_state.smart_review = False
+            # RESET
+            st.session_state.pending = {}
+            st.session_state.review = False
 
             time.sleep(2)
             st.rerun()
 
         except Exception as e:
-            st.error(f"Submit error: {e}")
+            st.error(f"Error: {e}")
 
 # -----------------------------
 # BACK BUTTON
 # -----------------------------
 if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+    st.session_state.mode = None
+    st.rerun()
