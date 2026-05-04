@@ -5,7 +5,7 @@ import time
 from background import set_background
 
 # -----------------------------
-# UI
+# UI SETUP
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
@@ -76,12 +76,13 @@ def load_data(_sheet):
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# MODE
+# MODE SELECTION
 # -----------------------------
 if "mode" not in st.session_state:
     st.session_state.mode = None
 
 if st.session_state.mode is None:
+
     st.markdown("## Select Stock Type")
 
     c1, c2 = st.columns(2)
@@ -112,7 +113,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INIT DRAFT STORAGE (NO API)
+# INIT SESSION STORAGE
 # -----------------------------
 if "draft_data" not in st.session_state:
     st.session_state.draft_data = {}
@@ -121,9 +122,9 @@ if "review_mode" not in st.session_state:
     st.session_state.review_mode = False
 
 # -----------------------------
-# INPUT (NO DEFAULT VALUES)
+# INPUT (STRICT MANUAL ONLY)
 # -----------------------------
-st.markdown("## Enter Stock (Stored Locally)")
+st.markdown("## Enter Stock (Manual Only - No Defaults)")
 
 inputs = {}
 
@@ -144,14 +145,14 @@ for i in range(0, len(filtered_items), 4):
             inputs[item] = value.strip() if value.strip() != "" else None
 
 # -----------------------------
-# REVIEW (NO API)
+# REVIEW STEP
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
     missing = [k for k, v in inputs.items() if v is None]
 
     if missing:
-        st.error("🚨 Missing values detected")
+        st.error("🚨 Missing Inputs Found")
 
         for m in missing[:20]:
             st.warning(f"Fill: {m}")
@@ -166,21 +167,22 @@ if st.button("🔍 Review Stock"):
 # -----------------------------
 if st.session_state.review_mode:
 
-    st.markdown("## 🟡 Pending Review (NOT SAVED)")
+    st.markdown("## 🟡 Pending Review (Not Saved Yet)")
 
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    st.warning("⚠️ Data is stored locally only. Not sent yet.")
+    st.warning("⚠️ Data is stored locally only")
 
     # -----------------------------
-    # FINAL SUBMIT (ONLY API CALL HERE)
+    # FINAL SUBMIT
     # -----------------------------
     if st.button("✅ Final Submit"):
 
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
+            # COLUMN SETUP
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
@@ -214,20 +216,32 @@ if st.session_state.review_mode:
             # SINGLE API CALL ONLY
             if updates:
                 sheet.batch_update(updates)
-                st.success(f"✅ {len(updates)} items saved successfully")
+
+            # -----------------------------
+            # SUCCESS SCREEN
+            # -----------------------------
+            st.markdown("""
+                <div style='text-align:center;padding:40px;'>
+                    <div style='font-size:90px;color:green;'>✔</div>
+                    <h2 style='color:green;'>Stock Submitted Successfully</h2>
+                    <p>Redirecting to main page...</p>
+                </div>
+            """, unsafe_allow_html=True)
 
             # RESET
             st.session_state.draft_data = {}
             st.session_state.review_mode = False
 
-            time.sleep(2)
+            time.sleep(4)
+
+            st.session_state.mode = None
             st.rerun()
 
         except Exception as e:
             st.error(f"API Error: {e}")
 
 # -----------------------------
-# BACK
+# BACK BUTTON
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
