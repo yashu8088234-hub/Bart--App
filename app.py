@@ -165,7 +165,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("## 🤖 AI Assistant")
 
-query = st.text_input("Ask AI...")
+
 
 if query:
     context = {
