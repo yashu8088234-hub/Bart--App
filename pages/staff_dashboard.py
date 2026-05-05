@@ -29,15 +29,6 @@ header {visibility:hidden;}
 h1, h2, h3 {
     text-align: center;
 }
-
-/* ---------------- MOBILE FIX ---------------- */
-div[data-baseweb="select"] input {
-    caret-color: transparent !important;
-}
-
-select {
-    font-size: 16px !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,20 +92,24 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-branch_options = ["-- Select Branch --"] + branches
-
-# ---------------- BRANCH SELECT (FIXED) ----------------
+# ---------------- 🔥 MOBILE APP STYLE BRANCH PICKER ----------------
 st.subheader("Select Branch")
 
-selected_branch = st.selectbox(
-    "Branch",
-    branch_options,
-    index=branch_options.index(st.session_state.selected_branch)
-    if st.session_state.selected_branch in branch_options else 0,
-    key="branch_selectbox"
-)
+branch_options = ["-- Select Branch --"] + branches
 
-st.session_state.selected_branch = selected_branch
+with st.expander("🏢 Choose Branch", expanded=True):
+
+    selected_branch = st.radio(
+        "",
+        branch_options,
+        index=branch_options.index(st.session_state.selected_branch)
+        if st.session_state.selected_branch in branch_options else 0
+    )
+
+    if selected_branch:
+        st.session_state.selected_branch = selected_branch
+
+selected_branch = st.session_state.selected_branch
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
