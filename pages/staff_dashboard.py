@@ -98,13 +98,17 @@ st.subheader("Select Branch")
 
 branch_options = ["-- Select Branch --"] + branches
 
-selected_branch = st.selectbox(
-    "Branch",
-    branch_options,
-    index=branch_options.index(st.session_state.selected_branch)
-    if st.session_state.selected_branch in branch_options else 0,
-    key="branch_selectbox"
-)
+# ✅ FIX: wrapped selectbox in form to stop mobile keyboard popup
+with st.form("branch_select_form"):
+    selected_branch = st.selectbox(
+        "Branch",
+        branch_options,
+        index=branch_options.index(st.session_state.selected_branch)
+        if st.session_state.selected_branch in branch_options else 0,
+        key="branch_selectbox"
+    )
+
+    submitted = st.form_submit_button("Confirm")
 
 st.session_state.selected_branch = selected_branch
 
@@ -148,7 +152,6 @@ if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    # RESET PASSWORD
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -163,7 +166,6 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # LOGIN
     if not st.session_state.authenticated:
         st.subheader("Branch Login")
 
@@ -184,7 +186,6 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # AFTER LOGIN
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {selected_branch}")
