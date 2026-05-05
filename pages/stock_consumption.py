@@ -102,35 +102,40 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
 # -----------------------------
-# LOAD DATA
+# LOAD DATA (ROBUST)
 # -----------------------------
 def load_data(ws):
     data = ws.get_all_values()
+
     headers = data[0] if data else []
 
     items = []
 
     for row in data[1:]:
-        if row and len(row) > 0:
-            item = row[0]
-            if item and item.strip():
-                items.append(item.strip())
+        if not row:
+            continue
+
+        # take first non-empty cell in row
+        item = next((c for c in row if c and c.strip()), "")
+
+        if item.strip():
+            items.append(item.strip())
 
     return data, headers, items
 
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# 🔥 SECTION DETECTION (FULL SENTENCE MATCH)
+# 🔥 SAFE SECTION FINDER (ANYWHERE IN SHEET)
 # -----------------------------
 def normalize(text):
-    return text.replace("\xa0", " ").strip()
+    return text.replace("\xa0", " ").strip().upper()
 
-def find_section(items, section_name):
-    target = normalize(section_name)
+def find_section(items, target):
+    target = normalize(target)
 
     for i, item in enumerate(items):
-        if item and normalize(item) == target:
+        if normalize(item) == target:
             return i
     return None
 
@@ -140,11 +145,12 @@ weekly_start = find_section(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
     st.error("""
-❌ Cannot find section headers in sheet.
+❌ Cannot find DAILY ITEM or WEEKLY ITEM in your sheet.
 
-Make sure these exist EXACTLY in Column A:
-- DAILY ITEM
-- WEEKLY ITEM
+👉 Fix checklist:
+- Ensure spelling is EXACT
+- No merged cells
+- No hidden formatting
 """)
     st.stop()
 
@@ -225,7 +231,7 @@ if st.session_state.review_mode:
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
-            # Date column
+            # date column
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
