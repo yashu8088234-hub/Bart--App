@@ -89,6 +89,23 @@ st.session_state.selected_branch = st.selectbox(
 
 selected_branch = st.session_state.selected_branch
 
+branch_info = None
+
+if selected_branch != "-- Select Branch --":
+    branch_info = next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
+    )
+
+# -----------------------------
+# 🔥 FIX APPLIED HERE (CRITICAL)
+# -----------------------------
+if selected_branch != "-- Select Branch --" and branch_info:
+
+    st.session_state.selected_branch = selected_branch
+    st.session_state.sheet_id = branch_info["SheetID"]
+    st.session_state.branch_info = branch_info
+
 # -----------------------------
 # PASSWORD HANDLING
 # -----------------------------
@@ -119,15 +136,10 @@ def save_passwords(branch_key, new_password):
 # -----------------------------
 if selected_branch != "-- Select Branch --":
 
-    branch_info = next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
-    )
-
     passwords = load_passwords()
 
     # -------------------------
-    # LOGIN (SHOWN FIRST ON MOBILE)
+    # LOGIN
     # -------------------------
     if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
 
@@ -186,14 +198,9 @@ if selected_branch != "-- Select Branch --":
         st.session_state.pending_action = "sales_view"
 
     # -------------------------
-    # ✅ FIX IS HERE (IMPORTANT)
+    # NAVIGATION (UNCHANGED LOGIC)
     # -------------------------
     if st.session_state.authenticated and st.session_state.auth_branch == selected_branch:
-
-        # 🔥 FIX: Always persist before navigation
-        st.session_state.selected_branch = selected_branch
-        st.session_state.sheet_id = branch_info["SheetID"]
-        st.session_state.branch_info = branch_info
 
         action = st.session_state.pending_action
 
