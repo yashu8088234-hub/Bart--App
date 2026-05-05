@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 # -----------------------------
-# ADMIN PASSWORD FILE SETUP (ONLY ADMIN STAYS LOCAL)
+# ADMIN PASSWORD FILE SETUP
 # -----------------------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
@@ -37,10 +37,11 @@ if "pending_action" not in st.session_state:
     st.session_state.pending_action = None
 
 # -----------------------------
-# BACKGROUND & UI
+# UI SETUP
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(layout="wide")
+
 st.title("BART")
 st.markdown("## Staff Dashboard")
 st.write("## Kindly choose your Branch Name")
@@ -67,20 +68,16 @@ client = gspread.authorize(creds)
 
 @st.cache_data
 def load_branches():
-    try:
-        sheet = client.open("MASTERBRANCHSHEET").sheet1
-        return sheet.get_all_records()
-    except gspread.exceptions.SpreadsheetNotFound:
-        st.error("MASTERBRANCHSHEET not found.")
-        st.stop()
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    return sheet.get_all_records()
 
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# BRANCH SELECTION
+# BRANCH SELECT
 # -----------------------------
-if 'selected_branch' not in st.session_state:
+if "selected_branch" not in st.session_state:
     st.session_state.selected_branch = "-- Select Branch --"
 
 st.session_state.selected_branch = st.selectbox(
@@ -93,7 +90,7 @@ st.session_state.selected_branch = st.selectbox(
 selected_branch = st.session_state.selected_branch
 
 # -----------------------------
-# PASSWORDS FROM SHEET
+# PASSWORD HANDLING
 # -----------------------------
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -118,16 +115,20 @@ def save_passwords(branch_key, new_password):
             return
 
 # -----------------------------
-# PASSWORD SECTION (MOVED UP)
+# MAIN LOGIC
 # -----------------------------
 if selected_branch != "-- Select Branch --":
 
-    branch_info = next(b for b in branch_data
-                       if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
+    branch_info = next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
+    )
 
     passwords = load_passwords()
 
-    # LOGIN FIRST (NOW ABOVE BUTTONS)
+    # -------------------------
+    # LOGIN (SHOWN FIRST ON MOBILE)
+    # -------------------------
     if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
 
         st.subheader("Enter Branch Password")
@@ -144,8 +145,11 @@ if selected_branch != "-- Select Branch --":
         if st.button("Reset Password"):
             st.session_state.reset_mode = True
 
+    # -------------------------
     # RESET PASSWORD
+    # -------------------------
     if st.session_state.reset_mode:
+
         st.subheader("Reset Password (Admin Required)")
 
         admin_pass = st.text_input("Admin Password", type="password")
@@ -154,14 +158,14 @@ if selected_branch != "-- Select Branch --":
         if st.button("Update Password"):
             if admin_pass == load_admin()["admin"]:
                 save_passwords(selected_branch, new_pass)
-                st.success("Password updated in MASTERBRANCHSHEET")
+                st.success("Password updated successfully")
                 st.session_state.reset_mode = False
             else:
                 st.error("Wrong admin password")
 
-    # -----------------------------
-    # BUTTONS (MOVED BELOW PASSWORD)
-    # -----------------------------
+    # -------------------------
+    # ACTION BUTTONS
+    # -------------------------
     st.write(f"### Selected Branch: {selected_branch}")
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -181,12 +185,15 @@ if selected_branch != "-- Select Branch --":
     if col5.button("📊 Daily Sales View"):
         st.session_state.pending_action = "sales_view"
 
-    # -----------------------------
-    # AFTER LOGIN ACTIONS
-    # -----------------------------
+    # -------------------------
+    # ✅ FIX IS HERE (IMPORTANT)
+    # -------------------------
     if st.session_state.authenticated and st.session_state.auth_branch == selected_branch:
 
-        st.session_state.sheet_id = branch_info['SheetID']
+        # 🔥 FIX: Always persist before navigation
+        st.session_state.selected_branch = selected_branch
+        st.session_state.sheet_id = branch_info["SheetID"]
+        st.session_state.branch_info = branch_info
 
         action = st.session_state.pending_action
 
@@ -200,12 +207,12 @@ if selected_branch != "-- Select Branch --":
             st.switch_page("pages/new_stock.py")
 
         elif action == "stock_view":
-            branch_file = client.open_by_key(branch_info['SheetID'])
+            branch_file = client.open_by_key(branch_info["SheetID"])
             data = branch_file.worksheet("Stocks").get_all_records()
             st.dataframe(data, use_container_width=True, height=600)
 
         elif action == "sales_view":
-            branch_file = client.open_by_key(branch_info['SheetID'])
+            branch_file = client.open_by_key(branch_info["SheetID"])
             data = branch_file.worksheet("Sales").get_all_records()
             st.dataframe(data, use_container_width=True, height=600)
 
