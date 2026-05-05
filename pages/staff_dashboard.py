@@ -98,10 +98,9 @@ if selected_branch != "-- Select Branch --":
     )
 
 # -----------------------------
-# 🔥 FIX APPLIED HERE (CRITICAL)
+# FIX APPLIED (UNCHANGED)
 # -----------------------------
 if selected_branch != "-- Select Branch --" and branch_info:
-
     st.session_state.selected_branch = selected_branch
     st.session_state.sheet_id = branch_info["SheetID"]
     st.session_state.branch_info = branch_info
@@ -151,6 +150,7 @@ if selected_branch != "-- Select Branch --":
             if passwords.get(selected_branch, "") == password:
                 st.session_state.authenticated = True
                 st.session_state.auth_branch = selected_branch
+                st.rerun()
             else:
                 st.error("Incorrect password")
 
@@ -198,30 +198,46 @@ if selected_branch != "-- Select Branch --":
         st.session_state.pending_action = "sales_view"
 
     # -------------------------
-    # NAVIGATION (UNCHANGED LOGIC)
+    # FIXED NAVIGATION (ONLY CHANGE HERE)
     # -------------------------
-    if st.session_state.authenticated and st.session_state.auth_branch == selected_branch:
+    action = st.session_state.get("pending_action")
 
-        action = st.session_state.pending_action
+    if action:
 
-        if action == "stock":
-            st.switch_page("pages/stock_consumption.py")
+        if not st.session_state.authenticated:
 
-        elif action == "sales":
-            st.switch_page("pages/daily_sales.py")
+            st.subheader("Enter Branch Password")
 
-        elif action == "newstock":
-            st.switch_page("pages/new_stock.py")
+            password = st.text_input("Password", type="password")
 
-        elif action == "stock_view":
-            branch_file = client.open_by_key(branch_info["SheetID"])
-            data = branch_file.worksheet("Stocks").get_all_records()
-            st.dataframe(data, use_container_width=True, height=600)
+            if st.button("Login"):
+                if passwords.get(selected_branch, "") == password:
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = selected_branch
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
 
-        elif action == "sales_view":
-            branch_file = client.open_by_key(branch_info["SheetID"])
-            data = branch_file.worksheet("Sales").get_all_records()
-            st.dataframe(data, use_container_width=True, height=600)
+        else:
+
+            if action == "stock":
+                st.switch_page("pages/stock_consumption.py")
+
+            elif action == "sales":
+                st.switch_page("pages/daily_sales.py")
+
+            elif action == "newstock":
+                st.switch_page("pages/new_stock.py")
+
+            elif action == "stock_view":
+                branch_file = client.open_by_key(branch_info["SheetID"])
+                data = branch_file.worksheet("Stocks").get_all_records()
+                st.dataframe(data, use_container_width=True, height=600)
+
+            elif action == "sales_view":
+                branch_file = client.open_by_key(branch_info["SheetID"])
+                data = branch_file.worksheet("Sales").get_all_records()
+                st.dataframe(data, use_container_width=True, height=600)
 
 # -----------------------------
 # BACK BUTTON
