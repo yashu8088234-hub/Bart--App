@@ -1,213 +1,235 @@
 import streamlit as st
-
-
-from ai_core import run_ai
-import base64
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
 # ---------------- Page Config ----------------
-st.set_page_config(
-    page_title="BART",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+st.set_page_config(layout="wide", page_title="BART Manager Dashboard")
+
+# ---------------- Clean Modern UI ----------------
+st.markdown("""
+<style>
+
+/* Hide Streamlit UI */
+#MainMenu, footer, header {visibility: hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
+
+/* App background */
+.stApp {
+    background: #f6f8fb;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Layout spacing */
+.block-container {
+    padding: 1.5rem 2rem !important;
+    max-width: 1400px;
+}
+
+/* Header Card */
+.dashboard-header {
+    background: white;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
+    text-align: center;
+    border-left: 6px solid #4b6cb7;
+}
+
+.dashboard-header h1 {
+    margin: 0;
+    font-size: 38px;
+    color: #1f1f2e;
+}
+
+.dashboard-header p {
+    margin: 5px 0 0;
+    color: #666;
+    font-size: 16px;
+}
+
+/* Section title */
+.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 20px 0 10px;
+    color: #1f1f2e;
+}
+
+/* Metrics cards */
+[data-testid="metric-container"] {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border: 1px solid #eee;
+}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+}
+
+/* Buttons */
+.stButton > button {
+    background: #4b6cb7;
+    color: white;
+    border-radius: 10px;
+    padding: 10px 18px;
+    border: none;
+    font-weight: 500;
+    transition: 0.2s;
+}
+
+.stButton > button:hover {
+    background: #3a56a0;
+    transform: translateY(-2px);
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- Header ----------------
+st.markdown("""
+<div class="dashboard-header">
+    <h1>🍩 BART Manager Dashboard</h1>
+    <p>Branch-wise Sales & Performance Analytics</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- Google Sheets Connection ----------------
+try:
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"Error connecting to Google API: {e}")
+    st.stop()
+
+# ---------------- Branch Selection ----------------
+try:
+    master_sheet = client.open("MASTERBRANCHSHEET").sheet1
+    branch_data = master_sheet.get_all_records()
+    branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
+except Exception as e:
+    st.error(f"Failed to load branches: {e}")
+    st.stop()
+
+st.markdown("<div class='section-title'>Select Branch</div>", unsafe_allow_html=True)
+selected_branch = st.selectbox("Branch", ["-- Select Branch --"] + branches)
+
+if selected_branch == "-- Select Branch --":
+    st.warning("Please select a branch to view sales.")
+    st.stop()
+
+branch_info = next(b for b in branch_data if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
+sheet_id = branch_info["SheetID"]
+
+# ---------------- Load Branch Sales ----------------
+try:
+    branch_sheet = client.open_by_key(sheet_id).worksheet("Sales")
+    records = branch_sheet.get_all_records()
+    df = pd.DataFrame(records)
+except Exception as e:
+    st.error(f"Failed to load branch sales sheet: {e}")
+    st.stop()
+
+if df.empty:
+    st.warning("No sales data found for this branch.")
+    st.stop()
+
+# ---------------- Convert numeric ----------------
+for col in ["Quantity", "Unit Price (SAR)"]:
+    if col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+df["Total (SAR)"] = pd.to_numeric(
+    df.get("Total (SAR)", df["Quantity"] * df["Unit Price (SAR)"]),
+    errors="coerce"
+).fillna(0)
+
+# ---------------- Date Filter ----------------
+selected_date = st.date_input("Select Date", datetime.today())
+date_str = selected_date.strftime("%Y-%m-%d")
+df_date = df[df["Date"] == date_str]
+
+if df_date.empty:
+    st.info(f"No sales found for {date_str}")
+    st.stop()
+
+# ---------------- Metrics ----------------
+total_revenue = df_date["Total (SAR)"].sum()
+total_items = df_date["Quantity"].sum()
+top_item = df_date.groupby("Item")["Quantity"].sum().idxmax()
+low_item = df_date.groupby("Item")["Quantity"].sum().idxmin()
+
+st.markdown("<div class='section-title'>📊 Daily Performance</div>", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Total Revenue (SAR)", f"{total_revenue:.2f}")
+
+with col2:
+    st.metric("Items Sold", int(total_items))
+
+with col3:
+    st.metric("Top Seller", top_item)
+
+# ---------------- Growth ----------------
+prev_date = (selected_date - timedelta(days=1)).strftime("%Y-%m-%d")
+prev_revenue = df[df["Date"] == prev_date]["Total (SAR)"].sum()
+growth = total_revenue - prev_revenue
+st.metric("Revenue Growth vs Yesterday", f"{growth:.2f} SAR")
+
+# ---------------- Table ----------------
+st.markdown("<div class='section-title'>🧾 Sales Table</div>", unsafe_allow_html=True)
+st.dataframe(df_date[["Item", "Quantity", "Unit Price (SAR)", "Total (SAR)"]],
+             use_container_width=True)
+
+# ---------------- Charts ----------------
+st.markdown("<div class='section-title'>📈 Analytics</div>", unsafe_allow_html=True)
+
+chart1, chart2 = st.columns(2)
+
+with chart1:
+    top10_items = df_date.groupby("Item")["Quantity"].sum().sort_values(ascending=False).head(10)
+    fig1, ax1 = plt.subplots()
+    ax1.barh(top10_items.index[::-1], top10_items.values[::-1])
+    ax1.set_title("Top 10 Items Sold")
+    ax1.set_xlabel("Quantity")
+    st.pyplot(fig1)
+
+with chart2:
+    last_7_days = [(selected_date - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+    revenue_trend = [df[df["Date"] == d]["Total (SAR)"].sum() for d in last_7_days]
+
+    fig2, ax2 = plt.subplots()
+    ax2.plot(last_7_days, revenue_trend, marker="o")
+    ax2.set_title("Last 7 Days Revenue Trend")
+    ax2.tick_params(axis='x', rotation=45)
+    st.pyplot(fig2)
+
+# ---------------- Lowest item ----------------
+st.markdown(f"**Lowest Selling Item Today:** {low_item}")
+
+# ---------------- Download ----------------
+csv = df_date.to_csv(index=False).encode('utf-8')
+
+st.download_button(
+    label="⬇ Download CSV Report",
+    data=csv,
+    file_name=f"{selected_branch}_{date_str}_sales.csv",
+    mime="text/csv"
 )
 
-# ---------------- Encode Local Image ----------------
-def get_base64_image(image_path):
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-bg_image = get_base64_image("barthome.png")
-
-# ---------------- Custom CSS ----------------
-custom_css = f"""
-<style>
-#MainMenu {{visibility:hidden;}}
-footer {{visibility:hidden;}}
-header {{visibility:hidden;}}
-[data-testid="stToolbar"] {{display:none;}}
-[data-testid="stSidebar"] {{display:none;}}
-.block-container {{
-    padding:0 !important;
-    margin:0 auto !important;
-    max-width: 100% !important;
-}}
-.stApp {{
-    min-height: 100vh;
-    background-image: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url("data:image/png;base64,{bg_image}");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
-}}
-
-.hero {{
-    min-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    color: white;
-    padding: 20px;
-}}
-
-.hero h1 {{
-    font-size: 70px;
-    color: #ff0000;
-    font-weight: bold;
-    text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
-    margin-bottom: 10px;
-}}
-
-.hero h2 {{
-    font-size: 28px;
-    text-shadow: 1px 1px 5px rgba(0,0,0,0.7);
-    margin-bottom: 20px;
-}}
-
-.hero p {{
-    max-width: 900px;
-    font-size: 20px;
-    margin: 10px auto;
-    text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
-    line-height:1.6;
-}}
-
-.login-buttons {{
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 40px;
-    flex-wrap: wrap;
-}}
-
-div.stButton > button {{
-    height: 65px;
-    font-size: 20px;
-    border-radius: 12px;
-    width: 230px;
-    transition: 0.3s;
-    box-shadow: 0px 5px 15px rgba(0,0,0,0.3);
-}}
-
-div.stButton > button:hover {{
-    background-color: #ff4b4b;
-    color: white;
-    transform: scale(1.05);
-    box-shadow: 0px 8px 25px rgba(0,0,0,0.4);
-}}
-
-.section {{
-    padding: 60px 20px;
-    text-align: center;
-    background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(4px);
-    margin: 40px 20px;
-    border-radius: 12px;
-    color: white;
-}}
-
-.section h2 {{
-    font-size: 40px;
-    color: #ff4b4b;
-    margin-bottom: 30px;
-}}
-
-.section p {{
-    font-size: 18px;
-    max-width: 800px;
-    margin: 0 auto;
-    line-height:1.6;
-}}
-
-@media only screen and (max-width:768px) {{
-    .hero h1 {{ font-size: 50px; }}
-    .hero h2 {{ font-size: 20px; }}
-    .hero p {{ font-size: 16px; }}
-    div.stButton > button {{ height:55px; font-size:18px; width:180px; }}
-    .section h2 {{ font-size: 32px; }}
-    .section p {{ font-size:16px; }}
-}}
-</style>
-"""
-
-st.markdown(custom_css, unsafe_allow_html=True)
-
-# ---------------- Hero Section ----------------
-st.markdown(f"""
-<div class="hero">
-    <h1>BART (بارت)</h1>
-    <h2>Coffee, French Toast & Fresh Bites in Jeddah</h2>
-    <p>
-        A Saudi Arabian café chain specializing in <b>quick, on-the-go specialty coffee</b>, <b>desserts</b>, and <b>fresh snacks</b>.<br>
-        Popular menu items include <b>Dubai Chocolate Pudding</b>, <b>Nutella/Kinder French Toast</b>, and various slush drinks.<br>
-        📍 Locations: Jeddah – Al Rahman, Al-Safa <br>
-        🌐 Website: <a href='https://bart.sa' target='_blank' style='color:#ffcc00;'>bart.sa</a>
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------- Login Buttons ----------------
-st.markdown('<div class="login-buttons">', unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
-    if st.button("Staff Login"):
-        st.switch_page("pages/staff_dashboard.py")
-with col2:
-    if st.button("Management Login"):
-        st.switch_page("pages/management_dashboard.py")
-with col3:
-    if st.button("Manager Login"):
-        st.switch_page("pages/manager_dashboard.py")
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.markdown("### 🤖 AI Assistant")
-with st.sidebar:
-    st.markdown("### 🤖 AI Assistant")
-    query = st.text_input("Ask AI")
-
-    if query:
-        context = {
-            "revenue": 0,
-            "items": 0,
-            "sales": []
-        }
-        st.success(run_ai(query, context))
-
-
-
-
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-user_input = st.text_input("Talk to AI...")
-
-if user_input:
-    context = {
-        "revenue": total_revenue_calc if "total_revenue_calc" in locals() else 0,
-        "items": total_items_calc if "total_items_calc" in locals() else 0,
-        "sales": st.session_state.get("pending_sales", [])
-    }
-
-    response = run_ai(user_input, context)
-
-    st.session_state.chat.append(("You", user_input))
-    st.session_state.chat.append(("AI", response))
-
-# DISPLAY CHAT
-for sender, msg in st.session_state.chat[-10:]:
-    st.write(f"**{sender}:** {msg}")
-# ---------------- Info Sections ----------------
-st.markdown("""
-<div class="section">
-<h2>Our Experience</h2>
-<p>Relax in a cozy environment with friends and family. Fast service, friendly staff, and a welcoming atmosphere await you at every BART location.</p>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="section">
-<h2>Visit Us</h2>
-<p>Multiple locations in Jeddah. Check our website for branch info, opening hours, and latest offers: <a style='color:#ffcc00;' href="https://bart.sa" target="_blank">bart.sa</a></p>
-</div>
-""", unsafe_allow_html=True)
+# ---------------- Back ----------------
+if st.button("⬅ Back"):
+    st.switch_page("pages/staff_dashboard.py")
