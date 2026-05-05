@@ -103,15 +103,13 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# =============================
 # MODE SELECT PAGE
-# =============================
 # -----------------------------
 if st.session_state.page == "mode_select":
 
     st.markdown("## Select Option")
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
@@ -121,10 +119,6 @@ if st.session_state.page == "mode_select":
     if c2.button("📊 Weekly Stock"):
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
-        st.rerun()
-
-    if c3.button("👁 View Stock"):
-        st.session_state.page = "view_stock"
         st.rerun()
 
     st.markdown("---")
@@ -138,53 +132,7 @@ if st.session_state.page == "mode_select":
     st.stop()
 
 # -----------------------------
-# =============================
-# VIEW STOCK PAGE (UPDATED)
-# =============================
-# -----------------------------
-if st.session_state.page == "view_stock":
-
-    st.markdown("## 👁 Stock Overview")
-
-    daily_items = items_list[daily_start + 1 : weekly_start]
-    weekly_items = items_list[weekly_start + 1 :]
-
-    # -----------------------------
-    # DAILY SECTION
-    # -----------------------------
-    st.markdown("### 📦 Daily Stock")
-
-    if daily_items:
-        for item in daily_items:
-            st.write("•", item)
-    else:
-        st.info("No daily items found")
-
-    st.markdown("---")
-
-    # -----------------------------
-    # WEEKLY SECTION
-    # -----------------------------
-    st.markdown("### 📊 Weekly Stock")
-
-    if weekly_items:
-        for item in weekly_items:
-            st.write("•", item)
-    else:
-        st.info("No weekly items found")
-
-    st.markdown("---")
-
-    if st.button("⬅ Back"):
-        st.session_state.page = "mode_select"
-        st.rerun()
-
-    st.stop()
-
-# -----------------------------
-# =============================
 # STOCK ENTRY PAGE
-# =============================
 # -----------------------------
 mode = st.session_state.mode
 
