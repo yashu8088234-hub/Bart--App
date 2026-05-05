@@ -32,6 +32,7 @@ div.stButton > button{
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
+st.session_state.setdefault("back_button_shown", False)
 
 # -----------------------------
 # TITLE
@@ -53,6 +54,18 @@ if not sheet_id or not tab_name:
     st.warning("Please select a branch first.")
     if st.button("⬅ Go to Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
+    st.stop()
+
+# -----------------------------
+# BACK BUTTON (SAFE, NO DUPLICATION)
+# -----------------------------
+if st.button("⬅ Back to Staff Dashboard"):
+    st.session_state.mode = None
+    st.session_state.review_mode = False
+    st.session_state.draft_data = {}
+    st.session_state.back_button_shown = False
+
+    st.switch_page("pages/staff_dashboard.py")
     st.stop()
 
 # -----------------------------
@@ -135,7 +148,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK BUTTON
+# BACK BUTTON (INSIDE PAGE)
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
@@ -150,7 +163,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUT FIELDS
+# INPUT SECTION
 # -----------------------------
 st.markdown("## Enter Stock")
 
@@ -187,7 +200,7 @@ if st.button("🔍 Review Stock"):
     st.session_state.review_mode = True
 
 # -----------------------------
-# FINAL SUBMIT
+# REVIEW SCREEN
 # -----------------------------
 if st.session_state.review_mode:
 
