@@ -8,18 +8,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- CLEAN MODERN UI ----------------
+# ---------------- MODERN BRAND UI ----------------
 st.markdown("""
 <style>
 
-/* Hide Streamlit UI */
+/* Hide Streamlit default UI */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 
-/* 🌟 FIXED BACKGROUND (lighter, cleaner café tone) */
+/* Background */
 .stApp {
-    background: linear-gradient(135deg, #F8F6F2, #FFFFFF);
+    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
@@ -31,18 +31,42 @@ st.markdown("""
 
 /* HERO */
 .hero {
-    background: rgba(255,255,255,0.92);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 70px 35px;
     border-radius: 28px;
     text-align: center;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.12);
-    margin-top: 25px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    margin-top: 20px;
     position: relative;
-    border: 2px solid rgba(192,57,43,0.08);
+    overflow: hidden;
 }
 
-/* BART Title */
+/* glow effects */
+.hero::before {
+    content: "";
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    background: rgba(192,57,43,0.08);
+    border-radius: 50%;
+    top: -100px;
+    left: -100px;
+    filter: blur(20px);
+}
+
+.hero::after {
+    content: "";
+    position: absolute;
+    width: 280px;
+    height: 280px;
+    background: rgba(230,177,126,0.08);
+    border-radius: 50%;
+    bottom: -100px;
+    right: -100px;
+    filter: blur(25px);
+}
+
+/* BART title */
 .hero h1 {
     font-size: 74px;
     font-weight: 900;
@@ -51,7 +75,7 @@ st.markdown("""
     margin-bottom: 10px;
 }
 
-/* Subtitle */
+/* subtitle */
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
@@ -59,7 +83,7 @@ st.markdown("""
     margin-bottom: 15px;
 }
 
-/* Paragraph */
+/* paragraph */
 .hero p {
     font-size: 16px;
     color: #555;
@@ -68,7 +92,7 @@ st.markdown("""
     line-height: 1.7;
 }
 
-/* Buttons */
+/* LOGIN BUTTON ROW */
 .login-buttons {
     display: flex;
     justify-content: center;
@@ -77,6 +101,7 @@ st.markdown("""
     flex-wrap: wrap;
 }
 
+/* BUTTON STYLE */
 div.stButton > button {
     height: 55px;
     width: 220px;
@@ -94,7 +119,7 @@ div.stButton > button:hover {
     transform: translateY(-2px);
 }
 
-/* Sections */
+/* SECTION BOX */
 .section {
     background: rgba(255,255,255,0.85);
     padding: 40px 25px;
@@ -117,7 +142,7 @@ div.stButton > button:hover {
     line-height: 1.6;
 }
 
-/* Input */
+/* INPUT */
 .stTextInput > div > div > input {
     border-radius: 10px;
 }
@@ -125,7 +150,7 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HERO ----------------
+# ---------------- HERO SECTION ----------------
 st.markdown("""
 <div class="hero">
     <h1>BART</h1>
@@ -139,7 +164,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN ----------------
+# ---------------- LOGIN BUTTONS ----------------
 st.markdown('<div class="login-buttons">', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
@@ -158,12 +183,16 @@ with col3:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- AI ----------------
+# ---------------- AI SIDEBAR ----------------
 st.sidebar.markdown("### 🤖 AI Assistant")
 query = st.sidebar.text_input("Ask AI")
 
 if query:
-    context = {"revenue": 0, "items": 0, "sales": []}
+    context = {
+        "revenue": 0,
+        "items": 0,
+        "sales": []
+    }
     st.sidebar.success(run_ai(query, context))
 
 # ---------------- CHAT ----------------
@@ -187,7 +216,7 @@ if user_input:
 for sender, msg in st.session_state.chat[-10:]:
     st.write(f"**{sender}:** {msg}")
 
-# ---------------- INFO ----------------
+# ---------------- INFO SECTIONS ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
