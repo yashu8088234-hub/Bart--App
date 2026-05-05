@@ -59,6 +59,16 @@ st.markdown(
 )
 
 # -----------------------------
+# SAFETY CHECK (FIXED)
+# -----------------------------
+sheet_id = st.session_state.get("sheet_id")
+tab_name = st.session_state.get("tab_name")
+
+if not sheet_id or not tab_name:
+    st.error("❌ No branch selected. Please go back and select a branch again.")
+    st.stop()
+
+# -----------------------------
 # GOOGLE SHEETS AUTH
 # -----------------------------
 try:
@@ -69,18 +79,15 @@ try:
     ]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
+
+    sheet = client.open_by_key(sheet_id).worksheet(tab_name)
+
 except Exception as e:
-    st.error(e)
+    st.error(f"Google Sheet Error: {e}")
     st.stop()
-
-if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
-    st.error("No branch selected")
-    st.stop()
-
-sheet = client.open_by_key(st.session_state.sheet_id).worksheet(st.session_state.tab_name)
 
 # -----------------------------
-# LOAD DATA (FIXED - NO CACHE ON SHEET OBJECT)
+# LOAD DATA (NO CACHE ISSUE)
 # -----------------------------
 def load_data(ws):
     data = ws.get_all_values()
@@ -121,9 +128,7 @@ if st.session_state.mode is None:
         st.rerun()
 
     if st.button("⬅ Back to Dashboard"):
-        st.session_state.mode = None
-        st.session_state.review_mode = False
-        st.session_state.draft_data = {}
+        st.session_state.clear()
         st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
@@ -144,7 +149,7 @@ if st.button("⬅ Back"):
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
-    st.switch_page("pages/staff_dashboard.py")
+    st.rerun()
 
 # -----------------------------
 # DATE
@@ -211,33 +216,25 @@ if st.session_state.review_mode:
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
-            # -----------------------------
-            # HANDLE HEADER
-            # -----------------------------
+            # HEADER HANDLING
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
-            # -----------------------------
-            # OPTIMIZED COLUMN CHECK (NO SHEET.CELL LOOP)
-            # -----------------------------
+            # OPTIMIZED CHECK
             col_values = sheet.col_values(1)
 
             updates = []
 
             for item, qty in st.session_state.draft_data.items():
 
-                if not item:
-                    continue
-
-                if item not in items_list:
+                if not item or item not in items_list:
                     continue
 
                 row = items_list.index(item) + 2
 
-                # faster check (no API call)
                 if row - 1 >= len(col_values):
                     continue
 
@@ -257,7 +254,7 @@ if st.session_state.review_mode:
             success_toast("Stock Submitted Successfully")
             time.sleep(2)
 
-            # RESET
+            # RESET CLEANLY
             st.session_state.mode = None
             st.session_state.review_mode = False
             st.session_state.draft_data = {}
