@@ -61,6 +61,9 @@ header {visibility:hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
+input {
+    caret-color: transparent !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,19 +89,28 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# BRANCH SELECT (FIXED)
+# BRANCH SELECT (FIXED SELECTBOX)
 # -----------------------------
 branch_options = ["-- Select Branch --"] + branches
 
-st.session_state.selected_branch = st.radio(
+# safe default index
+if st.session_state.selected_branch in branch_options:
+    default_index = branch_options.index(st.session_state.selected_branch)
+else:
+    default_index = 0
+
+selected_branch = st.selectbox(
     "Select Branch",
     branch_options,
-    index=branch_options.index(st.session_state.selected_branch)
-    if st.session_state.selected_branch in branch_options else 0
+    index=default_index,
+    key="branch_selectbox"
 )
 
-selected_branch = st.session_state.selected_branch
+st.session_state.selected_branch = selected_branch
 
+# -----------------------------
+# BRANCH INFO
+# -----------------------------
 branch_info = None
 
 if selected_branch != "-- Select Branch --":
@@ -143,6 +155,9 @@ if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
+    # -------------------------
+    # RESET PASSWORD
+    # -------------------------
     if st.session_state.reset_mode:
 
         st.subheader("Reset Password (Admin Required)")
@@ -158,6 +173,9 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
+    # -------------------------
+    # LOGIN
+    # -------------------------
     if not st.session_state.authenticated:
 
         st.subheader("Enter Branch Password")
@@ -179,6 +197,9 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # -------------------------
+    # ACTIONS
+    # -------------------------
     if st.session_state.authenticated:
 
         st.write(f"### Selected Branch: {selected_branch}")
@@ -226,5 +247,8 @@ if selected_branch != "-- Select Branch --":
                 data = branch_file.worksheet("Sales").get_all_records()
                 st.dataframe(data, use_container_width=True, height=600)
 
+# -----------------------------
+# BACK BUTTON
+# -----------------------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
