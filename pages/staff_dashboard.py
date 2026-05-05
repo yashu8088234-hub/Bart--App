@@ -1,213 +1,127 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from background import set_background
-import json
-import os
-from pathlib import Path   # ✅ ONLY ADDITION
 
 # -----------------------------
-# PASSWORD FILE SETUP
+# PAGE CONFIG
 # -----------------------------
-FILE_NAME = Path(__file__).parent / "passwords.json"   # ✅ ONLY FIX
+st.set_page_config(page_title="Login System", layout="centered")
 
-def init_file():
-    if not os.path.exists(FILE_NAME):
-        with open(FILE_NAME, "w") as f:
-            json.dump({"admin": "admin123"}, f)
+st.title("🔐 Login System")
 
-def load_passwords():
-    with open(FILE_NAME, "r") as f:
-        return json.load(f)
+# -----------------------------
+# GOOGLE SHEETS AUTH
+# -----------------------------
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
-def save_passwords(data):
-    with open(FILE_NAME, "w") as f:
-        json.dump(data, f)
+try:
+    creds_dict = dict(st.secrets["GOOGLE_CREDS_JSON"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+except Exception as e:
+    st.error(f"Google Auth Error: {e}")
+    st.stop()
 
-init_file()
+# -----------------------------
+# USERS SHEET
+# -----------------------------
+sheet_id = st.secrets["SHEET_ID"]
+users_sheet = client.open_by_key(sheet_id).worksheet("users")
+
+# -----------------------------
+# LOAD USERS
+# -----------------------------
+def load_users():
+    data = users_sheet.get_all_values()
+    users = {}
+
+    for row in data[1:]:
+        if len(row) >= 2:
+            users[row[0].strip()] = row[1].strip()
+
+    return users
+
+# -----------------------------
+# VALIDATE LOGIN
+# -----------------------------
+def validate_login(username, password):
+    users = load_users()
+    return username in users and users[username] == password
+
+# -----------------------------
+# CREATE / UPDATE PASSWORD
+# -----------------------------
+def set_password(username, password):
+    data = users_sheet.get_all_values()
+
+    # update if exists
+    for i, row in enumerate(data[1:], start=2):
+        if row[0].strip() == username:
+            users_sheet.update_cell(i, 2, password)
+            return "updated"
+
+    # else create new user
+    users_sheet.append_row([username, password])
+    return "created"
 
 # -----------------------------
 # SESSION STATE
 # -----------------------------
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if "auth_branch" not in st.session_state:
-    st.session_state.auth_branch = None
-
-if "reset_mode" not in st.session_state:
-    st.session_state.reset_mode = False
-
-if "pending_action" not in st.session_state:
-    st.session_state.pending_action = None
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
 # -----------------------------
-# Background & UI Setup
+# LOGIN UI
 # -----------------------------
-set_background("barthomepage.jpg")
-st.set_page_config(layout="wide")
-st.title("BART")
-st.markdown("## Staff Dashboard")
-st.write("## Kindly choose your Branch Name")
+if not st.session_state.logged_in:
 
-# Hide Streamlit default UI
-st.markdown("""
-<style>
-#MainMenu {visibility:hidden;}
-footer {visibility:hidden;}
-header {visibility:hidden;}
-[data-testid="stToolbar"] {display:none;}
-[data-testid="stSidebar"] {display:none;}
-.block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
-body {
-    background-size: cover !important;
-    background-repeat: no-repeat !important;
-    background-position: center !important;
-}
-</style>
-""", unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["Login", "Create / Reset Password"])
 
-# -----------------------------
-# Google Sheets Setup
-# -----------------------------
-creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+    # ---------------- LOGIN ----------------
+    with tab1:
+        st.subheader("Login")
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
-
-@st.cache_data
-def load_branches():
-    try:
-        sheet = client.open("MASTERBRANCHSHEET").sheet1
-        return sheet.get_all_records()
-    except gspread.exceptions.SpreadsheetNotFound:
-        st.error("MASTERBRANCHSHEET not found.")
-        st.stop()
-
-branch_data = load_branches()
-branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
-
-# -----------------------------
-# Branch Selection
-# -----------------------------
-if 'selected_branch' not in st.session_state:
-    st.session_state.selected_branch = "-- Select Branch --"
-
-st.session_state.selected_branch = st.selectbox(
-    "Select Branch",
-    ["-- Select Branch --"] + branches,
-    index=branches.index(st.session_state.selected_branch) + 1
-    if st.session_state.selected_branch != "-- Select Branch --" else 0
-)
-
-selected_branch = st.session_state.selected_branch
-
-# -----------------------------
-# BUTTONS + AUTH CONTROL
-# -----------------------------
-if selected_branch != "-- Select Branch --":
-    branch_info = next(b for b in branch_data if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
-
-    st.write(f"### Selected Branch: {selected_branch}")
-
-    col1, col2, col3, col4, col5 = st.columns(5, gap="medium")
-
-    if col1.button("📦 Daily Stock Consumption"):
-        st.session_state.pending_action = "stock"
-
-    if col2.button("💰 Daily Sales Report"):
-        st.session_state.pending_action = "sales"
-
-    if col3.button("🆕 New Stock Report"):
-        st.session_state.pending_action = "newstock"
-
-    if col4.button("🔍 Stock View"):
-        st.session_state.pending_action = "stock_view"
-
-    if col5.button("📊 Daily Sales View"):
-        st.session_state.pending_action = "sales_view"
-
-    passwords = load_passwords()
-
-    # -----------------------------
-    # LOGIN STEP
-    # -----------------------------
-    if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
-        st.subheader("Enter Branch Password")
-
+        username = st.text_input("Username")
         password = st.text_input("Password", type="password")
 
-        branch_key = selected_branch
-
         if st.button("Login"):
-            if passwords.get(branch_key, "") == password:
-                st.session_state.authenticated = True
-                st.session_state.auth_branch = branch_key
+
+            if validate_login(username, password):
+                st.success("Login Successful")
+                st.session_state.logged_in = True
+                st.session_state.user = username
+                st.rerun()
             else:
-                st.error("Incorrect password")
+                st.error("Invalid username or password")
 
-        if st.button("Reset Password"):
-            st.session_state.reset_mode = True
+    # ---------------- CREATE / RESET ----------------
+    with tab2:
+        st.subheader("Create / Reset Password")
 
-    # -----------------------------
-    # RESET PASSWORD
-    # -----------------------------
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password (Admin Required)")
-
-        admin_pass = st.text_input("Admin Password", type="password")
+        new_user = st.text_input("Username (new or existing)")
         new_pass = st.text_input("New Password", type="password")
 
-        if st.button("Update Password"):
-            if admin_pass == passwords.get("admin"):
-                passwords[selected_branch] = new_pass
-                save_passwords(passwords)
-                st.success("Password updated")
-                st.session_state.reset_mode = False
+        if st.button("Save Password"):
+
+            if new_user.strip() == "" or new_pass.strip() == "":
+                st.warning("Fill all fields")
             else:
-                st.error("Wrong admin password")
+                result = set_password(new_user, new_pass)
 
-    # -----------------------------
-    # EXECUTE ACTION AFTER LOGIN
-    # -----------------------------
-    if st.session_state.authenticated and st.session_state.auth_branch == selected_branch:
-
-        st.session_state.sheet_id = branch_info['SheetID']
-        st.session_state.selected_branch = selected_branch
-
-        action = st.session_state.pending_action
-
-        if action == "stock":
-            st.session_state.tab_name = "Stocks"
-            st.switch_page("pages/stock_consumption.py")
-
-        elif action == "sales":
-            st.session_state.tab_name = "Sales"
-            st.switch_page("pages/daily_sales.py")
-
-        elif action == "newstock":
-            st.session_state.tab_name = "NewStocks"
-            st.switch_page("pages/new_stock.py")
-
-        elif action == "stock_view":
-            try:
-                branch_file = client.open_by_key(branch_info['SheetID'])
-                data = branch_file.worksheet("Stocks").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-        elif action == "sales_view":
-            try:
-                branch_file = client.open_by_key(branch_info['SheetID'])
-                data = branch_file.worksheet("Sales").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-            except Exception as e:
-                st.error(f"Error: {e}")
+                if result == "updated":
+                    st.success("Password updated successfully")
+                else:
+                    st.success("New user created successfully")
 
 # -----------------------------
-# BACK BUTTON
+# AFTER LOGIN
 # -----------------------------
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
+else:
+    st.success(f"Welcome {st.session_state.user} 🎉")
+
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
