@@ -29,6 +29,7 @@ div.stButton > button{
 # -----------------------------
 # SESSION INIT
 # -----------------------------
+st.session_state.setdefault("page", "mode_select")
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
@@ -52,27 +53,6 @@ tab_name = st.session_state.get("tab_name")
 if not sheet_id or not tab_name:
     st.warning("Please select a branch first.")
     st.stop()
-
-# -----------------------------
-# MODE SELECT
-# -----------------------------
-if st.session_state.mode is None:
-
-    st.markdown("## Select Stock Type")
-
-    c1, c2 = st.columns(2)
-
-    if c1.button("📦 Daily Stock"):
-        st.session_state.mode = "daily"
-        st.rerun()
-
-    if c2.button("📊 Weekly Stock"):
-        st.session_state.mode = "weekly"
-        st.rerun()
-
-    st.stop()
-
-mode = st.session_state.mode
 
 # -----------------------------
 # GOOGLE SHEETS
@@ -123,8 +103,44 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# SPLIT ITEMS
+# =============================
+# PAGE 1: MODE SELECT
+# =============================
 # -----------------------------
+if st.session_state.page == "mode_select":
+
+    st.markdown("## Select Stock Type")
+
+    c1, c2 = st.columns(2)
+
+    if c1.button("📦 Daily Stock"):
+        st.session_state.mode = "daily"
+        st.session_state.page = "stock_entry"
+        st.rerun()
+
+    if c2.button("📊 Weekly Stock"):
+        st.session_state.mode = "weekly"
+        st.session_state.page = "stock_entry"
+        st.rerun()
+
+    # BACK → STAFF DASHBOARD (ONLY HERE)
+    st.markdown("---")
+
+    if st.button("⬅ Back to Staff Dashboard"):
+        st.session_state.page = "mode_select"
+        st.session_state.mode = None
+        st.switch_page("pages/staff_dashboard.py")
+        st.stop()
+
+    st.stop()
+
+# -----------------------------
+# =============================
+# PAGE 2: STOCK ENTRY
+# =============================
+# -----------------------------
+mode = st.session_state.mode
+
 if mode == "daily":
     filtered_items = items_list[daily_start + 1 : weekly_start]
 else:
@@ -133,13 +149,20 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
+# BACK → MODE SELECT
+# -----------------------------
+if st.button("⬅ Back"):
+    st.session_state.page = "mode_select"
+    st.rerun()
+
+# -----------------------------
 # DATE
 # -----------------------------
 date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUT SECTION
+# INPUTS
 # -----------------------------
 st.markdown("## Enter Stock")
 
@@ -176,7 +199,9 @@ if st.button("🔍 Review Stock"):
     st.session_state.review_mode = True
 
 # -----------------------------
-# REVIEW SCREEN
+# =============================
+# REVIEW + SUBMIT
+# =============================
 # -----------------------------
 if st.session_state.review_mode:
 
@@ -219,6 +244,8 @@ if st.session_state.review_mode:
 
             time.sleep(1)
 
+            # reset
+            st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
             st.session_state.draft_data = {}
@@ -227,17 +254,3 @@ if st.session_state.review_mode:
 
         except Exception as e:
             st.error(e)
-
-# -----------------------------
-# BACK BUTTON (BOTTOM ONLY - BEST UX)
-# -----------------------------
-st.markdown("---")
-
-if st.button("⬅ Back to Staff Dashboard"):
-
-    st.session_state.mode = None
-    st.session_state.review_mode = False
-    st.session_state.draft_data = {}
-
-    st.switch_page("pages/staff_dashboard.py")
-    st.stop()
