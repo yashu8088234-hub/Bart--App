@@ -27,7 +27,7 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# TOAST FUNCTION (BOTTOM POPUP)
+# TOAST FUNCTION
 # -----------------------------
 def success_toast(message):
     st.markdown(
@@ -55,9 +55,9 @@ def success_toast(message):
 # TITLE
 # -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
+
 st.markdown(
-    f"<h1 style='text-align:center;color:red;'>"
-    f"{branch} - Stock System</h1>",
+    f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
     unsafe_allow_html=True
 )
 
@@ -83,7 +83,7 @@ if "sheet_id" not in st.session_state or "tab_name" not in st.session_state:
 sheet = client.open_by_key(st.session_state.sheet_id).worksheet(st.session_state.tab_name)
 
 # -----------------------------
-# LOAD DATA (IGNORE EMPTY ROWS)
+# LOAD DATA
 # -----------------------------
 @st.cache_data(ttl=300)
 def load_data(_sheet):
@@ -101,11 +101,20 @@ def load_data(_sheet):
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# MODE SELECTION SCREEN
+# SESSION INIT
 # -----------------------------
 if "mode" not in st.session_state:
     st.session_state.mode = None
 
+if "review_mode" not in st.session_state:
+    st.session_state.review_mode = False
+
+if "draft_data" not in st.session_state:
+    st.session_state.draft_data = {}
+
+# -----------------------------
+# MODE SELECTION
+# -----------------------------
 if st.session_state.mode is None:
 
     st.markdown("## Select Stock Type")
@@ -121,8 +130,10 @@ if st.session_state.mode is None:
         st.rerun()
 
     if st.button("⬅ Back to Dashboard"):
+        st.session_state.mode = None
+        st.session_state.review_mode = False
+        st.session_state.draft_data = {}
         st.switch_page("pages/staff_dashboard.py")
-        st.stop()
 
     st.stop()
 
@@ -136,14 +147,13 @@ filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK BUTTON (INSIDE PAGE)
+# BACK BUTTON (FIXED)
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
     st.switch_page("pages/staff_dashboard.py")
-    st.stop()
 
 # -----------------------------
 # DATE
@@ -152,16 +162,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# SESSION STORAGE
-# -----------------------------
-if "draft_data" not in st.session_state:
-    st.session_state.draft_data = {}
-
-if "review_mode" not in st.session_state:
-    st.session_state.review_mode = False
-
-# -----------------------------
-# INPUT (STRICT MANUAL)
+# INPUTS
 # -----------------------------
 st.markdown("## Enter Stock (Manual Only)")
 
@@ -184,7 +185,7 @@ for i in range(0, len(filtered_items), 4):
             inputs[item] = value.strip() if value.strip() != "" else None
 
 # -----------------------------
-# REVIEW STEP
+# REVIEW
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
@@ -256,11 +257,12 @@ if st.session_state.review_mode:
 
             success_toast("Stock Submitted Successfully")
 
-            time.sleep(4)
+            time.sleep(2)
 
-            st.session_state.draft_data = {}
-            st.session_state.review_mode = False
+            # RESET STATE CLEANLY
             st.session_state.mode = None
+            st.session_state.review_mode = False
+            st.session_state.draft_data = {}
 
             st.rerun()
 
