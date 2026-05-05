@@ -141,7 +141,7 @@ if st.button("⬅ Back"):
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
-    st.rerun()
+    st.switch_page("staff_dashboard.py")
 
 # -----------------------------
 # DATE
