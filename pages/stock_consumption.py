@@ -62,15 +62,21 @@ if st.session_state.mode is None:
 
     st.markdown("---")
 
-    # BACK TO STAFF DASHBOARD BUTTON
+    # -----------------------------
+    # 🔥 FIXED BACK BUTTON (NO LOOP, NO RELOAD ISSUE)
+    # -----------------------------
     if st.button("⬅ Back to Staff Dashboard"):
 
-        # Option 1: if using Streamlit multipage
-        st.switch_page("pages/staff_dashboard.py")
+        # FULL CLEAN RESET (IMPORTANT)
+        for key in ["mode", "review_mode", "draft_data"]:
+            if key in st.session_state:
+                del st.session_state[key]
 
-        # Option 2 (fallback if no multipage)
-        # st.session_state.page = "staff_dashboard"
-        # st.rerun()
+        st.session_state.clear()
+
+        # STOP IMMEDIATELY so stock page never reruns
+        st.switch_page("pages/staff_dashboard.py")
+        st.stop()
 
     st.stop()
 
@@ -116,11 +122,10 @@ filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# 🔥 BACK BUTTON (FIXED LOGIC)
+# BACK BUTTON (inside stock flow)
 # -----------------------------
 if st.button("⬅ Back"):
 
-    # ONLY RESET MODE (NOT SESSION OR DASHBOARD)
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
@@ -216,7 +221,6 @@ if st.session_state.review_mode:
             st.success("Stock Saved")
             time.sleep(1)
 
-            # RESET ONLY MODE (GO BACK TO STOCK TYPE SCREEN)
             st.session_state.mode = None
             st.session_state.review_mode = False
             st.session_state.draft_data = {}
