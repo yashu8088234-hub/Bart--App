@@ -92,7 +92,7 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# ---------------- BRANCH SELECT (RESTORED ORIGINAL) ----------------
+# ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
 branch_options = ["-- Select Branch --"] + branches
@@ -105,7 +105,6 @@ selected_branch = st.selectbox(
     key="selected_branch"
 )
 
-# 🔥 FIX: force sync (THIS restores functionality properly)
 st.session_state.selected_branch = selected_branch
 
 branch_info = None
