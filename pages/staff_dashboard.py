@@ -197,7 +197,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if col2.button("🆕 New Stock Record"):
             st.switch_page("pages/new_stock.py")
 
-        # ---------------- STOCK VIEW (UPDATED LOGIC) ----------------
+        # ---------------- STOCK VIEW (ONLY FIX HERE) ----------------
         if col3.button("🔍 Stock View"):
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -220,11 +220,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 item = row[0].strip() if len(row) > 0 else ""
 
-                if "daily" in item.lower():
+                # ✅ FIXED SECTION DETECTION (ONLY CHANGE)
+                clean_item = item.strip().lower().replace(" ", "")
+
+                if clean_item.startswith("daily"):
                     current_section = "daily"
                     continue
 
-                if "weekly" in item.lower():
+                if clean_item.startswith("weekly"):
                     current_section = "weekly"
                     continue
 
@@ -254,6 +257,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 if current_section == "daily":
                     daily.append(row_dict)
+
                 elif current_section == "weekly":
                     weekly.append(row_dict)
 
