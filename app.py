@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- CLEAN MODERN UI FIX ----------------
+# ---------------- CLEAN MODERN UI ----------------
 st.markdown("""
 <style>
 
@@ -17,9 +17,9 @@ st.markdown("""
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 
-/* 🌟 Better Background (soft café tone) */
+/* 🌟 FIXED BACKGROUND (lighter, cleaner café tone) */
 .stApp {
-    background: linear-gradient(135deg, #F3EDE7, #FAF7F3);
+    background: linear-gradient(135deg, #F8F6F2, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
@@ -29,7 +29,7 @@ st.markdown("""
     max-width: 1200px;
 }
 
-/* 🌟 HERO FIXED (NOW CLEAR CARD) */
+/* HERO */
 .hero {
     background: rgba(255,255,255,0.92);
     backdrop-filter: blur(10px);
