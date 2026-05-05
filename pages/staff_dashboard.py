@@ -86,13 +86,14 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# BRANCH SELECT
+# BRANCH SELECT (FIX APPLIED HERE)
 # -----------------------------
 st.session_state.selected_branch = st.selectbox(
     "Select Branch",
     ["-- Select Branch --"] + branches,
     index=branches.index(st.session_state.selected_branch) + 1
-    if st.session_state.selected_branch != "-- Select Branch --" else 0
+    if st.session_state.selected_branch != "-- Select Branch --" else 0,
+    searchable=False   # ✅ FIX: prevents mobile keyboard popup
 )
 
 selected_branch = st.session_state.selected_branch
@@ -141,9 +142,6 @@ if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    # -------------------------
-    # RESET PASSWORD MODE
-    # -------------------------
     if st.session_state.reset_mode:
 
         st.subheader("Reset Password (Admin Required)")
@@ -159,9 +157,6 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # -------------------------
-    # LOGIN (ONLY ONE PLACE)
-    # -------------------------
     if not st.session_state.authenticated:
 
         st.subheader("Enter Branch Password")
@@ -183,9 +178,6 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # -------------------------
-    # ACTION BUTTONS
-    # -------------------------
     if st.session_state.authenticated:
 
         st.write(f"### Selected Branch: {selected_branch}")
@@ -207,9 +199,6 @@ if selected_branch != "-- Select Branch --":
         if col5.button("📊 Daily Sales View"):
             st.session_state.pending_action = "sales_view"
 
-        # -------------------------
-        # NAVIGATION
-        # -------------------------
         action = st.session_state.pending_action
 
         if action:
@@ -236,8 +225,5 @@ if selected_branch != "-- Select Branch --":
                 data = branch_file.worksheet("Sales").get_all_records()
                 st.dataframe(data, use_container_width=True, height=600)
 
-# -----------------------------
-# BACK BUTTON
-# -----------------------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
