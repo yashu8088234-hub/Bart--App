@@ -86,14 +86,15 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# BRANCH SELECT (FIX APPLIED HERE)
+# BRANCH SELECT (FIXED)
 # -----------------------------
-st.session_state.selected_branch = st.selectbox(
+branch_options = ["-- Select Branch --"] + branches
+
+st.session_state.selected_branch = st.radio(
     "Select Branch",
-    ["-- Select Branch --"] + branches,
-    index=branches.index(st.session_state.selected_branch) + 1
-    if st.session_state.selected_branch != "-- Select Branch --" else 0,
-    searchable=False   # ✅ FIX: prevents mobile keyboard popup
+    branch_options,
+    index=branch_options.index(st.session_state.selected_branch)
+    if st.session_state.selected_branch in branch_options else 0
 )
 
 selected_branch = st.session_state.selected_branch
