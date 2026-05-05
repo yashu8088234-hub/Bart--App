@@ -27,7 +27,7 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# SESSION INIT
+# SESSION
 # -----------------------------
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
@@ -44,7 +44,7 @@ st.markdown(
 )
 
 # -----------------------------
-# CHECK BRANCH
+# SHEET CHECK
 # -----------------------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
@@ -72,16 +72,6 @@ if st.session_state.mode is None:
         st.session_state.mode = "weekly"
         st.rerun()
 
-    st.markdown("---")
-
-    if st.button("⬅ Back to Staff Dashboard"):
-        for key in ["mode", "review_mode", "draft_data"]:
-            if key in st.session_state:
-                del st.session_state[key]
-
-        st.switch_page("pages/staff_dashboard.py")
-        st.stop()
-
     st.stop()
 
 mode = st.session_state.mode
@@ -102,35 +92,30 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
 # -----------------------------
-# LOAD DATA (ROBUST)
+# LOAD DATA (RAW SAFE SCAN)
 # -----------------------------
-def load_data(ws):
+def load_items(ws):
     data = ws.get_all_values()
 
-    headers = data[0] if data else []
-
     items = []
+    for row in data:
+        for cell in row:
+            if cell and cell.strip():
+                items.append(cell.strip())
 
-    for row in data[1:]:
-        if not row:
-            continue
+    return items
 
-        # take first non-empty cell in row
-        item = next((c for c in row if c and c.strip()), "")
-
-        if item.strip():
-            items.append(item.strip())
-
-    return data, headers, items
-
-sheet_data, headers, items_list = load_data(sheet)
+items_list = load_items(sheet)
 
 # -----------------------------
-# 🔥 SAFE SECTION FINDER (ANYWHERE IN SHEET)
+# NORMALIZE
 # -----------------------------
 def normalize(text):
     return text.replace("\xa0", " ").strip().upper()
 
+# -----------------------------
+# FIND SECTION INDEX
+# -----------------------------
 def find_section(items, target):
     target = normalize(target)
 
@@ -139,23 +124,15 @@ def find_section(items, target):
             return i
     return None
 
-
 daily_start = find_section(items_list, "DAILY ITEM")
 weekly_start = find_section(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
-    st.error("""
-❌ Cannot find DAILY ITEM or WEEKLY ITEM in your sheet.
-
-👉 Fix checklist:
-- Ensure spelling is EXACT
-- No merged cells
-- No hidden formatting
-""")
+    st.error("❌ DAILY ITEM or WEEKLY ITEM not found in sheet")
     st.stop()
 
 # -----------------------------
-# FILTER ITEMS
+# SPLIT ITEMS
 # -----------------------------
 if mode == "daily":
     filtered_items = items_list[daily_start + 1 : weekly_start]
@@ -165,7 +142,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK BUTTON
+# BACK
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
@@ -200,7 +177,7 @@ for i in range(0, len(filtered_items), 4):
                 key=f"{mode}_{item}"
             )
 
-            inputs[item] = value.strip() if value.strip() != "" else None
+            inputs[item] = value.strip() if value.strip() else None
 
 # -----------------------------
 # REVIEW
@@ -217,47 +194,46 @@ if st.button("🔍 Review Stock"):
     st.session_state.review_mode = True
 
 # -----------------------------
-# REVIEW SCREEN
+# FINAL SUBMIT
 # -----------------------------
 if st.session_state.review_mode:
 
-    st.markdown("## Pending Review")
+    st.markdown("## Review")
 
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    if st.button("✅ Final Submit"):
+    if st.button("✅ Submit"):
 
         try:
-            sheet_data, headers, items_list = load_data(sheet)
+            sheet_data = sheet.get_all_values()
+            headers = sheet_data[0]
 
-            # date column
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
+            col_values = sheet.col_values(1)
+
             updates = []
 
             for item, qty in st.session_state.draft_data.items():
 
-                if item not in items_list:
-                    continue
-
-                row = items_list.index(item) + 2
-
-                cell = gspread.utils.rowcol_to_a1(row, col_index)
-
-                updates.append({
-                    "range": cell,
-                    "values": [[qty]]
-                })
+                for r, val in enumerate(col_values):
+                    if normalize(val) == normalize(item):
+                        cell = gspread.utils.rowcol_to_a1(r + 1, col_index)
+                        updates.append({
+                            "range": cell,
+                            "values": [[qty]]
+                        })
+                        break
 
             if updates:
                 sheet.batch_update(updates)
 
-            st.success("✅ Stock Saved")
+            st.success("✅ Saved")
             time.sleep(1)
 
             st.session_state.mode = None
