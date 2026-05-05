@@ -30,13 +30,13 @@ h1, h2, h3 {
     text-align: center;
 }
 
+/* ---------------- MOBILE FIX ---------------- */
+div[data-baseweb="select"] input {
+    caret-color: transparent !important;
+}
+
 select {
-    width: 100%;
-    padding: 14px;
-    font-size: 16px;
-    border-radius: 10px;
-    border: 1px solid #ccc;
-    background: white;
+    font-size: 16px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -103,35 +103,18 @@ branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT (HTML + STREAMLIT SYNC) ----------------
+# ---------------- BRANCH SELECT (FIXED) ----------------
 st.subheader("Select Branch")
 
-query_params = st.query_params
-url_branch = query_params.get("branch", st.session_state.selected_branch)
+selected_branch = st.selectbox(
+    "Branch",
+    branch_options,
+    index=branch_options.index(st.session_state.selected_branch)
+    if st.session_state.selected_branch in branch_options else 0,
+    key="branch_selectbox"
+)
 
-st.session_state.selected_branch = url_branch
-
-html = """
-<select onchange="window.location.href='?branch=' + this.value;" style="
-    width:100%;
-    padding:14px;
-    font-size:16px;
-    border-radius:10px;
-    border:1px solid #ccc;
-    background:white;
-    outline:none;
-">
-"""
-
-for b in branch_options:
-    selected = "selected" if b == url_branch else ""
-    html += f"<option value='{b}' {selected}>{b}</option>"
-
-html += "</select>"
-
-st.markdown(html, unsafe_allow_html=True)
-
-selected_branch = st.session_state.selected_branch
+st.session_state.selected_branch = selected_branch
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
@@ -145,7 +128,6 @@ if selected_branch != "-- Select Branch --":
     st.session_state.branch_info = branch_info
 
 # ---------------- PASSWORD SYSTEM ----------------
-@st.cache_data(ttl=300)
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
