@@ -29,14 +29,6 @@ header {visibility:hidden;}
 h1, h2, h3 {
     text-align: center;
 }
-
-select {
-    font-size: 16px !important;
-}
-
-div[data-baseweb="select"] input {
-    caret-color: transparent !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -128,7 +120,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
         b for b in branch_data
         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
+
+    # ✅ FIX: SET BOTH REQUIRED VALUES
     st.session_state.sheet_id = branch_info["SheetID"]
+    st.session_state.tab_name = "Stocks"   # 🔥 IMPORTANT FIX
     st.session_state.branch_info = branch_info
 
 # ---------------- PASSWORD SYSTEM ----------------
@@ -198,10 +193,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        # ✅ ONLY 3 BUTTONS NOW
         col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
+            # ✅ ensure values exist before navigation
+            st.session_state.sheet_id = branch_info["SheetID"]
+            st.session_state.tab_name = "Stocks"
             st.switch_page("pages/stock_consumption.py")
 
         if col2.button("🆕 New Stock Record"):
