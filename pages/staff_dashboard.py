@@ -32,20 +32,29 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- ✅ MOBILE KEYBOARD FIX (ADDED ONLY THIS) ----------------
+# ---------------- 🔥 MOBILE KEYBOARD FIX (REAL FIX) ----------------
+# This blocks mobile keyboard by disabling input focus on selectbox internals
 st.markdown("""
 <style>
-/* Prevent mobile keyboard opening on selectbox input */
 div[data-baseweb="select"] input {
-    caret-color: transparent !important;
-    user-select: none !important;
-}
-
-/* Disable focus-triggered keyboard behavior */
-div[data-baseweb="select"] input:focus {
+    opacity: 0 !important;
+    position: absolute !important;
     pointer-events: none !important;
+    caret-color: transparent !important;
 }
 </style>
+
+<script>
+window.addEventListener("load", function () {
+    setTimeout(() => {
+        document.querySelectorAll("input").forEach(el => {
+            el.setAttribute("readonly", true);
+            el.setAttribute("inputmode", "none");
+            el.blur();
+        });
+    }, 500);
+});
+</script>
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
