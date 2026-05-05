@@ -162,6 +162,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
                     st.session_state.authenticated = True
+
+                    # 🔥 FIX ADDED HERE (CRITICAL)
+                    st.session_state.sheet_id = branch_info["SheetID"]
+                    st.session_state.tab_name = "Stocks"
+                    st.session_state.branch_info = branch_info
+
                     st.rerun()
                 else:
                     st.error("Incorrect password")
@@ -197,7 +203,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if col2.button("🆕 New Stock Record"):
             st.switch_page("pages/new_stock.py")
 
-        # ---------------- STOCK VIEW (FIXED COMPLETELY) ----------------
+        # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -217,7 +223,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 row_text = " ".join(row).strip().lower()
 
-                # detect section headers
                 if "daily item" in row_text:
                     current_section = "daily"
                     continue
@@ -229,12 +234,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if current_section is None:
                     continue
 
-                if not row or len(row) == 0:
+                if not row or not row[0]:
                     continue
 
-                item = row[0].strip() if row[0] else ""
-                if item == "":
-                    continue
+                item = row[0].strip()
 
                 values = row[1:]
                 values = values + [""] * (len(date_columns) - len(values))
@@ -259,18 +262,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 if current_section == "daily":
                     daily.append(row_dict)
-
-                elif current_section == "weekly":
+                else:
                     weekly.append(row_dict)
 
-            df_daily = pd.DataFrame(daily)
-            df_weekly = pd.DataFrame(weekly)
-
             st.subheader("📦 Daily Items Stock")
-            st.dataframe(df_daily, use_container_width=True, height=400)
+            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
 
             st.subheader("📦 Weekly Items Stock")
-            st.dataframe(df_weekly, use_container_width=True, height=400)
+            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
