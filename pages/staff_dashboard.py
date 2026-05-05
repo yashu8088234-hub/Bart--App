@@ -19,10 +19,6 @@ def load_admin():
     with open(FILE_NAME, "r") as f:
         return json.load(f)
 
-def save_admin(data):
-    with open(FILE_NAME, "w") as f:
-        json.dump(data, f)
-
 init_file()
 
 # -----------------------------
@@ -82,7 +78,22 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# PASSWORDS FROM SHEET (BRANCH PASSWORDS)
+# BRANCH SELECTION
+# -----------------------------
+if 'selected_branch' not in st.session_state:
+    st.session_state.selected_branch = "-- Select Branch --"
+
+st.session_state.selected_branch = st.selectbox(
+    "Select Branch",
+    ["-- Select Branch --"] + branches,
+    index=branches.index(st.session_state.selected_branch) + 1
+    if st.session_state.selected_branch != "-- Select Branch --" else 0
+)
+
+selected_branch = st.session_state.selected_branch
+
+# -----------------------------
+# PASSWORDS FROM SHEET
 # -----------------------------
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -90,7 +101,7 @@ def load_passwords():
 
     passwords = {"admin": load_admin()["admin"]}
 
-    for i, row in enumerate(records, start=2):  # row index starts at 2 (header=1)
+    for row in records:
         key = f"{row['BranchCode']} - {row['BranchName']}"
         passwords[key] = row.get("Password", "")
 
@@ -107,28 +118,50 @@ def save_passwords(branch_key, new_password):
             return
 
 # -----------------------------
-# BRANCH SELECTION
-# -----------------------------
-if 'selected_branch' not in st.session_state:
-    st.session_state.selected_branch = "-- Select Branch --"
-
-st.session_state.selected_branch = st.selectbox(
-    "Select Branch",
-    ["-- Select Branch --"] + branches,
-    index=branches.index(st.session_state.selected_branch) + 1
-    if st.session_state.selected_branch != "-- Select Branch --" else 0
-)
-
-selected_branch = st.session_state.selected_branch
-
-# -----------------------------
-# BUTTONS
+# PASSWORD SECTION (MOVED UP)
 # -----------------------------
 if selected_branch != "-- Select Branch --":
 
     branch_info = next(b for b in branch_data
                        if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch)
 
+    passwords = load_passwords()
+
+    # LOGIN FIRST (NOW ABOVE BUTTONS)
+    if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
+
+        st.subheader("Enter Branch Password")
+
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if passwords.get(selected_branch, "") == password:
+                st.session_state.authenticated = True
+                st.session_state.auth_branch = selected_branch
+            else:
+                st.error("Incorrect password")
+
+        if st.button("Reset Password"):
+            st.session_state.reset_mode = True
+
+    # RESET PASSWORD
+    if st.session_state.reset_mode:
+        st.subheader("Reset Password (Admin Required)")
+
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
+
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                save_passwords(selected_branch, new_pass)
+                st.success("Password updated in MASTERBRANCHSHEET")
+                st.session_state.reset_mode = False
+            else:
+                st.error("Wrong admin password")
+
+    # -----------------------------
+    # BUTTONS (MOVED BELOW PASSWORD)
+    # -----------------------------
     st.write(f"### Selected Branch: {selected_branch}")
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -148,51 +181,12 @@ if selected_branch != "-- Select Branch --":
     if col5.button("📊 Daily Sales View"):
         st.session_state.pending_action = "sales_view"
 
-    passwords = load_passwords()
-
-    # -----------------------------
-    # LOGIN
-    # -----------------------------
-    if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
-
-        st.subheader("Enter Branch Password")
-
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-            if passwords.get(selected_branch, "") == password:
-                st.session_state.authenticated = True
-                st.session_state.auth_branch = selected_branch
-            else:
-                st.error("Incorrect password")
-
-        if st.button("Reset Password"):
-            st.session_state.reset_mode = True
-
-    # -----------------------------
-    # RESET PASSWORD (NOW SAVED TO SHEET)
-    # -----------------------------
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password (Admin Required)")
-
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
-
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(selected_branch, new_pass)   # ✅ SAVED TO MASTER SHEET
-                st.success("Password updated in MASTERBRANCHSHEET")
-                st.session_state.reset_mode = False
-            else:
-                st.error("Wrong admin password")
-
     # -----------------------------
     # AFTER LOGIN ACTIONS
     # -----------------------------
     if st.session_state.authenticated and st.session_state.auth_branch == selected_branch:
 
         st.session_state.sheet_id = branch_info['SheetID']
-        st.session_state.selected_branch = selected_branch
 
         action = st.session_state.pending_action
 
@@ -206,20 +200,14 @@ if selected_branch != "-- Select Branch --":
             st.switch_page("pages/new_stock.py")
 
         elif action == "stock_view":
-            try:
-                branch_file = client.open_by_key(branch_info['SheetID'])
-                data = branch_file.worksheet("Stocks").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-            except Exception as e:
-                st.error(f"Error: {e}")
+            branch_file = client.open_by_key(branch_info['SheetID'])
+            data = branch_file.worksheet("Stocks").get_all_records()
+            st.dataframe(data, use_container_width=True, height=600)
 
         elif action == "sales_view":
-            try:
-                branch_file = client.open_by_key(branch_info['SheetID'])
-                data = branch_file.worksheet("Sales").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-            except Exception as e:
-                st.error(f"Error: {e}")
+            branch_file = client.open_by_key(branch_info['SheetID'])
+            data = branch_file.worksheet("Sales").get_all_records()
+            st.dataframe(data, use_container_width=True, height=600)
 
 # -----------------------------
 # BACK BUTTON
