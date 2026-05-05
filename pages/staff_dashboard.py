@@ -30,7 +30,6 @@ h1, h2, h3 {
     text-align: center;
 }
 
-/* ---------------- MOBILE FIX ---------------- */
 select {
     font-size: 16px !important;
 }
@@ -74,7 +73,8 @@ defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
-    "selected_branch": "-- Select Branch --"
+    "selected_branch": "-- Select Branch --",
+    "show_branch_picker": True
 }
 
 for k, v in defaults.items():
@@ -100,22 +100,33 @@ def load_branches():
 
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
-
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT (RADIO INSIDE DROPDOWN STYLE) ----------------
+# ---------------- BRANCH SELECT (FIXED UX) ----------------
 st.subheader("Select Branch")
 
-with st.popover("Choose Branch"):
-    selected_branch = st.radio(
-        "Branch List",
-        branch_options,
-        index=branch_options.index(st.session_state.selected_branch)
-        if st.session_state.selected_branch in branch_options else 0,
-    )
-    st.session_state.selected_branch = selected_branch
+if st.session_state.show_branch_picker or st.session_state.selected_branch == "-- Select Branch --":
 
-st.write(f"Selected: **{st.session_state.selected_branch}**")
+    with st.popover("Choose Branch"):
+        selected_branch = st.radio(
+            "Branch List",
+            branch_options,
+            index=branch_options.index(st.session_state.selected_branch)
+            if st.session_state.selected_branch in branch_options else 0,
+        )
+
+        if st.button("Confirm Selection"):
+            st.session_state.selected_branch = selected_branch
+            st.session_state.show_branch_picker = False
+            st.rerun()
+
+# SHOW SELECTED BRANCH CLEANLY
+if st.session_state.selected_branch != "-- Select Branch --":
+    st.success(f"Selected Branch: {st.session_state.selected_branch}")
+
+    if st.button("🔄 Change Branch"):
+        st.session_state.show_branch_picker = True
+        st.rerun()
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
