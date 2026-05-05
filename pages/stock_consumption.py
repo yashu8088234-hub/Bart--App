@@ -74,8 +74,8 @@ sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
-    col_a = []
 
+    col_a = []
     for row in data:
         if row and len(row) > 0:
             val = row[0].strip()
@@ -139,7 +139,7 @@ if st.session_state.page == "mode_select":
 
 # -----------------------------
 # =============================
-# VIEW STOCK PAGE (NEW)
+# VIEW STOCK PAGE (UPDATED)
 # =============================
 # -----------------------------
 if st.session_state.page == "view_stock":
@@ -149,17 +149,29 @@ if st.session_state.page == "view_stock":
     daily_items = items_list[daily_start + 1 : weekly_start]
     weekly_items = items_list[weekly_start + 1 :]
 
-    tab1, tab2 = st.tabs(["📦 Daily Items", "📊 Weekly Items"])
+    # -----------------------------
+    # DAILY SECTION
+    # -----------------------------
+    st.markdown("### 📦 Daily Stock")
 
-    with tab1:
-        st.markdown("### Daily Stock Items")
+    if daily_items:
         for item in daily_items:
             st.write("•", item)
+    else:
+        st.info("No daily items found")
 
-    with tab2:
-        st.markdown("### Weekly Stock Items")
+    st.markdown("---")
+
+    # -----------------------------
+    # WEEKLY SECTION
+    # -----------------------------
+    st.markdown("### 📊 Weekly Stock")
+
+    if weekly_items:
         for item in weekly_items:
             st.write("•", item)
+    else:
+        st.info("No weekly items found")
 
     st.markdown("---")
 
