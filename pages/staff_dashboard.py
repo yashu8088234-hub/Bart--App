@@ -32,11 +32,11 @@ h1, h2, h3 {
 
 /* ---------------- MOBILE FIX ---------------- */
 select {
-    font-size: 16px !important;  /* prevents iOS zoom */
+    font-size: 16px !important;
 }
 
 div[data-baseweb="select"] input {
-    caret-color: transparent !important; /* prevents keyboard weird focus */
+    caret-color: transparent !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -103,26 +103,27 @@ branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT (STABLE + MOBILE FIXED) ----------------
+# ---------------- BRANCH SELECT (RADIO INSIDE DROPDOWN STYLE) ----------------
 st.subheader("Select Branch")
 
-selected_branch = st.selectbox(
-    "Branch",
-    branch_options,
-    index=branch_options.index(st.session_state.selected_branch)
-    if st.session_state.selected_branch in branch_options else 0,
-    key="branch_selectbox"
-)
+with st.popover("Choose Branch"):
+    selected_branch = st.radio(
+        "Branch List",
+        branch_options,
+        index=branch_options.index(st.session_state.selected_branch)
+        if st.session_state.selected_branch in branch_options else 0,
+    )
+    st.session_state.selected_branch = selected_branch
 
-st.session_state.selected_branch = selected_branch
+st.write(f"Selected: **{st.session_state.selected_branch}**")
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
 
-if selected_branch != "-- Select Branch --":
+if st.session_state.selected_branch != "-- Select Branch --":
     branch_info = next(
         b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
+        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
     st.session_state.sheet_id = branch_info["SheetID"]
     st.session_state.branch_info = branch_info
@@ -152,7 +153,7 @@ def save_passwords(branch_key, new_password):
             return
 
 # ---------------- MAIN ----------------
-if selected_branch != "-- Select Branch --":
+if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
@@ -164,7 +165,7 @@ if selected_branch != "-- Select Branch --":
 
         if st.button("Update Password"):
             if admin_pass == load_admin()["admin"]:
-                save_passwords(selected_branch, new_pass)
+                save_passwords(st.session_state.selected_branch, new_pass)
                 st.success("Password updated successfully")
                 st.session_state.reset_mode = False
             else:
@@ -179,9 +180,9 @@ if selected_branch != "-- Select Branch --":
 
         with col1:
             if st.button("Login"):
-                if passwords.get(selected_branch, "") == password:
+                if passwords.get(st.session_state.selected_branch, "") == password:
                     st.session_state.authenticated = True
-                    st.session_state.auth_branch = selected_branch
+                    st.session_state.auth_branch = st.session_state.selected_branch
                     st.rerun()
                 else:
                     st.error("Incorrect password")
@@ -192,7 +193,7 @@ if selected_branch != "-- Select Branch --":
 
     if st.session_state.authenticated:
 
-        st.success(f"Logged in: {selected_branch}")
+        st.success(f"Logged in: {st.session_state.selected_branch}")
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
