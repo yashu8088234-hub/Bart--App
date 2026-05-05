@@ -44,6 +44,18 @@ st.markdown(
 )
 
 # -----------------------------
+# 🚨 CRITICAL FIX: CHECK BRANCH FIRST
+# -----------------------------
+sheet_id = st.session_state.get("sheet_id")
+tab_name = st.session_state.get("tab_name")
+
+if not sheet_id or not tab_name:
+    st.warning("Please select a branch first.")
+    if st.button("⬅ Go to Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
+    st.stop()
+
+# -----------------------------
 # IF NO MODE → SHOW MODE SELECT SCREEN
 # -----------------------------
 if st.session_state.mode is None:
@@ -63,18 +75,15 @@ if st.session_state.mode is None:
     st.markdown("---")
 
     # -----------------------------
-    # 🔥 FIXED BACK BUTTON (NO LOOP, NO RELOAD ISSUE)
+    # BACK BUTTON (SAFE RESET)
     # -----------------------------
     if st.button("⬅ Back to Staff Dashboard"):
 
-        # FULL CLEAN RESET (IMPORTANT)
+        # ONLY CLEAR PAGE STATE (NOT BRANCH)
         for key in ["mode", "review_mode", "draft_data"]:
             if key in st.session_state:
                 del st.session_state[key]
 
-        st.session_state.clear()
-
-        # STOP IMMEDIATELY so stock page never reruns
         st.switch_page("pages/staff_dashboard.py")
         st.stop()
 
@@ -90,13 +99,6 @@ creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
-
-sheet_id = st.session_state.get("sheet_id")
-tab_name = st.session_state.get("tab_name")
-
-if not sheet_id or not tab_name:
-    st.error("No branch selected")
-    st.stop()
 
 sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
