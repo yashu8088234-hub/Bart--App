@@ -12,7 +12,7 @@ from pathlib import Path   # ✅ ONLY ADDITION
 FILE_NAME = Path(__file__).parent / "passwords.json"   # ✅ ONLY FIX
 
 def init_file():
-    if not os.path.exists(FILE_NAME):
+    if not FILE_NAME.exists():   # ✅ FIXED (was os.path.exists)
         with open(FILE_NAME, "w") as f:
             json.dump({"admin": "admin123"}, f)
 
