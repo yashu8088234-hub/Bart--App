@@ -32,31 +32,6 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- 🔥 MOBILE KEYBOARD FIX (REAL FIX) ----------------
-# This blocks mobile keyboard by disabling input focus on selectbox internals
-st.markdown("""
-<style>
-div[data-baseweb="select"] input {
-    opacity: 0 !important;
-    position: absolute !important;
-    pointer-events: none !important;
-    caret-color: transparent !important;
-}
-</style>
-
-<script>
-window.addEventListener("load", function () {
-    setTimeout(() => {
-        document.querySelectorAll("input").forEach(el => {
-            el.setAttribute("readonly", true);
-            el.setAttribute("inputmode", "none");
-            el.blur();
-        });
-    }, 500);
-});
-</script>
-""", unsafe_allow_html=True)
-
 # ---------------- HEADER ----------------
 st.markdown("""
 <div style="
@@ -90,7 +65,6 @@ defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
-    "pending_action": None,
     "selected_branch": "-- Select Branch --"
 }
 
@@ -118,21 +92,54 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# ---------------- BRANCH SELECT ----------------
-st.subheader("Select Branch")
-
 branch_options = ["-- Select Branch --"] + branches
 
-selected_branch = st.selectbox(
-    "Branch",
-    branch_options,
-    index=branch_options.index(st.session_state.selected_branch)
-    if st.session_state.selected_branch in branch_options else 0,
-    key="branch_selectbox"
-)
+# ---------------- 🔥 MOBILE SAFE DROPDOWN (NO KEYBOARD) ----------------
+st.subheader("Select Branch")
 
-st.session_state.selected_branch = selected_branch
+html = """
+<select id="branch_select" style="
+    width:100%;
+    padding:12px;
+    font-size:16px;
+    border-radius:8px;
+    border:1px solid #ccc;
+    background:white;
+">
+"""
 
+for b in branch_options:
+    selected = "selected" if b == st.session_state.selected_branch else ""
+    html += f"<option value='{b}' {selected}>{b}</option>"
+
+html += "</select>"
+
+st.markdown(html, unsafe_allow_html=True)
+
+# JS sync to Streamlit session via URL trick (simple version)
+selected_branch = st.session_state.selected_branch
+
+st.markdown("""
+<script>
+const select = document.getElementById("branch_select");
+
+if (select) {
+    select.addEventListener("change", function() {
+        const value = this.value;
+        window.location.href = "?branch=" + encodeURIComponent(value);
+    });
+}
+</script>
+""", unsafe_allow_html=True)
+
+# Capture selection from URL
+query_params = st.query_params
+if "branch" in query_params:
+    st.session_state.selected_branch = query_params["branch"]
+
+selected_branch = st.session_state.selected_branch
+
+# ---------------- BRANCH INFO ----------------
 branch_info = None
 
 if selected_branch != "-- Select Branch --":
@@ -173,7 +180,6 @@ if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    # RESET PASSWORD
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -188,7 +194,6 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # LOGIN
     if not st.session_state.authenticated:
         st.subheader("Branch Login")
 
@@ -209,7 +214,6 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # AFTER LOGIN
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {selected_branch}")
@@ -235,6 +239,6 @@ if selected_branch != "-- Select Branch --":
             data = sheet.worksheet("Sales").get_all_records()
             st.dataframe(data, use_container_width=True, height=500)
 
-# ---------------- BACK BUTTON ----------------
+# ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
