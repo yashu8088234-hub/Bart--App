@@ -29,6 +29,19 @@ header {visibility:hidden;}
 h1, h2, h3 {
     text-align: center;
 }
+
+/* tighter radio layout */
+div[role="radiogroup"] {
+    gap: 4px !important;
+}
+
+div[role="radiogroup"] label {
+    padding: 8px 10px !important;
+    margin: 2px 0 !important;
+    border-radius: 8px;
+    background: white;
+    border: 1px solid #e0e0e0;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,22 +105,20 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# ---------------- 🔥 MOBILE APP STYLE BRANCH PICKER ----------------
-st.subheader("Select Branch")
-
 branch_options = ["-- Select Branch --"] + branches
 
-with st.expander("🏢 Choose Branch", expanded=True):
+# ---------------- 🔥 COMPACT MOBILE PICKER (NO SPACE WASTE) ----------------
+st.subheader("Select Branch")
 
-    selected_branch = st.radio(
-        "",
-        branch_options,
-        index=branch_options.index(st.session_state.selected_branch)
-        if st.session_state.selected_branch in branch_options else 0
-    )
+selected_branch = st.radio(
+    "",
+    branch_options,
+    index=branch_options.index(st.session_state.selected_branch)
+    if st.session_state.selected_branch in branch_options else 0,
+    label_visibility="collapsed"
+)
 
-    if selected_branch:
-        st.session_state.selected_branch = selected_branch
+st.session_state.selected_branch = selected_branch
 
 selected_branch = st.session_state.selected_branch
 
