@@ -8,18 +8,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- MODERN BRAND UI ----------------
+# ---------------- CLEAN MODERN UI FIX ----------------
 st.markdown("""
 <style>
 
-/* Hide Streamlit default UI */
+/* Hide Streamlit UI */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 
-/* Background */
+/* 🌟 Better Background (soft café tone) */
 .stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
+    background: linear-gradient(135deg, #F3EDE7, #FAF7F3);
     font-family: 'Segoe UI', sans-serif;
 }
 
@@ -29,44 +29,20 @@ st.markdown("""
     max-width: 1200px;
 }
 
-/* HERO */
+/* 🌟 HERO FIXED (NOW CLEAR CARD) */
 .hero {
-    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(10px);
     padding: 70px 35px;
     border-radius: 28px;
     text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    margin-top: 20px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.12);
+    margin-top: 25px;
     position: relative;
-    overflow: hidden;
+    border: 2px solid rgba(192,57,43,0.08);
 }
 
-/* glow effects */
-.hero::before {
-    content: "";
-    position: absolute;
-    width: 320px;
-    height: 320px;
-    background: rgba(192,57,43,0.08);
-    border-radius: 50%;
-    top: -100px;
-    left: -100px;
-    filter: blur(20px);
-}
-
-.hero::after {
-    content: "";
-    position: absolute;
-    width: 280px;
-    height: 280px;
-    background: rgba(230,177,126,0.08);
-    border-radius: 50%;
-    bottom: -100px;
-    right: -100px;
-    filter: blur(25px);
-}
-
-/* BART title */
+/* BART Title */
 .hero h1 {
     font-size: 74px;
     font-weight: 900;
@@ -75,7 +51,7 @@ st.markdown("""
     margin-bottom: 10px;
 }
 
-/* subtitle */
+/* Subtitle */
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
@@ -83,7 +59,7 @@ st.markdown("""
     margin-bottom: 15px;
 }
 
-/* paragraph */
+/* Paragraph */
 .hero p {
     font-size: 16px;
     color: #555;
@@ -92,7 +68,7 @@ st.markdown("""
     line-height: 1.7;
 }
 
-/* LOGIN BUTTON ROW */
+/* Buttons */
 .login-buttons {
     display: flex;
     justify-content: center;
@@ -101,7 +77,6 @@ st.markdown("""
     flex-wrap: wrap;
 }
 
-/* BUTTON STYLE */
 div.stButton > button {
     height: 55px;
     width: 220px;
@@ -119,7 +94,7 @@ div.stButton > button:hover {
     transform: translateY(-2px);
 }
 
-/* SECTION BOX */
+/* Sections */
 .section {
     background: rgba(255,255,255,0.85);
     padding: 40px 25px;
@@ -142,7 +117,7 @@ div.stButton > button:hover {
     line-height: 1.6;
 }
 
-/* INPUT */
+/* Input */
 .stTextInput > div > div > input {
     border-radius: 10px;
 }
@@ -150,7 +125,7 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HERO SECTION ----------------
+# ---------------- HERO ----------------
 st.markdown("""
 <div class="hero">
     <h1>BART</h1>
@@ -164,7 +139,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN BUTTONS ----------------
+# ---------------- LOGIN ----------------
 st.markdown('<div class="login-buttons">', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
@@ -183,16 +158,12 @@ with col3:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- AI SIDEBAR ----------------
+# ---------------- AI ----------------
 st.sidebar.markdown("### 🤖 AI Assistant")
 query = st.sidebar.text_input("Ask AI")
 
 if query:
-    context = {
-        "revenue": 0,
-        "items": 0,
-        "sales": []
-    }
+    context = {"revenue": 0, "items": 0, "sales": []}
     st.sidebar.success(run_ai(query, context))
 
 # ---------------- CHAT ----------------
@@ -216,7 +187,7 @@ if user_input:
 for sender, msg in st.session_state.chat[-10:]:
     st.write(f"**{sender}:** {msg}")
 
-# ---------------- INFO SECTIONS ----------------
+# ---------------- INFO ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
