@@ -32,23 +32,6 @@ h1, h2, h3 {
 </style>
 """, unsafe_allow_html=True)
 
-
-# ---------------- MOBILE DROPDOWN FIX (ADDED ONLY THIS) ----------------
-st.markdown("""
-<style>
-/* Prevent mobile keyboard popup on selectbox */
-div[data-baseweb="select"] input {
-    caret-color: transparent !important;
-    pointer-events: none !important;
-}
-
-div[data-baseweb="select"] input:focus {
-    outline: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
 # ---------------- HEADER ----------------
 st.markdown("""
 <div style="
@@ -230,3 +213,8 @@ if selected_branch != "-- Select Branch --":
 # ---------------- BACK BUTTON ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
+
+
+
+
+
