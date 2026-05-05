@@ -62,6 +62,12 @@ if st.session_state.mode is None:
 
     st.stop()
 
+
+# BACK BUTTON
+# -----------------------------
+if st.button("⬅ Back"):
+    st.switch_page("pages/staff_dashboard.py")
+
 mode = st.session_state.mode
 
 # -----------------------------
