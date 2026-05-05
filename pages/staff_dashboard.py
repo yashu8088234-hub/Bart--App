@@ -197,7 +197,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if col2.button("🆕 New Stock Record"):
             st.switch_page("pages/new_stock.py")
 
-        # ---------------- STOCK VIEW (FIXED ONLY HERE) ----------------
+        # ---------------- STOCK VIEW (FIXED COMPLETELY) ----------------
         if col3.button("🔍 Stock View"):
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -213,14 +213,11 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
             current_section = None
 
-            for row in data[1:]:
+            for row in data:
 
-                if not row:
-                    continue
-
-                # ---------------- FIX 1: safer section detection ----------------
                 row_text = " ".join(row).strip().lower()
 
+                # detect section headers
                 if "daily item" in row_text:
                     current_section = "daily"
                     continue
@@ -229,9 +226,13 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     current_section = "weekly"
                     continue
 
-                # ---------------- FIX 2: safe item extraction ----------------
-                item = row[0].strip() if len(row) > 0 else ""
+                if current_section is None:
+                    continue
 
+                if not row or len(row) == 0:
+                    continue
+
+                item = row[0].strip() if row[0] else ""
                 if item == "":
                     continue
 
