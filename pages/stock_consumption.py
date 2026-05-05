@@ -3,6 +3,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
 from background import set_background
+from gspread import Cell
 
 # -----------------------------
 # UI SETUP
@@ -55,7 +56,7 @@ if not sheet_id or not tab_name:
     st.stop()
 
 # -----------------------------
-# GOOGLE SHEETS
+# GOOGLE SHEETS AUTH
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
@@ -70,19 +71,11 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
 # -----------------------------
-# LOAD COLUMN A ONLY
+# LOAD COLUMN A
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
-
-    col_a = []
-    for row in data:
-        if row and len(row) > 0:
-            val = row[0].strip()
-            if val:
-                col_a.append(val)
-
-    return col_a
+    return [row[0].strip() for row in data if row and row[0].strip()]
 
 items_list = load_column_a(sheet)
 
@@ -124,15 +117,12 @@ if st.session_state.page == "mode_select":
     st.markdown("---")
 
     if st.button("⬅ Back to Staff Dashboard"):
-        st.session_state.page = "mode_select"
-        st.session_state.mode = None
         st.switch_page("pages/staff_dashboard.py")
-        st.stop()
 
     st.stop()
 
 # -----------------------------
-# STOCK ENTRY PAGE
+# STOCK ENTRY
 # -----------------------------
 mode = st.session_state.mode
 
@@ -143,9 +133,6 @@ else:
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
-# -----------------------------
-# BACK
-# -----------------------------
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
     st.rerun()
@@ -206,36 +193,49 @@ if st.session_state.review_mode:
     if st.button("✅ Submit"):
 
         try:
+            # -----------------------------
+            # READ HEADERS ONLY ONCE
+            # -----------------------------
             sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
 
+            # -----------------------------
+            # FIND / CREATE DATE COLUMN
+            # -----------------------------
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
+            # -----------------------------
+            # BUILD FAST LOOKUP (IMPORTANT FIX)
+            # -----------------------------
             col_values = sheet.col_values(1)
+            item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
-            updates = []
+            # -----------------------------
+            # BUILD CELLS (NO NESTED LOOP)
+            # -----------------------------
+            cells = []
 
             for item, qty in st.session_state.draft_data.items():
-                for r, val in enumerate(col_values):
-                    if val.strip() == item:
-                        cell = gspread.utils.rowcol_to_a1(r + 1, col_index)
-                        updates.append({
-                            "range": cell,
-                            "values": [[qty]]
-                        })
-                        break
+                row = item_to_row.get(item)
 
-            if updates:
-                sheet.batch_update(updates)
+                if row:
+                    cells.append(Cell(row=row, col=col_index, value=qty))
+
+            # -----------------------------
+            # SINGLE API CALL (IMPORTANT FIX)
+            # -----------------------------
+            if cells:
+                sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             st.success("✅ Stock Saved")
 
-            time.sleep(1)
+            time.sleep(0.5)
 
+            # RESET STATE
             st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
@@ -244,4 +244,4 @@ if st.session_state.review_mode:
             st.rerun()
 
         except Exception as e:
-            st.error(e)
+            st.error(f"Error: {e}")
