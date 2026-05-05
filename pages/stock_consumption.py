@@ -30,7 +30,9 @@ div.stButton > button{
 # -----------------------------
 # SESSION INIT
 # -----------------------------
-st.session_state.setdefault("page", "mode_select")
+if "page" not in st.session_state:
+    st.session_state.page = "mode_select"
+
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
@@ -46,13 +48,23 @@ st.markdown(
 )
 
 # -----------------------------
-# SHEET CHECK
+# SHEET CHECK (FIXED - SAFE LOAD)
 # -----------------------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
+# 🔥 FIX: wait for session_state instead of instant stop
 if not sheet_id or not tab_name:
-    st.warning("Please select a branch first.")
+    with st.spinner("Loading branch..."):
+        for _ in range(10):
+            time.sleep(0.2)
+            sheet_id = st.session_state.get("sheet_id")
+            tab_name = st.session_state.get("tab_name")
+            if sheet_id and tab_name:
+                break
+
+if not sheet_id or not tab_name:
+    st.error("Session expired. Please login again from Staff Dashboard.")
     st.stop()
 
 # -----------------------------
@@ -96,7 +108,7 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# MODE SELECT PAGE
+# MODE SELECT
 # -----------------------------
 if st.session_state.page == "mode_select":
 
@@ -193,30 +205,21 @@ if st.session_state.review_mode:
     if st.button("✅ Submit"):
 
         try:
-            # -----------------------------
-            # READ HEADERS ONLY ONCE
-            # -----------------------------
             sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
 
-            # -----------------------------
-            # FIND / CREATE DATE COLUMN
-            # -----------------------------
+            # DATE COLUMN
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
-            # -----------------------------
-            # BUILD FAST LOOKUP (IMPORTANT FIX)
-            # -----------------------------
+            # FAST LOOKUP
             col_values = sheet.col_values(1)
             item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
-            # -----------------------------
-            # BUILD CELLS (NO NESTED LOOP)
-            # -----------------------------
+            # CELLS BUILD
             cells = []
 
             for item, qty in st.session_state.draft_data.items():
@@ -225,9 +228,7 @@ if st.session_state.review_mode:
                 if row:
                     cells.append(Cell(row=row, col=col_index, value=qty))
 
-            # -----------------------------
-            # SINGLE API CALL (IMPORTANT FIX)
-            # -----------------------------
+            # SINGLE BATCH UPDATE
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
@@ -235,7 +236,6 @@ if st.session_state.review_mode:
 
             time.sleep(0.5)
 
-            # RESET STATE
             st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
