@@ -92,54 +92,22 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-branch_options = ["-- Select Branch --"] + branches
-
-# ---------------- 🔥 MOBILE SAFE DROPDOWN (NO KEYBOARD) ----------------
+# ---------------- BRANCH SELECT (RESTORED ORIGINAL) ----------------
 st.subheader("Select Branch")
 
-html = """
-<select id="branch_select" style="
-    width:100%;
-    padding:12px;
-    font-size:16px;
-    border-radius:8px;
-    border:1px solid #ccc;
-    background:white;
-">
-"""
+branch_options = ["-- Select Branch --"] + branches
 
-for b in branch_options:
-    selected = "selected" if b == st.session_state.selected_branch else ""
-    html += f"<option value='{b}' {selected}>{b}</option>"
+selected_branch = st.selectbox(
+    "Branch",
+    branch_options,
+    index=branch_options.index(st.session_state.selected_branch)
+    if st.session_state.selected_branch in branch_options else 0,
+    key="selected_branch"
+)
 
-html += "</select>"
+# 🔥 FIX: force sync (THIS restores functionality properly)
+st.session_state.selected_branch = selected_branch
 
-st.markdown(html, unsafe_allow_html=True)
-
-# JS sync to Streamlit session via URL trick (simple version)
-selected_branch = st.session_state.selected_branch
-
-st.markdown("""
-<script>
-const select = document.getElementById("branch_select");
-
-if (select) {
-    select.addEventListener("change", function() {
-        const value = this.value;
-        window.location.href = "?branch=" + encodeURIComponent(value);
-    });
-}
-</script>
-""", unsafe_allow_html=True)
-
-# Capture selection from URL
-query_params = st.query_params
-if "branch" in query_params:
-    st.session_state.selected_branch = query_params["branch"]
-
-selected_branch = st.session_state.selected_branch
-
-# ---------------- BRANCH INFO ----------------
 branch_info = None
 
 if selected_branch != "-- Select Branch --":
