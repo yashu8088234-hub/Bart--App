@@ -8,69 +8,56 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- Clean Modern UI ----------------
+# ---------------- MODERN CAFE UI ----------------
 st.markdown("""
 <style>
 
-/* Hide default Streamlit UI */
+/* Hide Streamlit UI */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
 
-/* App background */
+/* 🌟 Warm Café Background */
 .stApp {
-    background: #f6f8fb;
+    background: linear-gradient(135deg, #fdf6f0, #f7e7dc, #f3d9c9);
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* Remove padding chaos */
+/* Layout */
 .block-container {
     padding: 1.5rem 2rem !important;
     max-width: 1200px;
 }
 
-/* HERO CARD */
+/* HERO */
 .hero {
-    background: white;
-    padding: 50px 30px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px);
+    padding: 55px 30px;
     border-radius: 18px;
     text-align: center;
     box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     margin-top: 20px;
 }
 
-/* Title */
 .hero h1 {
-    font-size: 56px;
-    color: #e63946;
-    margin-bottom: 10px;
+    font-size: 58px;
+    color: #c0392b;
     font-weight: 800;
 }
 
-/* Subtitle */
 .hero h2 {
     font-size: 22px;
     color: #333;
-    margin-bottom: 15px;
-    font-weight: 500;
+    margin-top: 5px;
 }
 
-/* Paragraph */
 .hero p {
     font-size: 16px;
-    color: #666;
+    color: #555;
     max-width: 800px;
     margin: auto;
     line-height: 1.6;
-}
-
-/* Login buttons row */
-.login-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 30px;
-    flex-wrap: wrap;
 }
 
 /* Buttons */
@@ -80,20 +67,29 @@ div.stButton > button {
     border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
-    background: #1f2937;
+    background: #2c2a28;
     color: white;
     border: none;
     transition: 0.2s;
 }
 
 div.stButton > button:hover {
-    background: #e63946;
+    background: #c0392b;
     transform: translateY(-2px);
 }
 
-/* Section cards */
+/* login row */
+.login-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+
+/* SECTION */
 .section {
-    background: white;
+    background: rgba(255,255,255,0.8);
     padding: 40px 25px;
     margin-top: 25px;
     border-radius: 16px;
@@ -101,14 +97,11 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-/* Section title */
 .section h2 {
     font-size: 28px;
-    color: #e63946;
-    margin-bottom: 15px;
+    color: #c0392b;
 }
 
-/* Section text */
 .section p {
     font-size: 16px;
     color: #555;
@@ -117,27 +110,22 @@ div.stButton > button:hover {
     line-height: 1.6;
 }
 
-/* Chat input */
+/* INPUT */
 .stTextInput > div > div > input {
     border-radius: 10px;
-}
-
-/* Sidebar AI */
-[data-testid="stSidebar"] {
-    background: #ffffff;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HERO SECTION ----------------
+# ---------------- HERO ----------------
 st.markdown("""
 <div class="hero">
     <h1>BART (بارت)</h1>
     <h2>Coffee, French Toast & Fresh Bites in Jeddah</h2>
     <p>
-        A Saudi café brand specializing in specialty coffee, desserts, and quick bites.<br>
-        Popular items include Dubai Chocolate Pudding, Nutella French Toast, and signature drinks.<br><br>
+        A Saudi café brand specializing in specialty coffee, desserts, and fresh snacks.<br>
+        Signature items: Dubai Chocolate Pudding, Nutella French Toast, signature drinks.<br><br>
         📍 Jeddah Branches: Al Rahman, Al-Safa<br>
         🌐 bart.sa
     </p>
@@ -163,19 +151,15 @@ with col3:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- AI SIDEBAR ----------------
+# ---------------- AI ----------------
 st.sidebar.markdown("### 🤖 AI Assistant")
 query = st.sidebar.text_input("Ask AI")
 
 if query:
-    context = {
-        "revenue": 0,
-        "items": 0,
-        "sales": []
-    }
+    context = {"revenue": 0, "items": 0, "sales": []}
     st.sidebar.success(run_ai(query, context))
 
-# ---------------- CHAT SECTION ----------------
+# ---------------- CHAT ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -193,21 +177,20 @@ if user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-# display chat
 for sender, msg in st.session_state.chat[-10:]:
     st.write(f"**{sender}:** {msg}")
 
-# ---------------- INFO SECTIONS ----------------
+# ---------------- INFO ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
-<p>Relax in a cozy environment with fast service and friendly staff. Perfect for coffee lovers and dessert fans.</p>
+<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="section">
 <h2>Visit Us</h2>
-<p>Find us in Jeddah branches or visit <a href="https://bart.sa" target="_blank">bart.sa</a> for more info.</p>
+<p>Find us in Jeddah or visit <a href="https://bart.sa" target="_blank">bart.sa</a></p>
 </div>
 """, unsafe_allow_html=True)
