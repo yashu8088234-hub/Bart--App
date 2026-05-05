@@ -27,7 +27,7 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# SESSION INIT (SAFE)
+# SESSION INIT
 # -----------------------------
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
@@ -44,7 +44,7 @@ st.markdown(
 )
 
 # -----------------------------
-# 🚨 CRITICAL FIX: CHECK BRANCH FIRST
+# CHECK BRANCH
 # -----------------------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
@@ -56,7 +56,7 @@ if not sheet_id or not tab_name:
     st.stop()
 
 # -----------------------------
-# IF NO MODE → SHOW MODE SELECT SCREEN
+# MODE SELECT
 # -----------------------------
 if st.session_state.mode is None:
 
@@ -74,12 +74,7 @@ if st.session_state.mode is None:
 
     st.markdown("---")
 
-    # -----------------------------
-    # BACK BUTTON (SAFE RESET)
-    # -----------------------------
     if st.button("⬅ Back to Staff Dashboard"):
-
-        # ONLY CLEAR PAGE STATE (NOT BRANCH)
         for key in ["mode", "review_mode", "draft_data"]:
             if key in st.session_state:
                 del st.session_state[key]
@@ -96,7 +91,11 @@ mode = st.session_state.mode
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
@@ -109,29 +108,50 @@ def load_data(ws):
     data = ws.get_all_values()
     headers = data[0] if data else []
 
-    items = [
-        r[0].strip()
-        for r in data[1:]
-        if r and r[0] and r[0].strip()
-    ]
+    items = []
+    for row in data[1:]:
+        if row and row[0].strip():
+            items.append(row[0].strip())
 
     return data, headers, items
 
 sheet_data, headers, items_list = load_data(sheet)
 
-filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
+# -----------------------------
+# 🔥 SECTION-BASED FILTER
+# -----------------------------
+daily_start = None
+weekly_start = None
+
+for i, item in enumerate(items_list):
+    clean_item = item.strip().upper()
+
+    if clean_item == "DAILY ITEM":
+        daily_start = i
+
+    elif clean_item == "WEEKLY ITEM":
+        weekly_start = i
+
+# Safety check
+if daily_start is None or weekly_start is None:
+    st.error("❌ Missing 'DAILY ITEM' or 'WEEKLY ITEM' in sheet")
+    st.stop()
+
+# Apply filtering
+if mode == "daily":
+    filtered_items = items_list[daily_start + 1 : weekly_start]
+else:
+    filtered_items = items_list[weekly_start + 1 :]
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK BUTTON (inside stock flow)
+# BACK BUTTON
 # -----------------------------
 if st.button("⬅ Back"):
-
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
-
     st.rerun()
 
 # -----------------------------
@@ -192,13 +212,12 @@ if st.session_state.review_mode:
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
+            # Find or create date column
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
-
-            col_values = sheet.col_values(1)
 
             updates = []
 
@@ -207,20 +226,19 @@ if st.session_state.review_mode:
                 if item not in items_list:
                     continue
 
-                row = items_list.index(item) + 2
+                row = items_list.index(item) + 2  # +2 for header row
 
-                if row - 1 < len(col_values) and col_values[row - 1]:
-                    cell = gspread.utils.rowcol_to_a1(row, col_index)
+                cell = gspread.utils.rowcol_to_a1(row, col_index)
 
-                    updates.append({
-                        "range": cell,
-                        "values": [[qty]]
-                    })
+                updates.append({
+                    "range": cell,
+                    "values": [[qty]]
+                })
 
             if updates:
                 sheet.batch_update(updates)
 
-            st.success("Stock Saved")
+            st.success("✅ Stock Saved")
             time.sleep(1)
 
             st.session_state.mode = None
