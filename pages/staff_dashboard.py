@@ -3,6 +3,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 from pathlib import Path
+import pandas as pd
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
@@ -121,11 +122,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
 
-    # ✅ FIX: SET BOTH REQUIRED VALUES
-    st.session_state.sheet_id = branch_info["SheetID"]
-    st.session_state.tab_name = "Stocks"   # 🔥 IMPORTANT FIX
-    st.session_state.branch_info = branch_info
-
 # ---------------- PASSWORD SYSTEM ----------------
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -155,6 +151,25 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
+    if not st.session_state.authenticated:
+        st.subheader("Branch Login")
+
+        password = st.text_input("Password", type="password")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Login"):
+                if passwords.get(st.session_state.selected_branch, "") == password:
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
+
+        with col2:
+            if st.button("Reset Password"):
+                st.session_state.reset_mode = True
+
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -169,26 +184,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    if not st.session_state.authenticated:
-        st.subheader("Branch Login")
-
-        password = st.text_input("Password", type="password")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("Login"):
-                if passwords.get(st.session_state.selected_branch, "") == password:
-                    st.session_state.authenticated = True
-                    st.session_state.auth_branch = st.session_state.selected_branch
-                    st.rerun()
-                else:
-                    st.error("Incorrect password")
-
-        with col2:
-            if st.button("Reset Password"):
-                st.session_state.reset_mode = True
-
+    # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
@@ -196,18 +192,79 @@ if st.session_state.selected_branch != "-- Select Branch --":
         col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
-            # ✅ ensure values exist before navigation
-            st.session_state.sheet_id = branch_info["SheetID"]
-            st.session_state.tab_name = "Stocks"
             st.switch_page("pages/stock_consumption.py")
 
         if col2.button("🆕 New Stock Record"):
             st.switch_page("pages/new_stock.py")
 
+        # ---------------- STOCK VIEW (UPDATED LOGIC) ----------------
         if col3.button("🔍 Stock View"):
+
             sheet = client.open_by_key(branch_info["SheetID"])
-            data = sheet.worksheet("Stocks").get_all_records()
-            st.dataframe(data, use_container_width=True, height=500)
+            ws = sheet.worksheet("Stocks")
+
+            data = ws.get_all_values()
+
+            headers = data[0]
+            date_columns = headers[1:]
+
+            daily = []
+            weekly = []
+
+            current_section = None
+
+            for row in data[1:]:
+
+                if not row:
+                    continue
+
+                item = row[0].strip() if len(row) > 0 else ""
+
+                if "daily" in item.lower():
+                    current_section = "daily"
+                    continue
+
+                if "weekly" in item.lower():
+                    current_section = "weekly"
+                    continue
+
+                if item == "":
+                    continue
+
+                values = row[1:]
+                values = values + [""] * (len(date_columns) - len(values))
+
+                cleaned = []
+                total = 0
+
+                for v in values:
+                    try:
+                        num = float(v) if v != "" else 0
+                    except:
+                        num = 0
+                    cleaned.append(num)
+                    total += num
+
+                row_dict = {"Item": item}
+
+                for i, col in enumerate(date_columns):
+                    row_dict[col] = cleaned[i]
+
+                row_dict["Total"] = total
+
+                if current_section == "daily":
+                    daily.append(row_dict)
+                elif current_section == "weekly":
+                    weekly.append(row_dict)
+
+            df_daily = pd.DataFrame(daily)
+            df_weekly = pd.DataFrame(weekly)
+
+            st.subheader("📦 Daily Items Stock")
+            st.dataframe(df_daily, use_container_width=True, height=400)
+
+            st.subheader("📦 Weekly Items Stock")
+            st.dataframe(df_weekly, use_container_width=True, height=400)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
