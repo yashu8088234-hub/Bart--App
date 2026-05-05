@@ -220,14 +220,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 item = row[0].strip() if len(row) > 0 else ""
 
-                # ✅ FIXED SECTION DETECTION (ONLY CHANGE)
-                clean_item = item.strip().lower().replace(" ", "")
+                # ✅ ONLY FIX (ROBUST SECTION DETECTION)
+                clean_item = "".join(item.lower().split())
 
-                if clean_item.startswith("daily"):
+                if "daily" in clean_item:
                     current_section = "daily"
                     continue
 
-                if clean_item.startswith("weekly"):
+                if "weekly" in clean_item:
                     current_section = "weekly"
                     continue
 
