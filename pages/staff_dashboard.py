@@ -65,6 +65,7 @@ defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
+    "pending_action": None,
     "selected_branch": "-- Select Branch --"
 }
 
@@ -102,7 +103,7 @@ selected_branch = st.selectbox(
     branch_options,
     index=branch_options.index(st.session_state.selected_branch)
     if st.session_state.selected_branch in branch_options else 0,
-    key="selected_branch"
+    key="branch_selectbox"
 )
 
 st.session_state.selected_branch = selected_branch
@@ -147,6 +148,7 @@ if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
+    # RESET PASSWORD
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -161,6 +163,7 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
+    # LOGIN
     if not st.session_state.authenticated:
         st.subheader("Branch Login")
 
@@ -181,6 +184,7 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # AFTER LOGIN
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {selected_branch}")
@@ -206,6 +210,6 @@ if selected_branch != "-- Select Branch --":
             data = sheet.worksheet("Sales").get_all_records()
             st.dataframe(data, use_container_width=True, height=500)
 
-# ---------------- BACK ----------------
+# ---------------- BACK BUTTON ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
