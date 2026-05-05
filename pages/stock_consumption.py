@@ -27,7 +27,7 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# SESSION
+# SESSION INIT
 # -----------------------------
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
@@ -92,43 +92,36 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
 # -----------------------------
-# LOAD DATA (RAW SAFE SCAN)
+# LOAD COLUMN A ONLY
 # -----------------------------
-def load_items(ws):
+def load_column_a(ws):
     data = ws.get_all_values()
 
-    items = []
+    col_a = []
     for row in data:
-        for cell in row:
-            if cell and cell.strip():
-                items.append(cell.strip())
+        if row and len(row) > 0:
+            val = row[0].strip()
+            if val:
+                col_a.append(val)
 
-    return items
+    return col_a
 
-items_list = load_items(sheet)
-
-# -----------------------------
-# NORMALIZE
-# -----------------------------
-def normalize(text):
-    return text.replace("\xa0", " ").strip().upper()
+items_list = load_column_a(sheet)
 
 # -----------------------------
-# FIND SECTION INDEX
+# FIND SECTIONS
 # -----------------------------
-def find_section(items, target):
-    target = normalize(target)
-
-    for i, item in enumerate(items):
-        if normalize(item) == target:
+def find_index(items, name):
+    for i, v in enumerate(items):
+        if v.strip().upper() == name:
             return i
     return None
 
-daily_start = find_section(items_list, "DAILY ITEM")
-weekly_start = find_section(items_list, "WEEKLY ITEM")
+daily_start = find_index(items_list, "DAILY ITEM")
+weekly_start = find_index(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
-    st.error("❌ DAILY ITEM or WEEKLY ITEM not found in sheet")
+    st.error("❌ DAILY ITEM or WEEKLY ITEM not found in Column A")
     st.stop()
 
 # -----------------------------
@@ -142,7 +135,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK
+# BACK BUTTON
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.mode = None
@@ -157,7 +150,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUTS
+# INPUT FIELDS
 # -----------------------------
 st.markdown("## Enter Stock")
 
@@ -222,7 +215,7 @@ if st.session_state.review_mode:
             for item, qty in st.session_state.draft_data.items():
 
                 for r, val in enumerate(col_values):
-                    if normalize(val) == normalize(item):
+                    if val.strip() == item:
                         cell = gspread.utils.rowcol_to_a1(r + 1, col_index)
                         updates.append({
                             "range": cell,
@@ -233,7 +226,8 @@ if st.session_state.review_mode:
             if updates:
                 sheet.batch_update(updates)
 
-            st.success("✅ Saved")
+            st.success("✅ Stock Saved")
+
             time.sleep(1)
 
             st.session_state.mode = None
