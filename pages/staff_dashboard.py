@@ -101,19 +101,14 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT (FINAL UX FIX) ----------------
+# ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
 
     with st.popover("Choose Branch"):
-        selected_branch = st.radio(
-            "Branch List",
-            branch_options,
-            index=0
-        )
+        selected_branch = st.radio("Branch List", branch_options, index=0)
 
-        # AUTO SELECT + CLOSE
         if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
             st.rerun()
@@ -203,25 +198,18 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+        # ✅ ONLY 3 BUTTONS NOW
+        col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Consumption"):
             st.switch_page("pages/stock_consumption.py")
 
-        if col2.button("💰 Sales Report"):
-            st.switch_page("pages/daily_sales.py")
-
-        if col3.button("🆕 New Stock"):
+        if col2.button("🆕 New Stock"):
             st.switch_page("pages/new_stock.py")
 
-        if col4.button("🔍 Stock View"):
+        if col3.button("🔍 Stock View"):
             sheet = client.open_by_key(branch_info["SheetID"])
             data = sheet.worksheet("Stocks").get_all_records()
-            st.dataframe(data, use_container_width=True, height=500)
-
-        if col5.button("📊 Sales View"):
-            sheet = client.open_by_key(branch_info["SheetID"])
-            data = sheet.worksheet("Sales").get_all_records()
             st.dataframe(data, use_container_width=True, height=500)
 
 # ---------------- BACK ----------------
