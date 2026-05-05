@@ -27,11 +27,20 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# SESSION INIT (SAFE)
+# SESSION INIT (DO NOT BREAK FLOW)
 # -----------------------------
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
+
+# -----------------------------
+# IF NO MODE → STOP
+# -----------------------------
+if st.session_state.mode is None:
+    st.warning("Please select stock type from dashboard")
+    st.stop()
+
+mode = st.session_state.mode
 
 # -----------------------------
 # TITLE
@@ -42,27 +51,6 @@ st.markdown(
     f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
     unsafe_allow_html=True
 )
-
-# -----------------------------
-# IF NO MODE → SHOW MODE SELECT SCREEN
-# -----------------------------
-if st.session_state.mode is None:
-
-    st.markdown("## Select Stock Type")
-
-    c1, c2 = st.columns(2)
-
-    if c1.button("📦 Daily Stock"):
-        st.session_state.mode = "daily"
-        st.rerun()
-
-    if c2.button("📊 Weekly Stock"):
-        st.session_state.mode = "weekly"
-        st.rerun()
-
-    st.stop()
-
-mode = st.session_state.mode
 
 # -----------------------------
 # GOOGLE SHEETS
@@ -99,21 +87,25 @@ def load_data(ws):
 
 sheet_data, headers, items_list = load_data(sheet)
 
+# -----------------------------
+# FILTER ITEMS
+# -----------------------------
 filtered_items = items_list[:99] if mode == "daily" else items_list[99:]
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# 🔥 BACK BUTTON (FIXED LOGIC)
+# 🔥 BACK BUTTON (ONLY STAFF DASHBOARD)
 # -----------------------------
 if st.button("⬅ Back"):
 
-    # ONLY RESET MODE (NOT SESSION OR DASHBOARD)
+    # reset ONLY stock state
     st.session_state.mode = None
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
 
-    st.rerun()
+    # go to staff dashboard
+    st.switch_page("pages/staff_dashboard.py")
 
 # -----------------------------
 # DATE
@@ -124,7 +116,7 @@ date_str = str(date)
 # -----------------------------
 # INPUTS
 # -----------------------------
-st.markdown("## Enter Stock")
+st.markdown("## Enter Stock (Manual Only)")
 
 inputs = {}
 
@@ -145,7 +137,7 @@ for i in range(0, len(filtered_items), 4):
             inputs[item] = value.strip() if value.strip() != "" else None
 
 # -----------------------------
-# REVIEW
+# REVIEW BUTTON
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
@@ -204,12 +196,12 @@ if st.session_state.review_mode:
             st.success("Stock Saved")
             time.sleep(1)
 
-            # RESET ONLY MODE (GO BACK TO STOCK TYPE SCREEN)
+            # RESET ONLY STOCK FLOW
             st.session_state.mode = None
             st.session_state.review_mode = False
             st.session_state.draft_data = {}
 
-            st.rerun()
+            st.switch_page("pages/staff_dashboard.py")
 
         except Exception as e:
             st.error(e)
