@@ -30,17 +30,13 @@ h1, h2, h3 {
     text-align: center;
 }
 
-/* tighter radio layout */
-div[role="radiogroup"] {
-    gap: 4px !important;
+/* ---------------- MOBILE FIX ---------------- */
+select {
+    font-size: 16px !important;  /* prevents iOS zoom */
 }
 
-div[role="radiogroup"] label {
-    padding: 8px 10px !important;
-    margin: 2px 0 !important;
-    border-radius: 8px;
-    background: white;
-    border: 1px solid #e0e0e0;
+div[data-baseweb="select"] input {
+    caret-color: transparent !important; /* prevents keyboard weird focus */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -107,20 +103,18 @@ branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- 🔥 COMPACT MOBILE PICKER (NO SPACE WASTE) ----------------
+# ---------------- BRANCH SELECT (STABLE + MOBILE FIXED) ----------------
 st.subheader("Select Branch")
 
-selected_branch = st.radio(
-    "",
+selected_branch = st.selectbox(
+    "Branch",
     branch_options,
     index=branch_options.index(st.session_state.selected_branch)
     if st.session_state.selected_branch in branch_options else 0,
-    label_visibility="collapsed"
+    key="branch_selectbox"
 )
 
 st.session_state.selected_branch = selected_branch
-
-selected_branch = st.session_state.selected_branch
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
