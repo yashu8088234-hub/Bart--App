@@ -36,21 +36,6 @@ if "reset_mode" not in st.session_state:
 if "pending_action" not in st.session_state:
     st.session_state.pending_action = None
 
-if "login_password" not in st.session_state:
-    st.session_state.login_password = ""
-
-# -----------------------------
-# LOGIN FUNCTION (NEW FIX)
-# -----------------------------
-def try_login():
-    passwords = load_passwords()
-    if passwords.get(selected_branch, "") == st.session_state.login_password:
-        st.session_state.authenticated = True
-        st.session_state.auth_branch = selected_branch
-        st.rerun()
-    else:
-        st.error("Incorrect password")
-
 # -----------------------------
 # UI SETUP
 # -----------------------------
@@ -112,6 +97,9 @@ if selected_branch != "-- Select Branch --":
         if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
     )
 
+# -----------------------------
+# FIX APPLIED (UNCHANGED)
+# -----------------------------
 if selected_branch != "-- Select Branch --" and branch_info:
     st.session_state.selected_branch = selected_branch
     st.session_state.sheet_id = branch_info["SheetID"]
@@ -150,21 +138,21 @@ if selected_branch != "-- Select Branch --":
     passwords = load_passwords()
 
     # -------------------------
-    # LOGIN (ENTER FIX HERE)
+    # LOGIN
     # -------------------------
     if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
 
         st.subheader("Enter Branch Password")
 
-        st.text_input(
-            "Password",
-            type="password",
-            key="login_password",
-            on_change=try_login   # 🔥 ENTER KEY FIX
-        )
+        password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            try_login()
+            if passwords.get(selected_branch, "") == password:
+                st.session_state.authenticated = True
+                st.session_state.auth_branch = selected_branch
+                st.rerun()
+            else:
+                st.error("Incorrect password")
 
         if st.button("Reset Password"):
             st.session_state.reset_mode = True
@@ -210,7 +198,7 @@ if selected_branch != "-- Select Branch --":
         st.session_state.pending_action = "sales_view"
 
     # -------------------------
-    # NAVIGATION (UNCHANGED)
+    # FIXED NAVIGATION (ONLY CHANGE HERE)
     # -------------------------
     action = st.session_state.get("pending_action")
 
@@ -220,12 +208,15 @@ if selected_branch != "-- Select Branch --":
 
             st.subheader("Enter Branch Password")
 
-            st.text_input(
-                "Password",
-                type="password",
-                key="login_password_2",
-                on_change=try_login   # 🔥 ENTER FIX HERE ALSO
-            )
+            password = st.text_input("Password", type="password")
+
+            if st.button("Login"):
+                if passwords.get(selected_branch, "") == password:
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = selected_branch
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
 
         else:
 
