@@ -1,78 +1,62 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import json
-from pathlib import Path
+import time
+from background import set_background
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
+# -----------------------------
+# UI SETUP
+# -----------------------------
+set_background("barthomepage.jpg")
+st.set_page_config(page_title="Stock System", layout="wide")
 
-# ---------------- CLEAN UI STYLE ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 header {visibility:hidden;}
-[data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
-
-.block-container {
-    padding: 1rem 2rem;
-    max-width: 1200px;
-    margin: auto;
-}
-
-.stApp {
-    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
-}
-
-h1, h2, h3 {
-    text-align: center;
+.block-container {padding:0 !important; max-width:100% !important;}
+.stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
+div.stButton > button{
+    height:55px;
+    font-size:18px;
+    border-radius:10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- HEADER ----------------
-st.markdown("""
-<div style="
-    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    margin-bottom: 20px;
-">
-<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
-<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
-</div>
-""", unsafe_allow_html=True)
+# -----------------------------
+# SESSION INIT
+# -----------------------------
+st.session_state.setdefault("page", "mode_select")
+st.session_state.setdefault("mode", None)
+st.session_state.setdefault("review_mode", False)
+st.session_state.setdefault("draft_data", {})
 
-# ---------------- ADMIN PASSWORD FILE ----------------
-FILE_NAME = Path(__file__).parent / "passwords.json"
+# -----------------------------
+# TITLE
+# -----------------------------
+branch = st.session_state.get("selected_branch", "Branch")
 
-def init_file():
-    if not FILE_NAME.exists():
-        with open(FILE_NAME, "w") as f:
-            json.dump({"admin": "admin123"}, f)
+st.markdown(
+    f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
+    unsafe_allow_html=True
+)
 
-def load_admin():
-    with open(FILE_NAME, "r") as f:
-        return json.load(f)
+# -----------------------------
+# SHEET CHECK
+# -----------------------------
+sheet_id = st.session_state.get("sheet_id")
+tab_name = st.session_state.get("tab_name")
 
-init_file()
+if not sheet_id or not tab_name:
+    st.warning("Please select a branch first.")
+    st.stop()
 
-# ---------------- SESSION STATE ----------------
-defaults = {
-    "authenticated": False,
-    "auth_branch": None,
-    "reset_mode": False,
-    "selected_branch": "-- Select Branch --"
-}
-
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-# ---------------- GOOGLE SHEETS ----------------
+# -----------------------------
+# GOOGLE SHEETS
+# -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -83,132 +67,226 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- LOAD BRANCHES ----------------
-@st.cache_data(ttl=600)
-def load_branches():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    return sheet.get_all_records()
+sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 
-branch_data = load_branches()
-branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
-branch_options = ["-- Select Branch --"] + branches
+# -----------------------------
+# LOAD COLUMN A ONLY
+# -----------------------------
+def load_column_a(ws):
+    data = ws.get_all_values()
 
-# ---------------- BRANCH SELECT ----------------
-st.subheader("Select Branch")
+    col_a = []
+    for row in data:
+        if row and len(row) > 0:
+            val = row[0].strip()
+            if val:
+                col_a.append(val)
 
-if st.session_state.selected_branch == "-- Select Branch --":
+    return col_a
 
-    with st.popover("Choose Branch"):
-        selected_branch = st.radio("Branch List", branch_options, index=0)
+items_list = load_column_a(sheet)
 
-        if selected_branch != "-- Select Branch --":
-            st.session_state.selected_branch = selected_branch
-            st.rerun()
+# -----------------------------
+# FIND SECTIONS
+# -----------------------------
+def find_index(items, name):
+    for i, v in enumerate(items):
+        if v.strip().upper() == name:
+            return i
+    return None
 
-else:
-    st.success(f"Selected Branch: {st.session_state.selected_branch}")
+daily_start = find_index(items_list, "DAILY ITEM")
+weekly_start = find_index(items_list, "WEEKLY ITEM")
 
-    if st.button("🔄 Change Branch"):
-        st.session_state.selected_branch = "-- Select Branch --"
+if daily_start is None or weekly_start is None:
+    st.error("❌ DAILY ITEM or WEEKLY ITEM not found in Column A")
+    st.stop()
+
+# -----------------------------
+# MODE SELECT PAGE
+# -----------------------------
+if st.session_state.page == "mode_select":
+
+    st.markdown("## Select Option")
+
+    c1, c2, c3 = st.columns(3)
+
+    if c1.button("📦 Daily Stock"):
+        st.session_state.mode = "daily"
+        st.session_state.page = "stock_entry"
         st.rerun()
 
-# ---------------- BRANCH INFO ----------------
-branch_info = None
+    if c2.button("📊 Weekly Stock"):
+        st.session_state.mode = "weekly"
+        st.session_state.page = "stock_entry"
+        st.rerun()
 
-if st.session_state.selected_branch != "-- Select Branch --":
-    branch_info = next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
-    )
+    if c3.button("👁 View Stock"):
+        st.session_state.page = "view_stock"
+        st.rerun()
 
-    # ✅ FIX: SET BOTH REQUIRED VALUES
-    st.session_state.sheet_id = branch_info["SheetID"]
-    st.session_state.tab_name = "Stocks"   # 🔥 IMPORTANT FIX
-    st.session_state.branch_info = branch_info
+    st.markdown("---")
 
-# ---------------- PASSWORD SYSTEM ----------------
-def load_passwords():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
+    if st.button("⬅ Back to Staff Dashboard"):
+        st.session_state.page = "mode_select"
+        st.session_state.mode = None
+        st.switch_page("pages/staff_dashboard.py")
+        st.stop()
 
-    passwords = {"admin": load_admin()["admin"]}
+    st.stop()
 
-    for row in records:
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        passwords[key] = row.get("Password", "")
+# -----------------------------
+# VIEW STOCK PAGE (IMPROVED ONLY)
+# -----------------------------
+if st.session_state.page == "view_stock":
 
-    return passwords
+    st.markdown("## 👁 Stock Overview")
 
-def save_passwords(branch_key, new_password):
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
+    daily_items = items_list[daily_start + 1 : weekly_start]
+    weekly_items = items_list[weekly_start + 1 :]
 
-    for idx, row in enumerate(records, start=2):
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        if key == branch_key:
-            col_index = list(row.keys()).index("Password") + 1
-            sheet.update_cell(idx, col_index, new_password)
-            return
+    # -----------------------------
+    # DAILY SECTION (CARD UI)
+    # -----------------------------
+    st.markdown("### 📦 DAILY STOCK")
 
-# ---------------- MAIN ----------------
-if st.session_state.selected_branch != "-- Select Branch --":
+    st.markdown("""
+    <div style="background-color:white;padding:15px;border-radius:10px;
+    box-shadow:0px 2px 8px rgba(0,0,0,0.1);">
+    """, unsafe_allow_html=True)
 
-    passwords = load_passwords()
+    if daily_items:
+        for item in daily_items:
+            st.markdown(f"✔️ {item}")
+    else:
+        st.info("No daily items found")
 
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
+    st.markdown("---")
 
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(st.session_state.selected_branch, new_pass)
-                st.success("Password updated successfully")
-                st.session_state.reset_mode = False
-            else:
-                st.error("Wrong admin password")
+    # -----------------------------
+    # WEEKLY SECTION (CARD UI)
+    # -----------------------------
+    st.markdown("### 📊 WEEKLY STOCK")
 
-    if not st.session_state.authenticated:
-        st.subheader("Branch Login")
+    st.markdown("""
+    <div style="background-color:white;padding:15px;border-radius:10px;
+    box-shadow:0px 2px 8px rgba(0,0,0,0.1);">
+    """, unsafe_allow_html=True)
 
-        password = st.text_input("Password", type="password")
+    if weekly_items:
+        for item in weekly_items:
+            st.markdown(f"✔️ {item}")
+    else:
+        st.info("No weekly items found")
 
-        col1, col2 = st.columns(2)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        with col1:
-            if st.button("Login"):
-                if passwords.get(st.session_state.selected_branch, "") == password:
-                    st.session_state.authenticated = True
-                    st.session_state.auth_branch = st.session_state.selected_branch
-                    st.rerun()
-                else:
-                    st.error("Incorrect password")
+    st.markdown("---")
 
-        with col2:
-            if st.button("Reset Password"):
-                st.session_state.reset_mode = True
+    if st.button("⬅ Back"):
+        st.session_state.page = "mode_select"
+        st.rerun()
 
-    if st.session_state.authenticated:
+    st.stop()
 
-        st.success(f"Logged in: {st.session_state.selected_branch}")
+# -----------------------------
+# STOCK ENTRY PAGE
+# -----------------------------
+mode = st.session_state.mode
 
-        col1, col2, col3 = st.columns(3)
+if mode == "daily":
+    filtered_items = items_list[daily_start + 1 : weekly_start]
+else:
+    filtered_items = items_list[weekly_start + 1 :]
 
-        if col1.button("📦 Stock Record"):
-            # ✅ ensure values exist before navigation
-            st.session_state.sheet_id = branch_info["SheetID"]
-            st.session_state.tab_name = "Stocks"
-            st.switch_page("pages/stock_consumption.py")
+st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
-        if col2.button("🆕 New Stock Record"):
-            st.switch_page("pages/new_stock.py")
-
-        if col3.button("🔍 Stock View"):
-            sheet = client.open_by_key(branch_info["SheetID"])
-            data = sheet.worksheet("Stocks").get_all_records()
-            st.dataframe(data, use_container_width=True, height=500)
-
-# ---------------- BACK ----------------
 if st.button("⬅ Back"):
-    st.switch_page("app.py")
+    st.session_state.page = "mode_select"
+    st.rerun()
+
+date = st.date_input("Select Date")
+date_str = str(date)
+
+st.markdown("## Enter Stock")
+
+inputs = {}
+
+for i in range(0, len(filtered_items, 4)):
+    cols = st.columns(4)
+
+    for j, col in enumerate(cols):
+        if i + j < len(filtered_items):
+
+            item = filtered_items[i + j]
+
+            value = col.text_input(
+                item,
+                placeholder="Enter quantity",
+                key=f"{mode}_{item}"
+            )
+
+            inputs[item] = value.strip() if value.strip() else None
+
+if st.button("🔍 Review Stock"):
+
+    missing = [k for k, v in inputs.items() if v is None]
+
+    if missing:
+        st.error("Missing inputs")
+        st.stop()
+
+    st.session_state.draft_data = inputs
+    st.session_state.review_mode = True
+
+if st.session_state.review_mode:
+
+    st.markdown("## Review")
+
+    for k, v in st.session_state.draft_data.items():
+        st.write(f"{k} → {v}")
+
+    if st.button("✅ Submit"):
+
+        try:
+            sheet_data = sheet.get_all_values()
+            headers = sheet_data[0]
+
+            if date_str in headers:
+                col_index = headers.index(date_str) + 1
+            else:
+                col_index = len(headers) + 1
+                sheet.update_cell(1, col_index, date_str)
+
+            col_values = sheet.col_values(1)
+
+            updates = []
+
+            for item, qty in st.session_state.draft_data.items():
+                for r, val in enumerate(col_values):
+                    if val.strip() == item:
+                        cell = gspread.utils.rowcol_to_a1(r + 1, col_index)
+                        updates.append({
+                            "range": cell,
+                            "values": [[qty]]
+                        })
+                        break
+
+            if updates:
+                sheet.batch_update(updates)
+
+            st.success("✅ Stock Saved")
+
+            time.sleep(1)
+
+            st.session_state.page = "mode_select"
+            st.session_state.mode = None
+            st.session_state.review_mode = False
+            st.session_state.draft_data = {}
+
+            st.rerun()
+
+        except Exception as e:
+            st.error(e)
