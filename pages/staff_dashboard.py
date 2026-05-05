@@ -30,28 +30,13 @@ h1, h2, h3 {
     text-align: center;
 }
 
-/* ---------------- MOBILE CARD STYLE ---------------- */
-.branch-card {
-    padding: 16px;
-    margin: 10px 0;
-    border-radius: 14px;
+select {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
     background: white;
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    transition: 0.2s;
-    cursor: pointer;
-    text-align: left;
-}
-
-.branch-card:hover {
-    transform: scale(1.01);
-    border-color: #4b6cb7;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-}
-
-.selected {
-    border: 2px solid #4b6cb7;
-    background: #eef3ff;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -69,6 +54,20 @@ st.markdown("""
 <p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
 </div>
 """, unsafe_allow_html=True)
+
+# ---------------- ADMIN PASSWORD FILE ----------------
+FILE_NAME = Path(__file__).parent / "passwords.json"
+
+def init_file():
+    if not FILE_NAME.exists():
+        with open(FILE_NAME, "w") as f:
+            json.dump({"admin": "admin123"}, f)
+
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
+
+init_file()
 
 # ---------------- SESSION STATE ----------------
 defaults = {
@@ -102,30 +101,35 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# ---------------- 🔥 MOBILE APP STYLE BRANCH PICKER ----------------
+branch_options = ["-- Select Branch --"] + branches
+
+# ---------------- BRANCH SELECT (HTML + STREAMLIT SYNC) ----------------
 st.subheader("Select Branch")
 
-for b in branches:
+query_params = st.query_params
+url_branch = query_params.get("branch", st.session_state.selected_branch)
 
-    is_selected = st.session_state.selected_branch == b
+st.session_state.selected_branch = url_branch
 
-    if st.button(
-        f"🏢 {b}",
-        key=b
-    ):
-        st.session_state.selected_branch = b
-        st.rerun()
+html = """
+<select onchange="window.location.href='?branch=' + this.value;" style="
+    width:100%;
+    padding:14px;
+    font-size:16px;
+    border-radius:10px;
+    border:1px solid #ccc;
+    background:white;
+    outline:none;
+">
+"""
 
-    # visual highlight (selected state)
-    if is_selected:
-        st.markdown("""
-        <style>
-        button[kind="secondary"] {
-            border: 2px solid #4b6cb7 !important;
-            background: #eef3ff !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+for b in branch_options:
+    selected = "selected" if b == url_branch else ""
+    html += f"<option value='{b}' {selected}>{b}</option>"
+
+html += "</select>"
+
+st.markdown(html, unsafe_allow_html=True)
 
 selected_branch = st.session_state.selected_branch
 
@@ -141,12 +145,7 @@ if selected_branch != "-- Select Branch --":
     st.session_state.branch_info = branch_info
 
 # ---------------- PASSWORD SYSTEM ----------------
-FILE_NAME = Path(__file__).parent / "passwords.json"
-
-def load_admin():
-    with open(FILE_NAME, "r") as f:
-        return json.load(f)
-
+@st.cache_data(ttl=300)
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
