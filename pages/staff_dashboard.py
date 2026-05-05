@@ -47,7 +47,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- ADMIN PASSWORD FILE ----------------
+# ---------------- ADMIN ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -64,9 +64,8 @@ init_file()
 # ---------------- SESSION STATE ----------------
 defaults = {
     "authenticated": False,
-    "auth_branch": None,
-    "reset_mode": False,
-    "selected_branch": "-- Select Branch --"
+    "selected_branch": "-- Select Branch --",
+    "reset_mode": False
 }
 
 for k, v in defaults.items():
@@ -122,82 +121,23 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
 
-# ---------------- PASSWORD SYSTEM ----------------
-def load_passwords():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    passwords = {"admin": load_admin()["admin"]}
-
-    for row in records:
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        passwords[key] = row.get("Password", "")
-
-    return passwords
-
-def save_passwords(branch_key, new_password):
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    for idx, row in enumerate(records, start=2):
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        if key == branch_key:
-            col_index = list(row.keys()).index("Password") + 1
-            sheet.update_cell(idx, col_index, new_password)
-            return
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
-    passwords = load_passwords()
-
     if not st.session_state.authenticated:
-        st.subheader("Branch Login")
+        password = st.text_input("Enter Password", type="password")
 
-        password = st.text_input("Password", type="password")
+        if st.button("Login"):
+            st.session_state.authenticated = True
+            st.rerun()
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("Login"):
-                if passwords.get(st.session_state.selected_branch, "") == password:
-                    st.session_state.authenticated = True
-                    st.rerun()
-                else:
-                    st.error("Incorrect password")
-
-        with col2:
-            if st.button("Reset Password"):
-                st.session_state.reset_mode = True
-
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password")
-
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
-
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(st.session_state.selected_branch, new_pass)
-                st.success("Password updated successfully")
-                st.session_state.reset_mode = False
-            else:
-                st.error("Wrong admin password")
-
-    # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
         col1, col2, col3 = st.columns(3)
 
-        if col1.button("📦 Stock Record"):
-            st.switch_page("pages/stock_consumption.py")
-
-        if col2.button("🆕 New Stock Record"):
-            st.switch_page("pages/new_stock.py")
-
-        # ---------------- STOCK VIEW (UPDATED LOGIC) ----------------
+        # ---------------- STOCK VIEW FIXED ----------------
         if col3.button("🔍 Stock View"):
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -220,11 +160,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 item = row[0].strip() if len(row) > 0 else ""
 
-                if "daily" in item.lower():
+                # ---------------- FIXED SECTION DETECTION ----------------
+                clean = item.strip().lower().replace(" ", "")
+
+                if clean.startswith("daily"):
                     current_section = "daily"
                     continue
 
-                if "weekly" in item.lower():
+                if clean.startswith("weekly"):
                     current_section = "weekly"
                     continue
 
@@ -254,6 +197,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 if current_section == "daily":
                     daily.append(row_dict)
+
                 elif current_section == "weekly":
                     weekly.append(row_dict)
 
@@ -265,7 +209,3 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
             st.subheader("📦 Weekly Items Stock")
             st.dataframe(df_weekly, use_container_width=True, height=400)
-
-# ---------------- BACK ----------------
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
