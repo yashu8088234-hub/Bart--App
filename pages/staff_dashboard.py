@@ -201,10 +201,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
         # ✅ ONLY 3 BUTTONS NOW
         col1, col2, col3 = st.columns(3)
 
-        if col1.button("📦 Stock Consumption"):
+        if col1.button("📦 Stock Record"):
             st.switch_page("pages/stock_consumption.py")
 
-        if col2.button("🆕 New Stock"):
+        if col2.button("🆕 New Stock Record"):
             st.switch_page("pages/new_stock.py")
 
         if col3.button("🔍 Stock View"):
