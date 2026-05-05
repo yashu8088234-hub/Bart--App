@@ -12,7 +12,7 @@ from pathlib import Path   # ✅ ONLY ADDITION
 FILE_NAME = Path(__file__).parent / "passwords.json"   # ✅ ONLY FIX
 
 def init_file():
-    if not FILE_NAME.exists():
+    if not FILE_NAME.exists():   # ✅ FIXED (was os.path.exists)
         with open(FILE_NAME, "w") as f:
             json.dump({"admin": "admin123"}, f)
 
@@ -50,6 +50,7 @@ st.title("BART")
 st.markdown("## Staff Dashboard")
 st.write("## Kindly choose your Branch Name")
 
+# Hide Streamlit default UI
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -67,21 +68,14 @@ body {
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# GOOGLE SHEETS SETUP (FIXED ONLY HERE)
+# Google Sheets Setup
 # -----------------------------
-creds_dict = json.loads(st.secrets["GOOGLE_CREDS_JSON"])  # ✅ FIX
+creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# -----------------------------
-# LOAD BRANCH DATA
-# -----------------------------
 @st.cache_data
 def load_branches():
     try:
@@ -95,7 +89,7 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
 # -----------------------------
-# BRANCH SELECTION
+# Branch Selection
 # -----------------------------
 if 'selected_branch' not in st.session_state:
     st.session_state.selected_branch = "-- Select Branch --"
@@ -137,7 +131,7 @@ if selected_branch != "-- Select Branch --":
     passwords = load_passwords()
 
     # -----------------------------
-    # LOGIN
+    # LOGIN STEP
     # -----------------------------
     if st.session_state.pending_action and not st.session_state.authenticated and not st.session_state.reset_mode:
         st.subheader("Enter Branch Password")
