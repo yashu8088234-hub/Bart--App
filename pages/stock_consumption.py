@@ -60,13 +60,19 @@ if st.session_state.mode is None:
         st.session_state.mode = "weekly"
         st.rerun()
 
+    st.markdown("---")
+
+    # BACK TO STAFF DASHBOARD BUTTON
+    if st.button("⬅ Back to Staff Dashboard"):
+
+        # Option 1: if using Streamlit multipage
+        st.switch_page("staff_dashboard.py")
+
+        # Option 2 (fallback if no multipage)
+        # st.session_state.page = "staff_dashboard"
+        # st.rerun()
+
     st.stop()
-
-
-# BACK BUTTON
-# -----------------------------
-if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
 
 mode = st.session_state.mode
 
