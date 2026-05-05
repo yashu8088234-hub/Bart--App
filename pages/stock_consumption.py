@@ -74,8 +74,8 @@ sheet = client.open_by_key(sheet_id).worksheet(tab_name)
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
-
     col_a = []
+
     for row in data:
         if row and len(row) > 0:
             val = row[0].strip()
@@ -104,14 +104,14 @@ if daily_start is None or weekly_start is None:
 
 # -----------------------------
 # =============================
-# PAGE 1: MODE SELECT
+# MODE SELECT PAGE
 # =============================
 # -----------------------------
 if st.session_state.page == "mode_select":
 
-    st.markdown("## Select Stock Type")
+    st.markdown("## Select Option")
 
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
 
     if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
@@ -123,7 +123,10 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    # BACK → STAFF DASHBOARD (ONLY HERE)
+    if c3.button("👁 View Stock"):
+        st.session_state.page = "view_stock"
+        st.rerun()
+
     st.markdown("---")
 
     if st.button("⬅ Back to Staff Dashboard"):
@@ -136,7 +139,39 @@ if st.session_state.page == "mode_select":
 
 # -----------------------------
 # =============================
-# PAGE 2: STOCK ENTRY
+# VIEW STOCK PAGE (NEW)
+# =============================
+# -----------------------------
+if st.session_state.page == "view_stock":
+
+    st.markdown("## 👁 Stock Overview")
+
+    daily_items = items_list[daily_start + 1 : weekly_start]
+    weekly_items = items_list[weekly_start + 1 :]
+
+    tab1, tab2 = st.tabs(["📦 Daily Items", "📊 Weekly Items"])
+
+    with tab1:
+        st.markdown("### Daily Stock Items")
+        for item in daily_items:
+            st.write("•", item)
+
+    with tab2:
+        st.markdown("### Weekly Stock Items")
+        for item in weekly_items:
+            st.write("•", item)
+
+    st.markdown("---")
+
+    if st.button("⬅ Back"):
+        st.session_state.page = "mode_select"
+        st.rerun()
+
+    st.stop()
+
+# -----------------------------
+# =============================
+# STOCK ENTRY PAGE
 # =============================
 # -----------------------------
 mode = st.session_state.mode
@@ -149,7 +184,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 # -----------------------------
-# BACK → MODE SELECT
+# BACK
 # -----------------------------
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
@@ -199,9 +234,7 @@ if st.button("🔍 Review Stock"):
     st.session_state.review_mode = True
 
 # -----------------------------
-# =============================
 # REVIEW + SUBMIT
-# =============================
 # -----------------------------
 if st.session_state.review_mode:
 
@@ -227,7 +260,6 @@ if st.session_state.review_mode:
             updates = []
 
             for item, qty in st.session_state.draft_data.items():
-
                 for r, val in enumerate(col_values):
                     if val.strip() == item:
                         cell = gspread.utils.rowcol_to_a1(r + 1, col_index)
@@ -244,7 +276,6 @@ if st.session_state.review_mode:
 
             time.sleep(1)
 
-            # reset
             st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
