@@ -109,35 +109,48 @@ def load_data(ws):
     headers = data[0] if data else []
 
     items = []
+
     for row in data[1:]:
-        if row and row[0].strip():
-            items.append(row[0].strip())
+        if row and len(row) > 0:
+            item = row[0]
+            if item and item.strip():
+                items.append(item.strip())
 
     return data, headers, items
 
 sheet_data, headers, items_list = load_data(sheet)
 
 # -----------------------------
-# 🔥 SECTION-BASED FILTER
+# 🔥 SECTION DETECTION (FULL SENTENCE MATCH)
 # -----------------------------
-daily_start = None
-weekly_start = None
+def normalize(text):
+    return text.replace("\xa0", " ").strip()
 
-for i, item in enumerate(items_list):
-    clean_item = item.strip().upper()
+def find_section(items, section_name):
+    target = normalize(section_name)
 
-    if clean_item == "DAILY ITEM":
-        daily_start = i
+    for i, item in enumerate(items):
+        if item and normalize(item) == target:
+            return i
+    return None
 
-    elif clean_item == "WEEKLY ITEM":
-        weekly_start = i
 
-# Safety check
+daily_start = find_section(items_list, "DAILY ITEM")
+weekly_start = find_section(items_list, "WEEKLY ITEM")
+
 if daily_start is None or weekly_start is None:
-    st.error("❌ Missing 'DAILY ITEM' or 'WEEKLY ITEM' in sheet")
+    st.error("""
+❌ Cannot find section headers in sheet.
+
+Make sure these exist EXACTLY in Column A:
+- DAILY ITEM
+- WEEKLY ITEM
+""")
     st.stop()
 
-# Apply filtering
+# -----------------------------
+# FILTER ITEMS
+# -----------------------------
 if mode == "daily":
     filtered_items = items_list[daily_start + 1 : weekly_start]
 else:
@@ -212,7 +225,7 @@ if st.session_state.review_mode:
         try:
             sheet_data, headers, items_list = load_data(sheet)
 
-            # Find or create date column
+            # Date column
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
@@ -226,7 +239,7 @@ if st.session_state.review_mode:
                 if item not in items_list:
                     continue
 
-                row = items_list.index(item) + 2  # +2 for header row
+                row = items_list.index(item) + 2
 
                 cell = gspread.utils.rowcol_to_a1(row, col_index)
 
