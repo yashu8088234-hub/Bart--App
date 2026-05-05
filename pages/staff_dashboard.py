@@ -1,23 +1,52 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from background import set_background
 import json
 from pathlib import Path
 
-# -----------------------------
-# PAGE CONFIG (MUST BE FIRST)
-# -----------------------------
-st.set_page_config(layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
-# -----------------------------
-# BACKGROUND
-# -----------------------------
-set_background("barthomepage.jpg")
+# ---------------- CLEAN UI STYLE ----------------
+st.markdown("""
+<style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
-# -----------------------------
-# ADMIN PASSWORD FILE SETUP
-# -----------------------------
+.block-container {
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
+
+h1, h2, h3 {
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- HEADER ----------------
+st.markdown("""
+<div style="
+    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+">
+<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
+<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- ADMIN PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -31,9 +60,7 @@ def load_admin():
 
 init_file()
 
-# -----------------------------
-# SESSION STATE
-# -----------------------------
+# ---------------- SESSION STATE ----------------
 defaults = {
     "authenticated": False,
     "auth_branch": None,
@@ -46,30 +73,7 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# -----------------------------
-# UI
-# -----------------------------
-st.title("BART")
-st.markdown("## Staff Dashboard")
-st.write("## Kindly choose your Branch Name")
-
-st.markdown("""
-<style>
-#MainMenu {visibility:hidden;}
-footer {visibility:hidden;}
-header {visibility:hidden;}
-[data-testid="stToolbar"] {display:none;}
-[data-testid="stSidebar"] {display:none;}
-.block-container {padding:0 !important; margin:0 auto !important; max-width: 100% !important;}
-input {
-    caret-color: transparent !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# -----------------------------
-# GOOGLE SHEETS SETUP
-# -----------------------------
+# ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -80,9 +84,7 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# -----------------------------
-# CACHED BRANCH LOAD (FAST)
-# -----------------------------
+# ---------------- LOAD BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -91,20 +93,16 @@ def load_branches():
 branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 
-# -----------------------------
-# BRANCH SELECT
-# -----------------------------
+# ---------------- BRANCH SELECT ----------------
+st.subheader("Select Branch")
+
 branch_options = ["-- Select Branch --"] + branches
 
-if st.session_state.selected_branch in branch_options:
-    default_index = branch_options.index(st.session_state.selected_branch)
-else:
-    default_index = 0
-
 selected_branch = st.selectbox(
-    "Select Branch",
+    "Branch",
     branch_options,
-    index=default_index,
+    index=branch_options.index(st.session_state.selected_branch)
+    if st.session_state.selected_branch in branch_options else 0,
     key="branch_selectbox"
 )
 
@@ -117,13 +115,10 @@ if selected_branch != "-- Select Branch --":
         b for b in branch_data
         if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
     )
-
     st.session_state.sheet_id = branch_info["SheetID"]
     st.session_state.branch_info = branch_info
 
-# -----------------------------
-# PASSWORD SYSTEM (FAST CACHE FIX)
-# -----------------------------
+# ---------------- PASSWORD SYSTEM ----------------
 @st.cache_data(ttl=300)
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -148,16 +143,14 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# -----------------------------
-# MAIN LOGIC
-# -----------------------------
+# ---------------- MAIN ----------------
 if selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
+    # RESET PASSWORD
     if st.session_state.reset_mode:
-
-        st.subheader("Reset Password (Admin Required)")
+        st.subheader("Reset Password")
 
         admin_pass = st.text_input("Admin Password", type="password")
         new_pass = st.text_input("New Password", type="password")
@@ -170,9 +163,9 @@ if selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
+    # LOGIN
     if not st.session_state.authenticated:
-
-        st.subheader("Enter Branch Password")
+        st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
 
@@ -191,52 +184,32 @@ if selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # AFTER LOGIN
     if st.session_state.authenticated:
 
-        st.write(f"### Selected Branch: {selected_branch}")
+        st.success(f"Logged in: {selected_branch}")
 
         col1, col2, col3, col4, col5 = st.columns(5)
 
-        if col1.button("📦 Daily Stock Consumption"):
-            st.session_state.pending_action = "stock"
+        if col1.button("📦 Stock Consumption"):
+            st.switch_page("pages/stock_consumption.py")
 
-        if col2.button("💰 Daily Sales Report"):
-            st.session_state.pending_action = "sales"
+        if col2.button("💰 Sales Report"):
+            st.switch_page("pages/daily_sales.py")
 
-        if col3.button("🆕 New Stock Report"):
-            st.session_state.pending_action = "newstock"
+        if col3.button("🆕 New Stock"):
+            st.switch_page("pages/new_stock.py")
 
         if col4.button("🔍 Stock View"):
-            st.session_state.pending_action = "stock_view"
+            sheet = client.open_by_key(branch_info["SheetID"])
+            data = sheet.worksheet("Stocks").get_all_records()
+            st.dataframe(data, use_container_width=True, height=500)
 
-        if col5.button("📊 Daily Sales View"):
-            st.session_state.pending_action = "sales_view"
+        if col5.button("📊 Sales View"):
+            sheet = client.open_by_key(branch_info["SheetID"])
+            data = sheet.worksheet("Sales").get_all_records()
+            st.dataframe(data, use_container_width=True, height=500)
 
-        action = st.session_state.pending_action
-
-        if action:
-
-            if action == "stock":
-                st.switch_page("pages/stock_consumption.py")
-                st.session_state.pending_action = None
-
-            elif action == "sales":
-                st.switch_page("pages/daily_sales.py")
-                st.session_state.pending_action = None
-
-            elif action == "newstock":
-                st.switch_page("pages/new_stock.py")
-                st.session_state.pending_action = None
-
-            elif action == "stock_view":
-                branch_file = client.open_by_key(branch_info["SheetID"])
-                data = branch_file.worksheet("Stocks").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-
-            elif action == "sales_view":
-                branch_file = client.open_by_key(branch_info["SheetID"])
-                data = branch_file.worksheet("Sales").get_all_records()
-                st.dataframe(data, use_container_width=True, height=600)
-
+# ---------------- BACK BUTTON ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
