@@ -122,6 +122,7 @@ if st.session_state.mode is None:
 
     if st.button("⬅ Back to Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
+        st.stop()
 
     st.stop()
 
@@ -142,6 +143,7 @@ if st.button("⬅ Back"):
     st.session_state.review_mode = False
     st.session_state.draft_data = {}
     st.switch_page("pages/staff_dashboard.py")
+    st.stop()
 
 # -----------------------------
 # DATE
@@ -252,15 +254,10 @@ if st.session_state.review_mode:
             if updates:
                 sheet.batch_update(updates)
 
-            # -----------------------------
-            # SUCCESS TOAST (BOTTOM POPUP)
-            # -----------------------------
             success_toast("Stock Submitted Successfully")
 
-            # WAIT 4 SECONDS
             time.sleep(4)
 
-            # RESET + BACK TO MAIN SCREEN
             st.session_state.draft_data = {}
             st.session_state.review_mode = False
             st.session_state.mode = None
