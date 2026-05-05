@@ -73,8 +73,7 @@ defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
-    "selected_branch": "-- Select Branch --",
-    "show_branch_picker": True
+    "selected_branch": "-- Select Branch --"
 }
 
 for k, v in defaults.items():
@@ -102,30 +101,28 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT (FIXED UX) ----------------
+# ---------------- BRANCH SELECT (FINAL UX FIX) ----------------
 st.subheader("Select Branch")
 
-if st.session_state.show_branch_picker or st.session_state.selected_branch == "-- Select Branch --":
+if st.session_state.selected_branch == "-- Select Branch --":
 
     with st.popover("Choose Branch"):
         selected_branch = st.radio(
             "Branch List",
             branch_options,
-            index=branch_options.index(st.session_state.selected_branch)
-            if st.session_state.selected_branch in branch_options else 0,
+            index=0
         )
 
-        if st.button("Confirm Selection"):
+        # AUTO SELECT + CLOSE
+        if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
-            st.session_state.show_branch_picker = False
             st.rerun()
 
-# SHOW SELECTED BRANCH CLEANLY
-if st.session_state.selected_branch != "-- Select Branch --":
+else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
 
     if st.button("🔄 Change Branch"):
-        st.session_state.show_branch_picker = True
+        st.session_state.selected_branch = "-- Select Branch --"
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
