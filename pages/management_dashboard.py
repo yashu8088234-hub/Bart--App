@@ -31,12 +31,14 @@ def load_branches():
     return sheet.get_all_records()
 
 branches = load_branches()
-
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- GLOBAL RATE CONTROL ----------------
+# ---------------- GLOBAL SAFETY LOCKS ----------------
 if "last_fetch_time" not in st.session_state:
     st.session_state.last_fetch_time = 0
+
+if "is_fetching" not in st.session_state:
+    st.session_state.is_fetching = False
 
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
@@ -44,18 +46,22 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
-# ---------------- REFRESH BUTTON (SAFE) ----------------
+# ---------------- REFRESH BUTTON (RATE CONTROL) ----------------
 if st.button("🔄 Refresh Data"):
 
     now = time.time()
 
-    # 🔴 prevent API spam (VERY IMPORTANT)
+    # 🔴 prevent spam clicking
     if now - st.session_state.last_fetch_time < 5:
-        st.warning("Please wait a few seconds before refreshing again.")
+        st.warning("⏳ Please wait a few seconds before refreshing again.")
+        st.stop()
+
+    # 🔴 prevent parallel fetch
+    if st.session_state.is_fetching:
+        st.warning("⏳ Data is already loading. Please wait...")
         st.stop()
 
     st.session_state.last_fetch_time = now
-
     st.cache_data.clear()
     st.rerun()
 
@@ -70,7 +76,7 @@ def get_all_sheets(branches):
         branch_name = branch["BranchName"]
 
         try:
-            # cache opened spreadsheet (important optimization)
+            # reuse opened sheet (IMPORTANT optimization)
             if sheet_id not in sheet_cache:
                 sheet_cache[sheet_id] = client.open_by_key(sheet_id)
 
@@ -81,8 +87,8 @@ def get_all_sheets(branches):
 
             results.append((branch_name, raw))
 
-            # small throttle to avoid burst
-            time.sleep(0.3)
+            # 🔴 gentle throttle to avoid burst
+            time.sleep(0.25)
 
         except Exception as e:
             results.append((branch_name, None))
@@ -90,8 +96,12 @@ def get_all_sheets(branches):
 
     return results
 
-# ---------------- FETCH DATA ----------------
-all_data = get_all_sheets(branches)
+# ---------------- FETCH (SAFE WRAPPER) ----------------
+try:
+    st.session_state.is_fetching = True
+    all_data = get_all_sheets(branches)
+finally:
+    st.session_state.is_fetching = False
 
 # ---------------- PROCESS DATA ----------------
 for branch_name, raw in all_data:
@@ -103,7 +113,6 @@ for branch_name, raw in all_data:
     rows = raw[1:]
 
     df = pd.DataFrame(rows, columns=headers)
-
     item_col = headers[0]
 
     if selected_date_str not in headers:
@@ -123,7 +132,7 @@ for branch_name, raw in all_data:
         except:
             all_items[item][branch_name] = 0
 
-# ---------------- FINAL TABLE ----------------
+# ---------------- FINAL DATAFRAME ----------------
 rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
