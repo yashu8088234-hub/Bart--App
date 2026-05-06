@@ -1,17 +1,16 @@
 import streamlit as st
 from ai_core import run_ai
 
-# ---------------- Page Config ----------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="BART",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- MODERN BRAND UI ----------------
+# ---------------- MODERN UI ----------------
 st.markdown("""
 <style>
-
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
@@ -33,8 +32,6 @@ st.markdown("""
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
     margin-top: 20px;
-    position: relative;
-    overflow: hidden;
 }
 
 .hero h1 {
@@ -55,13 +52,6 @@ st.markdown("""
     max-width: 800px;
     margin: auto;
     line-height: 1.7;
-}
-
-.login-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 30px;
 }
 
 div.stButton > button {
@@ -112,8 +102,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
-st.markdown('<div class="login-buttons">', unsafe_allow_html=True)
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -124,32 +112,14 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ---------------- CHAT SECTION ----------------
-
-st.markdown("""
-<div class="section">
-    <h2>💬 Talk with us</h2>
-    <p style="color:#777; font-size:15px; margin-top:-10px;">
-        Start a conversation — ask anything, we’ll respond instantly.
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
+# ---------------- CHAT ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# input row inside chat section
-col1, col2 = st.columns([10, 1])
+# input (no section, minimal, embedded)
+user_input = st.chat_input("Message...")
 
-with col1:
-    user_input = st.text_input("Message...", label_visibility="collapsed")
-
-with col2:
-    send = st.button("➤")
-
-if send and user_input:
+if user_input:
     context = {
         "revenue": 0,
         "items": 0,
@@ -161,14 +131,14 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-# chat history
+# chat history (clean)
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
     else:
         st.markdown(f"**AI:** {msg}")
 
-# ---------------- INFO SECTIONS ----------------
+# ---------------- INFO ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
