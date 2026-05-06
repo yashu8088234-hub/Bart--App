@@ -130,16 +130,20 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+# ✅ WhatsApp-style input state
+if "input_box" not in st.session_state:
+    st.session_state.input_box = ""
 
-
-
+# ---------------- INPUT ----------------
 user_input = st.text_input(
     "",
-    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
+    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?",
+    key="input_box"
 )
-send = bool(user_input)
 
-if send and user_input:
+# ---------------- SEND LOGIC ----------------
+if user_input:
+
     context = {
         "revenue": 0,
         "items": 0,
@@ -151,6 +155,10 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
+    # 🔥 CLEAR INPUT (WhatsApp behavior)
+    st.session_state.input_box = ""
+
+# ---------------- CHAT DISPLAY ----------------
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
