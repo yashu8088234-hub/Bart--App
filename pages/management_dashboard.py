@@ -24,7 +24,7 @@ def get_client():
 
 client = get_client()
 
-# ---------------- LOAD MASTER SHEET ----------------
+# ---------------- MASTER SHEET ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -34,35 +34,55 @@ branches = load_branches()
 
 branch_names = [b["BranchName"] for b in branches]
 
+# ---------------- GLOBAL RATE CONTROL ----------------
+if "last_fetch_time" not in st.session_state:
+    st.session_state.last_fetch_time = 0
+
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
+# ---------------- REFRESH BUTTON (SAFE) ----------------
 if st.button("🔄 Refresh Data"):
+
+    now = time.time()
+
+    # 🔴 prevent API spam (VERY IMPORTANT)
+    if now - st.session_state.last_fetch_time < 5:
+        st.warning("Please wait a few seconds before refreshing again.")
+        st.stop()
+
+    st.session_state.last_fetch_time = now
+
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- SAFE FETCH (FIXED) ----------------
+# ---------------- SAFE FETCH FUNCTION ----------------
 @st.cache_data(ttl=600)
 def get_all_sheets(branches):
     results = []
+    sheet_cache = {}
 
     for branch in branches:
         sheet_id = branch["SheetID"]
         branch_name = branch["BranchName"]
 
         try:
-            file = client.open_by_key(sheet_id)
+            # cache opened spreadsheet (important optimization)
+            if sheet_id not in sheet_cache:
+                sheet_cache[sheet_id] = client.open_by_key(sheet_id)
+
+            file = sheet_cache[sheet_id]
             ws = file.worksheet("Stocks")
 
             raw = ws.get_all_values()
 
             results.append((branch_name, raw))
 
-            # 🔴 SAFETY THROTTLE (prevents API burst)
-            time.sleep(0.2)
+            # small throttle to avoid burst
+            time.sleep(0.3)
 
         except Exception as e:
             results.append((branch_name, None))
@@ -70,11 +90,10 @@ def get_all_sheets(branches):
 
     return results
 
-
-# ---------------- FIXED CALL ----------------
+# ---------------- FETCH DATA ----------------
 all_data = get_all_sheets(branches)
 
-# ---------------- PROCESS ----------------
+# ---------------- PROCESS DATA ----------------
 for branch_name, raw in all_data:
 
     if not raw or len(raw) < 2:
@@ -104,7 +123,7 @@ for branch_name, raw in all_data:
         except:
             all_items[item][branch_name] = 0
 
-# ---------------- FINAL DATAFRAME ----------------
+# ---------------- FINAL TABLE ----------------
 rows = []
 for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
