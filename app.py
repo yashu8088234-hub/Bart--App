@@ -64,6 +64,7 @@ st.markdown("""
     justify-content: center;
     gap: 20px;
     margin: 20px 0 35px;
+    flex-wrap: wrap;
 }
 
 div.stButton > button {
@@ -81,7 +82,42 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT WRAPPER (YOUR ORIGINAL STYLE IMPROVED) */
+/* CHAT BOX */
+.chat-box {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-bottom: 90px;
+}
+
+/* USER MESSAGE */
+.user-msg {
+    text-align: right;
+    background: #2C2A28;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin: 6px 0;
+    display: inline-block;
+    float: right;
+    clear: both;
+    max-width: 70%;
+}
+
+/* AI MESSAGE */
+.ai-msg {
+    text-align: left;
+    background: #F7F1EA;
+    color: #222;
+    padding: 10px 14px;
+    border-radius: 12px;
+    margin: 6px 0;
+    display: inline-block;
+    float: left;
+    clear: both;
+    max-width: 70%;
+}
+
+/* FLOATING CHAT INPUT (RESTORED STYLE) */
 .chat-wrapper {
     position: fixed;
     bottom: 20px;
@@ -117,39 +153,6 @@ div.stButton > button:hover {
 .chat-wrapper button:hover {
     background: #C0392B;
 }
-
-/* CHAT DISPLAY */
-.chat-box {
-    max-height: 55vh;
-    overflow-y: auto;
-    padding-bottom: 80px;
-}
-
-.user-msg {
-    text-align: right;
-    background: #2C2A28;
-    color: white;
-    padding: 10px 14px;
-    border-radius: 12px;
-    margin: 6px 0;
-    display: inline-block;
-    float: right;
-    clear: both;
-    max-width: 70%;
-}
-
-.ai-msg {
-    text-align: left;
-    background: #F7F1EA;
-    color: #222;
-    padding: 10px 14px;
-    border-radius: 12px;
-    margin: 6px 0;
-    display: inline-block;
-    float: left;
-    clear: both;
-    max-width: 70%;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -180,7 +183,7 @@ if "chat" not in st.session_state:
 # ---------------- CHAT DISPLAY ----------------
 st.markdown("<div class='chat-box'>", unsafe_allow_html=True)
 
-for sender, msg in st.session_state.chat[-10:]:
+for sender, msg in st.session_state.chat[-15:]:
     if sender == "You":
         st.markdown(f"<div class='user-msg'>{msg}</div>", unsafe_allow_html=True)
     else:
@@ -188,16 +191,13 @@ for sender, msg in st.session_state.chat[-10:]:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- CHAT INPUT (NO JS HACK) ----------------
-st.markdown("""
-<form action="" method="post">
-</form>
-""", unsafe_allow_html=True)
+# ---------------- FLOATING INPUT ----------------
+st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
 
-# normal hidden-safe input (Streamlit controlled)
 user_input = st.text_input("", placeholder="Message...", label_visibility="collapsed")
-
 send = st.button("➤")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ---------------- AI LOGIC ----------------
 if send and user_input:
@@ -215,3 +215,11 @@ if send and user_input:
     st.session_state.chat.append(("AI", response))
 
     st.rerun()
+
+# ---------------- INFO ----------------
+st.markdown("""
+<div style="margin-top:40px; padding:20px; background:white; border-radius:16px; text-align:center;">
+<h2 style="color:#C0392B;">Our Experience</h2>
+<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+</div>
+""", unsafe_allow_html=True)
