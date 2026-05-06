@@ -81,40 +81,6 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT INPUT */
-.chat-wrapper {
-    position: relative;
-    width: 100%;
-    margin-top: 10px;
-}
-
-.chat-wrapper input {
-    width: 100%;
-    height: 50px;
-    border-radius: 12px;
-    border: none;
-    padding: 0 50px 0 15px;
-    font-size: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-}
-
-.chat-wrapper button {
-    position: absolute;
-    right: 5px;
-    top: 5px;
-    height: 40px;
-    width: 40px;
-    border-radius: 10px;
-    border: none;
-    background: #2C2A28;
-    color: white;
-    cursor: pointer;
-}
-
-.chat-wrapper button:hover {
-    background: #C0392B;
-}
-
 /* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
@@ -164,36 +130,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# custom input
-st.markdown("""
-<div class="chat-wrapper">
-    <input id="chat_input" type="text" placeholder="Message..." />
-    <button id="send_btn">➤</button>
-</div>
-
-<script>
-const input = document.getElementById("chat_input");
-const btn = document.getElementById("send_btn");
-
-btn.onclick = () => {
-    const value = input.value;
-    if (value) {
-        const hidden = window.parent.document.querySelector('input[aria-label="hidden_input"]');
-        hidden.value = value;
-        hidden.dispatchEvent(new Event("input", { bubbles: true }));
-        input.value = "";
-    }
-};
-
-input.addEventListener("keypress", function(e) {
-    if (e.key === "Enter") {
-        btn.click();
-    }
-});
-</script>
-""", unsafe_allow_html=True)
-
-# hidden streamlit input
+# ONLY Streamlit input (no HTML box anymore)
 user_input = st.text_input("hidden_input", label_visibility="collapsed")
 send = bool(user_input)
 
