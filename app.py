@@ -198,7 +198,16 @@ if "chat" not in st.session_state:
     st.session_state.chat = []
 
 # Chat input (clean ChatGPT-style, no button, arrow send)
-user_input = st.chat_input("Message...")
+# Chat input (embedded inside page, not full width)
+col1, col2 = st.columns([6, 1])
+
+with col1:
+    user_input = st.text_input("Message...", label_visibility="collapsed")
+
+with col2:
+    send = st.button("➤")
+
+if send and user_input:
 
 if user_input:
     context = {
