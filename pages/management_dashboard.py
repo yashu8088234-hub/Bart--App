@@ -1,15 +1,79 @@
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import json
+from pathlib import Path
 import pandas as pd
-import datetime
-import time
 
-st.set_page_config(layout="wide", page_title="Stock Overview")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
-st.title("📦 BART - Stock Management (All Branches)")
+# ---------------- CLEAN UI STYLE ----------------
+st.markdown("""
+<style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
-# ---------------- GOOGLE AUTH ----------------
+.block-container {
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
+
+h1, h2, h3 {
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- HEADER ----------------
+st.markdown("""
+<div style="
+    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+">
+<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
+<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- ADMIN PASSWORD FILE ----------------
+FILE_NAME = Path(__file__).parent / "passwords.json"
+
+def init_file():
+    if not FILE_NAME.exists():
+        with open(FILE_NAME, "w") as f:
+            json.dump({"admin": "admin123"}, f)
+
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
+
+init_file()
+
+# ---------------- SESSION STATE ----------------
+defaults = {
+    "authenticated": False,
+    "auth_branch": None,
+    "reset_mode": False,
+    "selected_branch": "-- Select Branch --"
+}
+
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -17,154 +81,199 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-@st.cache_resource
-def get_client():
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    return gspread.authorize(creds)
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
 
-client = get_client()
-
-# ---------------- MASTER SHEET ----------------
+# ---------------- LOAD BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     return sheet.get_all_records()
 
-branches = load_branches()
-branch_names = [b["BranchName"] for b in branches]
+branch_data = load_branches()
+branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
+branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- GLOBAL SAFETY LOCKS ----------------
-if "last_fetch_time" not in st.session_state:
-    st.session_state.last_fetch_time = 0
+# ---------------- BRANCH SELECT ----------------
+st.subheader("Select Branch")
 
-if "is_fetching" not in st.session_state:
-    st.session_state.is_fetching = False
+if st.session_state.selected_branch == "-- Select Branch --":
 
-# ---------------- DATE PICKER ----------------
-selected_date = st.date_input("📅 Select Stock Date")
-selected_date_str = selected_date.strftime("%Y-%m-%d")
+    with st.popover("Choose Branch"):
+        selected_branch = st.radio("Branch List", branch_options, index=0)
 
-all_items = {}
+        if selected_branch != "-- Select Branch --":
+            st.session_state.selected_branch = selected_branch
+            st.rerun()
 
-# ---------------- REFRESH BUTTON (RATE CONTROL) ----------------
-if st.button("🔄 Refresh Data"):
+else:
+    st.success(f"Selected Branch: {st.session_state.selected_branch}")
 
-    now = time.time()
+    if st.button("🔄 Change Branch"):
+        st.session_state.selected_branch = "-- Select Branch --"
+        st.rerun()
 
-    # 🔴 prevent spam clicking
-    if now - st.session_state.last_fetch_time < 5:
-        st.warning("⏳ Please wait a few seconds before refreshing again.")
-        st.stop()
+# ---------------- BRANCH INFO ----------------
+branch_info = None
 
-    # 🔴 prevent parallel fetch
-    if st.session_state.is_fetching:
-        st.warning("⏳ Data is already loading. Please wait...")
-        st.stop()
+if st.session_state.selected_branch != "-- Select Branch --":
+    branch_info = next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
+    )
 
-    st.session_state.last_fetch_time = now
-    st.cache_data.clear()
-    st.rerun()
+# ---------------- PASSWORD SYSTEM ----------------
+def load_passwords():
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    records = sheet.get_all_records()
 
-# ---------------- SAFE FETCH FUNCTION ----------------
-@st.cache_data(ttl=600)
-def get_all_sheets(branches):
-    results = []
-    sheet_cache = {}
+    passwords = {"admin": load_admin()["admin"]}
 
-    for branch in branches:
-        sheet_id = branch["SheetID"]
-        branch_name = branch["BranchName"]
+    for row in records:
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        passwords[key] = row.get("Password", "")
 
-        try:
-            # reuse opened sheet (IMPORTANT optimization)
-            if sheet_id not in sheet_cache:
-                sheet_cache[sheet_id] = client.open_by_key(sheet_id)
+    return passwords
 
-            file = sheet_cache[sheet_id]
-            ws = file.worksheet("Stocks")
+def save_passwords(branch_key, new_password):
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    records = sheet.get_all_records()
 
-            raw = ws.get_all_values()
+    for idx, row in enumerate(records, start=2):
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        if key == branch_key:
+            col_index = list(row.keys()).index("Password") + 1
+            sheet.update_cell(idx, col_index, new_password)
+            return
 
-            results.append((branch_name, raw))
+# ---------------- MAIN ----------------
+if st.session_state.selected_branch != "-- Select Branch --":
 
-            # 🔴 gentle throttle to avoid burst
-            time.sleep(0.25)
+    passwords = load_passwords()
 
-        except Exception as e:
-            results.append((branch_name, None))
-            st.error(f"{branch_name} error: {e}")
+    if not st.session_state.authenticated:
+        st.subheader("Branch Login")
 
-    return results
+        password = st.text_input("Password", type="password")
 
-# ---------------- FETCH (SAFE WRAPPER) ----------------
-try:
-    st.session_state.is_fetching = True
-    all_data = get_all_sheets(branches)
-finally:
-    st.session_state.is_fetching = False
+        col1, col2 = st.columns(2)
 
-# ---------------- PROCESS DATA ----------------
-for branch_name, raw in all_data:
+        with col1:
+            if st.button("Login"):
+                if passwords.get(st.session_state.selected_branch, "") == password:
+                    st.session_state.authenticated = True
 
-    if not raw or len(raw) < 2:
-        continue
+                    st.session_state.sheet_id = branch_info["SheetID"]
+                    st.session_state.tab_name = "Stocks"
+                    st.session_state.branch_info = branch_info
 
-    headers = raw[0]
-    rows = raw[1:]
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
 
-    df = pd.DataFrame(rows, columns=headers)
-    item_col = headers[0]
+        with col2:
+            if st.button("Reset Password"):
+                st.session_state.reset_mode = True
 
-    if selected_date_str not in headers:
-        continue
+    if st.session_state.reset_mode:
+        st.subheader("Reset Password")
 
-    chosen_col = selected_date_str
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
 
-    for _, row in df.iterrows():
-        item = str(row[item_col]).strip()
-        qty = row.get(chosen_col, "")
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                save_passwords(st.session_state.selected_branch, new_pass)
+                st.success("Password updated successfully")
+                st.session_state.reset_mode = False
+            else:
+                st.error("Wrong admin password")
 
-        if item not in all_items:
-            all_items[item] = {bn: 0 for bn in branch_names}
+    # ---------------- AFTER LOGIN ----------------
+    if st.session_state.authenticated:
 
-        try:
-            all_items[item][branch_name] = float(qty) if qty != "" else 0
-        except:
-            all_items[item][branch_name] = 0
+        st.success(f"Logged in: {st.session_state.selected_branch}")
 
-# ---------------- FINAL DATAFRAME ----------------
-rows = []
-for i, (item, values) in enumerate(all_items.items(), start=1):
-    row = {"Sl No": i, "Item Name": item}
-    row.update(values)
-    rows.append(row)
+        col1, col2, col3 = st.columns(3)
 
-df = pd.DataFrame(rows)
+        if col1.button("📦 Stock Record"):
+            st.switch_page("pages/stock_consumption.py")
 
-# ---------------- DISPLAY ----------------
-st.subheader("📊 Stock Data")
-st.dataframe(df, use_container_width=True)
+        if col2.button("🆕 New Stock Record"):
+            st.switch_page("pages/new_stock.py")
 
-# ---------------- LOW STOCK HIGHLIGHT ----------------
-st.markdown("## ⚠️ Low Stock Highlight")
+        # ---------------- STOCK VIEW (FIXED) ----------------
+        if col3.button("🔍 Stock View"):
 
-if df.empty:
-    st.warning("No stock data found for selected date")
-    st.stop()
+            sheet = client.open_by_key(branch_info["SheetID"])
+            ws = sheet.worksheet("Stocks")
 
-def highlight_low(val):
-    try:
-        val = float(val)
-        if val == 0:
-            return "background-color: red; color: white;"
-        elif val < 5:
-            return "background-color: orange;"
-    except:
-        return ""
-    return ""
+            data = ws.get_all_values()
 
-valid_columns = [col for col in branch_names if col in df.columns]
+            headers = data[0]
+            date_columns = headers[1:]
 
-styled_df = df.style.applymap(highlight_low, subset=valid_columns)
+            daily = []
+            weekly = []
 
-st.dataframe(styled_df, use_container_width=True)
+            current_section = None
+
+            for row in data:
+
+                if not row:
+                    continue
+
+                row_text = " ".join(row).strip().lower()
+
+                if "daily item" in row_text:
+                    current_section = "daily"
+                    continue
+
+                if "weekly item" in row_text:
+                    current_section = "weekly"
+                    continue
+
+                if current_section is None:
+                    continue
+
+                if not row[0]:
+                    continue
+
+                item = row[0].strip()
+
+                values = row[1:]
+                values = values + [""] * (len(date_columns) - len(values))
+
+                cleaned = []
+                total = 0
+
+                for v in values:
+                    try:
+                        num = float(v) if v != "" else 0
+                    except:
+                        num = 0
+                    cleaned.append(num)
+                    total += num
+
+                row_dict = {"Item": item}
+
+                for i, col in enumerate(date_columns):
+                    row_dict[col] = cleaned[i]
+
+                row_dict["Total"] = total
+
+                if current_section == "daily":
+                    daily.append(row_dict)
+
+                elif current_section == "weekly":
+                    weekly.append(row_dict)
+
+            st.subheader("📦 Daily Items Stock")
+            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
+
+            st.subheader("📦 Weekly Items Stock")
+            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
+
+# ---------------- BACK ----------------
+if st.button("⬅ Back"):
+    st.switch_page("app.py")
