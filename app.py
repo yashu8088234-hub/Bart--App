@@ -58,14 +58,7 @@ st.markdown("""
     line-height: 1.6;
 }
 
-/* LOGIN */
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
-
+/* BUTTONS */
 div.stButton > button {
     height: 50px;
     width: 200px;
@@ -88,15 +81,6 @@ div.stButton > button:hover {
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
-
-.section p {
-    color: #555;
     text-align: center;
 }
 </style>
@@ -112,8 +96,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
-st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -124,46 +106,44 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-st.markdown('</div>', unsafe_allow_html=True)
+# ---------------- CHAT STATE ----------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# ---------------- CHAT BACKEND ----------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+# ---------------- DISPLAY CHAT (WHATSAPP STYLE) ----------------
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
-# ✅ WhatsApp-style input state
-if "input_box" not in st.session_state:
-    st.session_state.input_box = ""
+# ---------------- CHAT INPUT (IMPORTANT FIX) ----------------
+user_input = st.chat_input("💬 Ask BART AI anything...")
 
-# ---------------- INPUT ----------------
-user_input = st.text_input(
-    "",
-    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?",
-    key="input_box"
-)
-
-# ---------------- SEND LOGIC ----------------
 if user_input:
 
+    # Save user message
+    st.session_state.messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    # Build context
     context = {
         "revenue": 0,
         "items": 0,
         "sales": st.session_state.get("pending_sales", [])
     }
 
+    # Get AI response
     response = run_ai(user_input, context)
 
-    st.session_state.chat.append(("You", user_input))
-    st.session_state.chat.append(("AI", response))
+    # Save AI response
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response
+    })
 
-    # 🔥 CLEAR INPUT (WhatsApp behavior)
-    st.session_state.input_box = ""
-
-# ---------------- CHAT DISPLAY ----------------
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
+    # Rerun so chat updates instantly
+    st.rerun()
 
 # ---------------- INFO ----------------
 st.markdown("""
