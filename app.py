@@ -167,7 +167,7 @@ st.markdown("""
 # ---------------- LOGIN BUTTONS ----------------
 st.markdown('<div class="login-buttons">', unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     if st.button("Staff Login"):
