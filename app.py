@@ -126,14 +126,27 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT ----------------
+# ---------------- CHAT (EMBEDDED SECTION) ----------------
+
+st.markdown("""
+<div class="section">
+<h2>Chat</h2>
+</div>
+""", unsafe_allow_html=True)
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# input row (clean ChatGPT-style input with built-in send arrow)
-user_input = st.chat_input("Message...")
+# input row inside section (NOT full page)
+col1, col2 = st.columns([10, 1])
 
-if user_input:
+with col1:
+    user_input = st.text_input("Message...", label_visibility="collapsed")
+
+with col2:
+    send = st.button("➤")
+
+if send and user_input:
     context = {
         "revenue": 0,
         "items": 0,
@@ -145,6 +158,7 @@ if user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
+# chat history inside same section
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
