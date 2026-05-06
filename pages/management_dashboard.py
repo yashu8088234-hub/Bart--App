@@ -33,11 +33,11 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- DATE PICKER ----------------
+# ---------------- DATE (kept for consistency) ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# ---------------- SAFE FETCH ----------------
+# ---------------- FETCH ----------------
 @st.cache_data(ttl=600)
 def get_all_sheets(branches):
     results = []
@@ -65,7 +65,7 @@ def get_all_sheets(branches):
 all_data = get_all_sheets(branches)
 
 # =========================================================
-# 📊 DAILY + WEEKLY DATA BUILD
+# 📦 DAILY + WEEKLY SEPARATION (FIXED LOGIC)
 # =========================================================
 
 daily_items = {}
@@ -79,42 +79,52 @@ for branch_name, raw in all_data:
     headers = raw[0]
     rows = raw[1:]
 
-    df = pd.DataFrame(rows, columns=headers)
     item_col = headers[0]
 
-    # ---------------- DAILY (selected date) ----------------
-    if selected_date_str in headers:
+    df = pd.DataFrame(rows, columns=headers)
 
-        for _, row in df.iterrows():
-            item = str(row[item_col]).strip()
-            qty = row.get(selected_date_str, "")
-
-            if item not in daily_items:
-                daily_items[item] = {bn: 0 for bn in branch_names}
-
-            try:
-                daily_items[item][branch_name] = float(qty) if qty != "" else 0
-            except:
-                daily_items[item][branch_name] = 0
-
-    # ---------------- WEEKLY (last 7 columns sum) ----------------
-    date_cols = headers[1:]
-    last_7 = date_cols[-7:] if len(date_cols) >= 7 else date_cols
+    current_section = None
 
     for _, row in df.iterrows():
+
+        # detect section from row content (same as your Stock View logic)
+        row_text = " ".join(str(x) for x in row.values).strip().lower()
+
+        if "daily item" in row_text:
+            current_section = "daily"
+            continue
+
+        if "weekly item" in row_text:
+            current_section = "weekly"
+            continue
+
+        if current_section is None:
+            continue
+
         item = str(row[item_col]).strip()
 
-        if item not in weekly_items:
-            weekly_items[item] = {bn: 0 for bn in branch_names}
+        if item == "" or item.lower() in ["daily item", "weekly item"]:
+            continue
 
+        values = row[1:]
+
+        # convert safely
         total = 0
-        for d in last_7:
+        for v in values:
             try:
-                total += float(row.get(d, 0) or 0)
+                total += float(v) if v != "" else 0
             except:
                 pass
 
-        weekly_items[item][branch_name] = total
+        if current_section == "daily":
+            if item not in daily_items:
+                daily_items[item] = {bn: 0 for bn in branch_names}
+            daily_items[item][branch_name] = total
+
+        elif current_section == "weekly":
+            if item not in weekly_items:
+                weekly_items[item] = {bn: 0 for bn in branch_names}
+            weekly_items[item][branch_name] = total
 
 # =========================================================
 # 📦 DAILY DATAFRAME
@@ -144,8 +154,8 @@ df_weekly = pd.DataFrame(weekly_rows)
 # 📊 DISPLAY
 # =========================================================
 
-st.subheader("📊 Daily Stock Data (All Branches)")
+st.subheader("📦 Daily Items Stock (All Branches)")
 st.dataframe(df_daily, use_container_width=True)
 
-st.subheader("📊 Weekly Stock Data (All Branches)")
+st.subheader("📦 Weekly Items Stock (All Branches)")
 st.dataframe(df_weekly, use_container_width=True)
