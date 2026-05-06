@@ -37,6 +37,11 @@ branch_names = [b["BranchName"] for b in branches]
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
+# ---------------- REFRESH ----------------
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
+
 # ---------------- FETCH ----------------
 @st.cache_data(ttl=600)
 def get_all_sheets(branches):
@@ -65,7 +70,7 @@ def get_all_sheets(branches):
 all_data = get_all_sheets(branches)
 
 # =========================================================
-# 📦 DAILY + WEEKLY FIXED PARSING
+# 📦 RAW DAILY + WEEKLY LOGIC (NO OVERSMART FIXES)
 # =========================================================
 
 daily_items = {}
@@ -80,14 +85,12 @@ for branch_name, raw in all_data:
     rows = raw[1:]
 
     item_col = headers[0]
-
     df = pd.DataFrame(rows, columns=headers)
 
     current_section = None
 
     for _, row in df.iterrows():
 
-        # ---------------- SECTION DETECTION (FIXED) ----------------
         row_str = " ".join([str(x) for x in row.values]).strip().lower()
 
         if "daily item" in row_str:
@@ -106,31 +109,26 @@ for branch_name, raw in all_data:
         if not item:
             continue
 
-        # skip section labels accidentally
         if "daily item" in item.lower() or "weekly item" in item.lower():
             continue
 
-        # ---------------- VALUE SUM ----------------
-        total = 0
-        for v in row[1:]:
-            try:
-                total += float(v) if v != "" else 0
-            except:
-                pass
+        # ---------------- RAW VALUE ONLY (NO FLOAT CONVERSION) ----------------
+        values = row[1:]
 
-        # ---------------- STORE ----------------
         if current_section == "daily":
             if item not in daily_items:
-                daily_items[item] = {bn: 0 for bn in branch_names}
-            daily_items[item][branch_name] = total
+                daily_items[item] = {bn: "" for bn in branch_names}
+
+            daily_items[item][branch_name] = values[0] if len(values) > 0 else ""
 
         elif current_section == "weekly":
             if item not in weekly_items:
-                weekly_items[item] = {bn: 0 for bn in branch_names}
-            weekly_items[item][branch_name] = total
+                weekly_items[item] = {bn: "" for bn in branch_names}
+
+            weekly_items[item][branch_name] = values[0] if len(values) > 0 else ""
 
 # =========================================================
-# 📦 DAILY DATAFRAME
+# 📦 DAILY DF
 # =========================================================
 
 daily_rows = []
@@ -142,7 +140,7 @@ for i, (item, values) in enumerate(daily_items.items(), start=1):
 df_daily = pd.DataFrame(daily_rows)
 
 # =========================================================
-# 📦 WEEKLY DATAFRAME
+# 📦 WEEKLY DF
 # =========================================================
 
 weekly_rows = []
@@ -157,8 +155,8 @@ df_weekly = pd.DataFrame(weekly_rows)
 # 📊 DISPLAY
 # =========================================================
 
-st.subheader("📦 Daily Items Stock (All Branches)")
+st.subheader("📦 Daily Items Stock (Raw)")
 st.dataframe(df_daily, use_container_width=True)
 
-st.subheader("📦 Weekly Items Stock (All Branches)")
+st.subheader("📦 Weekly Items Stock (Raw)")
 st.dataframe(df_weekly, use_container_width=True)
