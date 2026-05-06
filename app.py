@@ -135,7 +135,7 @@ if "chat" not in st.session_state:
    
     <p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>
 </div>
-user_input = st.text_input("🤖 Hi, I am BART AI Assistant — how can I help you?   "<p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>)
+user_input = st.text_input("🤖 Hi, I am BART AI Assistant — how can I help you?   ")
 send = bool(user_input)
 
 if send and user_input:
