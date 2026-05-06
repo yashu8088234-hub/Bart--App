@@ -161,4 +161,13 @@ for sender, msg in st.session_state.chat[-10:]:
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
-<p>Relax
+<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="section">
+<h2>Visit Us</h2>
+<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
+</div>
+""", unsafe_allow_html=True)
