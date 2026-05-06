@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
-
 st.title("📦 BART - Stock Management (All Branches)")
 
 # ---------------- GOOGLE AUTH ----------------
@@ -29,12 +28,20 @@ client = get_client()
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
-    return sheet.get_all_records()
+    data = sheet.get_all_records()
+
+    # 🔥 FIX: remove empty rows (THIS WAS YOUR CRASH)
+    cleaned = [
+        b for b in data
+        if b.get("SheetID") and b.get("BranchName")
+    ]
+
+    return cleaned
 
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- SESSION SAFETY FLAGS ----------------
+# ---------------- SESSION SAFETY ----------------
 if "last_fetch_time" not in st.session_state:
     st.session_state.last_fetch_time = 0
 
@@ -63,26 +70,43 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- PRELOAD SHEETS ----------------
+# ---------------- SAFE SHEET LOADER ----------------
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
+
     for b in branches:
-        cache[b["SheetID"]] = client.open_by_key(b["SheetID"])
+        sheet_id = b.get("SheetID")
+
+        # 🔥 FIX: skip empty SheetID
+        if not sheet_id:
+            continue
+
+        try:
+            cache[sheet_id] = client.open_by_key(sheet_id)
+        except Exception as e:
+            st.warning(f"⚠️ Failed loading {b.get('BranchName')}")
+
     return cache
 
 sheet_cache = get_sheets(branches)
 
-# ---------------- FETCH FUNCTION (PARALLEL) ----------------
+# ---------------- FETCH FUNCTION ----------------
 def fetch_branch(branch):
     try:
-        file = sheet_cache[branch["SheetID"]]
+        sheet_id = branch.get("SheetID")
+
+        if not sheet_id or sheet_id not in sheet_cache:
+            return branch["BranchName"], None
+
+        file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
         return branch["BranchName"], ws.get_all_values()
-    except Exception as e:
+
+    except Exception:
         return branch["BranchName"], None
 
-# ---------------- SAFE FETCH WRAPPER ----------------
+# ---------------- FETCH DATA ----------------
 try:
     st.session_state.is_fetching = True
 
@@ -138,11 +162,12 @@ if df.empty:
 else:
     st.dataframe(df, use_container_width=True)
 
-# ---------------- OPTIONAL: SEARCH ----------------
+# ---------------- SEARCH ----------------
 search = st.text_input("🔎 Search Item")
+
 if search and not df.empty:
-    df = df[df["Item Name"].str.contains(search, case=False, na=False)]
-    st.dataframe(df, use_container_width=True)
+    filtered = df[df["Item Name"].str.contains(search, case=False, na=False)]
+    st.dataframe(filtered, use_container_width=True)
 
 # ---------------- DOWNLOAD ----------------
 if not df.empty:
