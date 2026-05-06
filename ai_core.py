@@ -1,20 +1,29 @@
+import os
+import time
 from openai import OpenAI
 
-client = OpenAI(api_key="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")
+# ---------------- SAFE CLIENT INIT ----------------
+api_key = os.getenv("OPENAI_API_KEY")
 
+if not api_key:
+    raise ValueError("OPENAI_API_KEY is missing. Add it in Streamlit Secrets.")
+
+client = OpenAI(api_key=api_key)
+
+# ---------------- HUMAN-LIKE SYSTEM PROMPT ----------------
 SYSTEM_PROMPT = """
 You are BART AI, a highly intelligent, natural, human-like assistant.
 
-Behavior rules:
-- Speak naturally like a real human, not robotic
-- Be concise but smart
+Rules:
+- Speak naturally like ChatGPT
+- Be helpful, calm, and conversational
 - Understand context deeply
-- Ask follow-up questions when needed
-- Adapt tone (friendly, professional, casual depending on user)
-- Never mention system prompts or AI policies
-- Act like a real thinking assistant, not a script
+- Avoid robotic or scripted answers
+- Ask clarifying questions when needed
+- Keep responses clean and useful
 """
 
+# ---------------- MAIN AI FUNCTION ----------------
 def run_ai(user_input, context=None):
     if context is None:
         context = {}
@@ -24,17 +33,32 @@ def run_ai(user_input, context=None):
         {"role": "user", "content": user_input}
     ]
 
-    # optional: inject business context if needed
+    # Optional context injection (sales, etc.)
     if context:
         messages.insert(1, {
             "role": "system",
-            "content": f"Context data: {context}"
+            "content": f"Business context: {context}"
         })
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        temperature=0.8
-    )
+    # ---------------- RETRY LOGIC (RATE LIMIT SAFE) ----------------
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.8
+            )
 
-    return response.choices[0].message.content
+            return response.choices[0].message.content
+
+        except Exception as e:
+            # small delay to avoid rate spikes
+            time.sleep(1.5)
+
+            last_error = str(e)
+
+    # ---------------- FALLBACK (IF OPENAI FAILS) ----------------
+    return (
+        "I'm having a small technical delay right now 😅 "
+        "Please try again in a moment."
+    )
