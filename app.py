@@ -12,14 +12,14 @@ st.set_page_config(
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ---------------- STYLES ----------------
+# ---------------- GLOBAL STYLES ----------------
 st.markdown("""
 <style>
 
-/* hide streamlit chrome */
 #MainMenu, footer, header {visibility: hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
-/* background */
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
@@ -27,19 +27,65 @@ st.markdown("""
 
 /* HERO */
 .hero {
+    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
+    padding: 60px 30px;
+    border-radius: 28px;
     text-align: center;
-    padding: 40px 20px;
-    font-size: 48px;
-    font-weight: 900;
-    color: #C0392B;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
 }
 
-/* CHAT AREA (KEY FIX) */
+.hero h1 {
+    font-size: 70px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: #C0392B;
+    margin: 0;
+}
+
+.hero h2 {
+    font-size: 22px;
+    color: #2C2A28;
+    margin-top: 10px;
+}
+
+.hero p {
+    font-size: 15px;
+    color: #555;
+    max-width: 750px;
+    margin: 10px auto 0;
+    line-height: 1.6;
+}
+
+/* LOGIN */
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
+div.stButton > button {
+    height: 50px;
+    width: 200px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    background: #2C2A28;
+    color: white;
+    border: none;
+}
+
+div.stButton > button:hover {
+    background: #C0392B;
+}
+
+/* CHAT AREA */
 .chat-container {
-    height: 65vh;
+    height: 55vh;
     overflow-y: auto;
     padding: 10px 20px;
-    margin-bottom: 90px;
+    margin-bottom: 100px;
 }
 
 /* USER MESSAGE */
@@ -68,7 +114,7 @@ st.markdown("""
     clear: both;
 }
 
-/* FLOATING INPUT BAR */
+/* FLOATING CHAT INPUT */
 .input-bar {
     position: fixed;
     bottom: 15px;
@@ -81,7 +127,6 @@ st.markdown("""
     z-index: 999;
 }
 
-/* input */
 .input-bar input {
     flex: 1;
     height: 48px;
@@ -93,7 +138,6 @@ st.markdown("""
     outline: none;
 }
 
-/* SMALL AI BUTTON */
 .input-bar button {
     width: 48px;
     height: 48px;
@@ -107,19 +151,57 @@ st.markdown("""
 
 .input-bar button:hover {
     background: #C0392B;
-    transform: scale(1.05);
+}
+
+/* SECTION */
+.section {
+    background: rgba(255,255,255,0.9);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    text-align: center;
+}
+
+.section h2 {
+    color: #C0392B;
+}
+
+.section p {
+    color: #555;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- HERO ----------------
-st.markdown("<div class='hero'>BART</div>", unsafe_allow_html=True)
+st.markdown("""
+<div class="hero">
+    <h1>BART</h1>
+    <h2>Coffee • French Toast • Fresh Bites</h2>
+    <p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("Staff Login"):
+        st.switch_page("pages/staff_dashboard")
+
+with col2:
+    if st.button("Management Login"):
+        st.switch_page("pages/management_dashboard")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- CHAT DISPLAY ----------------
 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
 
-for sender, msg in st.session_state.chat[-30:]:
+for sender, msg in st.session_state.chat[-20:]:
     if sender == "You":
         st.markdown(f"<div class='user'>{msg}</div>", unsafe_allow_html=True)
     else:
@@ -151,3 +233,18 @@ if send and user_input:
     st.session_state.chat.append(("AI", response))
 
     st.rerun()
+
+# ---------------- INFO SECTIONS ----------------
+st.markdown("""
+<div class="section">
+<h2>Our Experience</h2>
+<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="section">
+<h2>Visit Us</h2>
+<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
+</div>
+""", unsafe_allow_html=True)
