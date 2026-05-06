@@ -20,12 +20,6 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
-
 /* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
@@ -112,24 +106,9 @@ div.stButton > button:hover {
     font-size: 14px;
 }
 
+/* INPUT */
 .chat-input {
-    display: flex;
     border-top: 1px solid #eee;
-}
-
-.chat-input input {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    outline: none;
-}
-
-.chat-input button {
-    width: 60px;
-    background: #C0392B;
-    color: white;
-    border: none;
-    cursor: pointer;
 }
 
 /* SECTION */
@@ -139,15 +118,6 @@ div.stButton > button:hover {
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
-
-.section p {
-    color: #555;
     text-align: center;
 }
 </style>
@@ -163,8 +133,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
-st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -175,18 +143,15 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ---------------- SESSION ----------------
+# ---------------- CHAT STATE ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ---------------- FLOATING CHAT UI ----------------
+# ---------------- FLOATING CHAT ----------------
 st.markdown('<div class="chat-float">', unsafe_allow_html=True)
 
 st.markdown('<div class="chat-header">BART AI Assistant</div>', unsafe_allow_html=True)
 
-# CHAT HISTORY
 st.markdown('<div class="chat-body">', unsafe_allow_html=True)
 
 for sender, msg in st.session_state.chat[-15:]:
@@ -197,9 +162,9 @@ for sender, msg in st.session_state.chat[-15:]:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# INPUT
+# SINGLE INPUT ONLY (NO DUPLICATES)
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Ask something...")
+    user_input = st.text_input("Message...")
     send = st.form_submit_button("➤")
 
 st.markdown('</div>', unsafe_allow_html=True)
@@ -223,9 +188,7 @@ st.markdown("""
 <h2>Our Experience</h2>
 <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
 </div>
-""", unsafe_allow_html=True)
 
-st.markdown("""
 <div class="section">
 <h2>Visit Us</h2>
 <p>Find us in Jeddah branches or visit bart.sa for more information.</p>
