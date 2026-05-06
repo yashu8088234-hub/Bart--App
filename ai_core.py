@@ -1,43 +1,37 @@
-import requests
+import streamlit as st
+from groq import Groq
 
-API_URL = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+# ---------------- GET KEY ----------------
+api_key = st.secrets.get("GROQ_API_KEY")
 
-SYSTEM_PROMPT = "You are a natural, human-like assistant."
+if not api_key:
+    raise ValueError("GROQ_API_KEY not found in Streamlit secrets!")
+
+client = Groq(api_key=api_key)
+
+SYSTEM_PROMPT = """
+You are BART AI, a natural, human-like assistant.
+Speak casually like ChatGPT.
+Be helpful, smart, and conversational.
+"""
 
 def run_ai(user_input, context=None):
     if context is None:
         context = {}
 
-    prompt = f"{SYSTEM_PROMPT}\nUser: {user_input}\nAI:"
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_input}
+    ]
 
     try:
-        response = requests.post(
-            API_URL,
-            json={"inputs": prompt},
-            timeout=20
+        response = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=messages,
+            temperature=0.8
         )
 
-        # 🔥 IMPORTANT FIX: safe text read first
-        raw = response.text
-
-        # if API is loading or blocked
-        if response.status_code != 200:
-            return "AI is warming up ⏳ try again in a few seconds"
-
-        # try JSON safely
-        try:
-            data = response.json()
-        except:
-            return "AI is busy right now 😅 try again"
-
-        # extract response safely
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
-
-        if isinstance(data, dict) and "generated_text" in data:
-            return data["generated_text"]
-
-        return "Hmm 🤔 I didn't get a proper response"
+        return response.choices[0].message.content
 
     except Exception as e:
-        return "AI offline 😅 please retry"
+        return f"AI error 😅: {str(e)}"
