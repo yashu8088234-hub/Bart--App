@@ -130,7 +130,7 @@ with col2:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- CHAT ----------------
-st.markdown("<div class='section chat-box'><h2>Chat</h2></div>", unsafe_allow_html=True)
+st.markdown("", unsafe_allow_html=True)
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
