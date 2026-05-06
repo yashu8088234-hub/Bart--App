@@ -126,18 +126,21 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT (EMBEDDED SECTION) ----------------
+# ---------------- CHAT SECTION ----------------
 
 st.markdown("""
 <div class="section">
-<h2>Chat</h2>
+    <h2>💬 Talk with us</h2>
+    <p style="color:#777; font-size:15px; margin-top:-10px;">
+        Start a conversation — ask anything, we’ll respond instantly.
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# input row inside section (NOT full page)
+# input row inside chat section
 col1, col2 = st.columns([10, 1])
 
 with col1:
@@ -158,7 +161,7 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-# chat history inside same section
+# chat history
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
