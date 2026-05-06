@@ -100,10 +100,7 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-/* CHAT ALIGNMENT FIX */
-.chat-box {
-    margin-top: 20px;
-}
+
 
 </style>
 """, unsafe_allow_html=True)
