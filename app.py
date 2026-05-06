@@ -156,8 +156,8 @@ if send and user_input:
     st.session_state.chat.append(("AI", response))
 
 
-if "chat_input" not in st.session_state:
-    st.session_state.chat_input = ""
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
 
 
 
