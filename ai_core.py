@@ -1,14 +1,7 @@
-import streamlit as st
-from openai import OpenAI
-import time
+import requests
 
-# ---------------- GET KEY FROM STREAMLIT SECRETS ----------------
-api_key = st.secrets.get("OPENAI_API_KEY")
-
-if not api_key:
-    raise ValueError("OPENAI_API_KEY not found in Streamlit secrets!")
-
-client = OpenAI(api_key=api_key)
+# ---------------- FREE MODEL (NO API KEY NEEDED) ----------------
+API_URL = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
 
 SYSTEM_PROMPT = """
 You are a natural, human-like assistant.
@@ -19,20 +12,25 @@ def run_ai(user_input, context=None):
     if context is None:
         context = {}
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_input}
-    ]
+    # combine system style + user input (since free model doesn't support system roles)
+    prompt = f"{SYSTEM_PROMPT}\nUser: {user_input}\nAI:"
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0.8
+        response = requests.post(
+            API_URL,
+            json={"inputs": prompt}
         )
 
-        return response.choices[0].message.content
+        data = response.json()
+
+        # HuggingFace response handling
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+
+        if isinstance(data, dict) and "generated_text" in data:
+            return data["generated_text"]
+
+        return "I'm thinking 🤔 try again..."
 
     except Exception as e:
-        # 👇 THIS IS IMPORTANT FOR DEBUGGING
         return f"ERROR: {str(e)}"
