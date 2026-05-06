@@ -70,7 +70,7 @@ def get_all_sheets(branches):
 all_data = get_all_sheets(branches)
 
 # =========================================================
-# 📦 RAW DAILY + WEEKLY LOGIC (NO OVERSMART FIXES)
+# 📦 DAILY + WEEKLY LOGIC (FIXED SAFE INDEXING)
 # =========================================================
 
 daily_items = {}
@@ -112,23 +112,25 @@ for branch_name, raw in all_data:
         if "daily item" in item.lower() or "weekly item" in item.lower():
             continue
 
-        # ---------------- RAW VALUE ONLY (NO FLOAT CONVERSION) ----------------
         values = row[1:]
+
+        # ---------------- SAFE FIX HERE ----------------
+        safe_val = values.iloc[0] if hasattr(values, "iloc") and len(values) > 0 else ""
 
         if current_section == "daily":
             if item not in daily_items:
                 daily_items[item] = {bn: "" for bn in branch_names}
 
-            daily_items[item][branch_name] = values[0] if len(values) > 0 else ""
+            daily_items[item][branch_name] = safe_val
 
         elif current_section == "weekly":
             if item not in weekly_items:
                 weekly_items[item] = {bn: "" for bn in branch_names}
 
-            weekly_items[item][branch_name] = values[0] if len(values) > 0 else ""
+            weekly_items[item][branch_name] = safe_val
 
 # =========================================================
-# 📦 DAILY DF
+# 📦 DAILY DATAFRAME
 # =========================================================
 
 daily_rows = []
@@ -140,7 +142,7 @@ for i, (item, values) in enumerate(daily_items.items(), start=1):
 df_daily = pd.DataFrame(daily_rows)
 
 # =========================================================
-# 📦 WEEKLY DF
+# 📦 WEEKLY DATAFRAME
 # =========================================================
 
 weekly_rows = []
@@ -155,8 +157,8 @@ df_weekly = pd.DataFrame(weekly_rows)
 # 📊 DISPLAY
 # =========================================================
 
-st.subheader("📦 Daily Items Stock (Raw)")
+st.subheader("📦 Daily Items Stock (All Branches)")
 st.dataframe(df_daily, use_container_width=True)
 
-st.subheader("📦 Weekly Items Stock (Raw)")
+st.subheader("📦 Weekly Items Stock (All Branches)")
 st.dataframe(df_weekly, use_container_width=True)
