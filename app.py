@@ -1,6 +1,5 @@
 import streamlit as st
 from ai_core import run_ai
-import streamlit.components.v1 as components
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -166,10 +165,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🤖 FLOATING AI CHATBOT (WORKING VERSION)
+# 🤖 FLOATING AI CHAT (WORKING STREAMLIT VERSION)
 # =========================================================
 
-# toggle state
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
@@ -177,42 +175,17 @@ if "ai_float_chat" not in st.session_state:
     st.session_state.ai_float_chat = []
 
 # FLOATING BUTTON
-components.html("""
-<style>
-#ai-btn {
-    position: fixed;
-    bottom: 25px;
-    right: 25px;
-    width: 60px;
-    height: 60px;
-    background: #C0392B;
-    color: white;
-    border-radius: 50%;
-    font-size: 26px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    z-index: 999999;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-</style>
+col = st.columns([10,1])[1]
+with col:
+    if st.button("🤖"):
+        st.session_state.ai_open = not st.session_state.ai_open
 
-<div id="ai-btn">🤖</div>
-""", height=0)
-
-# TOGGLE LOGIC (simple Streamlit way)
-toggle = st.button("🤖 Open AI Assistant")
-
-if toggle:
-    st.session_state.ai_open = not st.session_state.ai_open
-
-# FLOATING PANEL
+# FLOATING CHAT WINDOW
 if st.session_state.ai_open:
 
     st.markdown("""
     <style>
-    .ai-panel {
+    .ai-box {
         position: fixed;
         bottom: 100px;
         right: 25px;
@@ -228,7 +201,7 @@ if st.session_state.ai_open:
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="ai-panel">', unsafe_allow_html=True)
+    st.markdown('<div class="ai-box">', unsafe_allow_html=True)
 
     st.markdown("### 🤖 BART AI Assistant")
 
@@ -253,4 +226,4 @@ if st.session_state.ai_open:
         else:
             st.markdown(f"**AI:** {msg}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
