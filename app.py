@@ -131,7 +131,11 @@ if "chat" not in st.session_state:
     st.session_state.chat = []
 
 
-
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
 user_input = st.text_input(
     "",
@@ -151,11 +155,7 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
+
 
 # ---------------- INFO ----------------
 st.markdown("""
