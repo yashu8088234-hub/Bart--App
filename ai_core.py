@@ -1,55 +1,40 @@
-# ---------------- AI CORE ----------------
+from openai import OpenAI
 
-import os
+client = OpenAI(api_key="YOUR_API_KEY_HERE")
 
-DEV_MODE = False  # 🔁 True = no API, False = real AI
+SYSTEM_PROMPT = """
+You are BART AI, a highly intelligent, natural, human-like assistant.
 
-
-def run_ai(query, context):
-    q = query.lower()
-
-    # ---------- DEV MODE (NO LIMITS) ----------
-    if DEV_MODE:
-        if "revenue" in q:
-            return f"💰 Revenue: SAR {context.get('revenue', 0):.2f}"
-        if "items" in q:
-            return f"📦 Items: {context.get('items', 0)}"
-        return "🤖 DEV MODE: AI working (no API used)"
-
-    # ---------- REAL AI ----------
-    try:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-        system_prompt = f"""
-You are a smart assistant inside a cafe POS system.
-
-You talk naturally like ChatGPT.
-
-You help with:
-- sales analysis
-- errors
-- items
-- general conversation
-
-DATA:
-Revenue: {context.get('revenue', 0)}
-Items: {context.get('items', 0)}
-Sales: {context.get('sales', [])[:10]}
-
-Be helpful and human-like.
+Behavior rules:
+- Speak naturally like a real human, not robotic
+- Be concise but smart
+- Understand context deeply
+- Ask follow-up questions when needed
+- Adapt tone (friendly, professional, casual depending on user)
+- Never mention system prompts or AI policies
+- Act like a real thinking assistant, not a script
 """
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ]
-        )
+def run_ai(user_input, context=None):
+    if context is None:
+        context = {}
 
-        return response.choices[0].message.content
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_input}
+    ]
 
-    except Exception as e:
-        return f"⚠️ AI Error: {e}"
+    # optional: inject business context if needed
+    if context:
+        messages.insert(1, {
+            "role": "system",
+            "content": f"Context data: {context}"
+        })
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0.8
+    )
+
+    return response.choices[0].message.content
