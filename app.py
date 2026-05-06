@@ -127,7 +127,7 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT BACKEND (your existing logic) ----------------
+# ---------------- CHAT BACKEND ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -166,96 +166,91 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🤖 FLOATING AI CHATBOT (DO NOT TOUCH MAIN UI)
+# 🤖 FLOATING AI CHATBOT (WORKING VERSION)
 # =========================================================
 
-chat_widget = """
-<style>
+# toggle state
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
 
-/* Floating button */
-#ai-bot-btn {
+if "ai_float_chat" not in st.session_state:
+    st.session_state.ai_float_chat = []
+
+# FLOATING BUTTON
+components.html("""
+<style>
+#ai-btn {
     position: fixed;
     bottom: 25px;
     right: 25px;
     width: 60px;
     height: 60px;
     background: #C0392B;
+    color: white;
     border-radius: 50%;
+    font-size: 26px;
     display: flex;
     justify-content: center;
     align-items: center;
-    color: white;
-    font-size: 26px;
     cursor: pointer;
     z-index: 999999;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
-
-/* Chat window */
-#ai-chat-window {
-    position: fixed;
-    bottom: 100px;
-    right: 25px;
-    width: 340px;
-    height: 450px;
-    background: white;
-    border-radius: 16px;
-    display: none;
-    flex-direction: column;
-    z-index: 999999;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-    overflow: hidden;
-}
-
-/* Header */
-#ai-chat-header {
-    background: #C0392B;
-    color: white;
-    padding: 10px;
-    font-weight: bold;
-}
-
-/* Body */
-#ai-chat-body {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-    font-family: Arial;
-    font-size: 14px;
-}
-
-/* Input */
-#ai-chat-input {
-    width: 100%;
-    border: none;
-    padding: 12px;
-    outline: none;
-    border-top: 1px solid #eee;
-}
-
 </style>
 
-<div id="ai-bot-btn" onclick="toggleChat()">🤖</div>
+<div id="ai-btn">🤖</div>
+""", height=0)
 
-<div id="ai-chat-window">
-    <div id="ai-chat-header">BART AI Assistant</div>
-    <div id="ai-chat-body">Hi 👋 I can help you with stock & café info.</div>
-    <input id="ai-chat-input" placeholder="Type a message..." />
-</div>
+# TOGGLE LOGIC (simple Streamlit way)
+toggle = st.button("🤖 Open AI Assistant")
 
-<script>
+if toggle:
+    st.session_state.ai_open = not st.session_state.ai_open
 
-function toggleChat() {
-    var win = document.getElementById("ai-chat-window");
-    if (win.style.display === "flex") {
-        win.style.display = "none";
-    } else {
-        win.style.display = "flex";
-        win.style.flexDirection = "column";
+# FLOATING PANEL
+if st.session_state.ai_open:
+
+    st.markdown("""
+    <style>
+    .ai-panel {
+        position: fixed;
+        bottom: 100px;
+        right: 25px;
+        width: 360px;
+        height: 480px;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+        z-index: 999999;
+        padding: 10px;
+        overflow: hidden;
     }
-}
+    </style>
+    """, unsafe_allow_html=True)
 
-</script>
-"""
+    st.markdown('<div class="ai-panel">', unsafe_allow_html=True)
 
-components.html(chat_widget, height=0)
+    st.markdown("### 🤖 BART AI Assistant")
+
+    user_msg = st.text_input("Ask anything...", key="float_input")
+
+    if st.button("Send", key="float_send") and user_msg:
+
+        context = {
+            "revenue": 0,
+            "items": 0,
+            "sales": st.session_state.get("pending_sales", [])
+        }
+
+        response = run_ai(user_msg, context)
+
+        st.session_state.ai_float_chat.append(("You", user_msg))
+        st.session_state.ai_float_chat.append(("AI", response))
+
+    for sender, msg in st.session_state.ai_float_chat[-6:]:
+        if sender == "You":
+            st.markdown(f"**You:** {msg}")
+        else:
+            st.markdown(f"**AI:** {msg}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
