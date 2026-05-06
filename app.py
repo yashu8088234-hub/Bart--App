@@ -112,31 +112,42 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-# ---------------- CHAT ----------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+# ---------------- CHAT (EMBEDDED SECTION) ----------------
 
-# input (no section, minimal, embedded)
-user_input = st.chat_input("Message...")
+# chat container (inside page, not full-page input bar)
+with st.container():
+    st.markdown("<div class='section'><h2>Chat</h2></div>", unsafe_allow_html=True)
 
-if user_input:
-    context = {
-        "revenue": 0,
-        "items": 0,
-        "sales": st.session_state.get("pending_sales", [])
-    }
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
 
-    response = run_ai(user_input, context)
+    # input row INSIDE section
+    col1, col2 = st.columns([10, 1])
 
-    st.session_state.chat.append(("You", user_input))
-    st.session_state.chat.append(("AI", response))
+    with col1:
+        user_input = st.text_input("Message...", label_visibility="collapsed")
 
-# chat history (clean)
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
+    with col2:
+        send = st.button("➤")
+
+    if send and user_input:
+        context = {
+            "revenue": 0,
+            "items": 0,
+            "sales": st.session_state.get("pending_sales", [])
+        }
+
+        response = run_ai(user_input, context)
+
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
+
+    # chat history inside same box
+    for sender, msg in st.session_state.chat[-10:]:
+        if sender == "You":
+            st.markdown(f"**You:** {msg}")
+        else:
+            st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
