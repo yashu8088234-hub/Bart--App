@@ -57,6 +57,41 @@ st.markdown("""
     margin: 10px auto 0;
     line-height: 1.6;
 }
+
+/* LOGIN */
+div.stButton > button {
+    height: 50px;
+    width: 200px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    background: #2C2A28;
+    color: white;
+    border: none;
+}
+
+div.stButton > button:hover {
+    background: #C0392B;
+}
+
+/* SECTION */
+.section {
+    background: rgba(255,255,255,0.9);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.section h2 {
+    color: #C0392B;
+    text-align: center;
+}
+
+.section p {
+    color: #555;
+    text-align: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -80,22 +115,25 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-# ---------------- SESSION INIT ----------------
+# ---------------- CHAT BACKEND ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ---------------- CHAT DISPLAY ----------------
-for role, msg in st.session_state.chat:
-    with st.chat_message(role.lower()):
-        st.markdown(msg)
+# ✅ INPUT STATE
+if "chat_input" not in st.session_state:
+    st.session_state.chat_input = ""
 
-# ---------------- CHAT INPUT (MODERN) ----------------
-user_input = st.chat_input("🤖 Ask BART AI Assistant...")
+# ---------------- INPUT ----------------
+user_input = st.text_input(
+    "",
+    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?",
+    key="chat_input"
+)
 
-if user_input:
+send = st.button("Send")
 
-    # Save user message
-    st.session_state.chat.append(("You", user_input))
+# ---------------- PROCESS ----------------
+if send and user_input:
 
     context = {
         "revenue": 0,
@@ -103,10 +141,30 @@ if user_input:
         "sales": st.session_state.get("pending_sales", [])
     }
 
-    # AI response
     response = run_ai(user_input, context)
 
+    st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-    # Rerun to instantly refresh chat UI
-    st.rerun()
+    # ✅ ONLY CLEAR INPUT BOX
+    st.session_state.chat_input = ""
+
+# ---------------- OLD SIMPLE CHAT DISPLAY ----------------
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
+
+# ---------------- INFO ----------------
+st.markdown("""
+<div class="section">
+<h2>Our Experience</h2>
+<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+</div>
+
+<div class="section">
+<h2>Visit Us</h2>
+<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
+</div>
+""", unsafe_allow_html=True)
