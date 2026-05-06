@@ -33,33 +33,29 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- DATE ----------------
+# ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-all_items = {}
 
 # ---------------- SAFE FETCH ----------------
 @st.cache_data(ttl=600)
 def get_all_sheets(branches):
     results = []
-    sheet_cache = {}
+    cache = {}
 
     for branch in branches:
         sheet_id = branch["SheetID"]
         branch_name = branch["BranchName"]
 
         try:
-            if sheet_id not in sheet_cache:
-                sheet_cache[sheet_id] = client.open_by_key(sheet_id)
+            if sheet_id not in cache:
+                cache[sheet_id] = client.open_by_key(sheet_id)
 
-            file = sheet_cache[sheet_id]
-            ws = file.worksheet("Stocks")
-
+            ws = cache[sheet_id].worksheet("Stocks")
             raw = ws.get_all_values()
-            results.append((branch_name, raw))
 
-            time.sleep(0.25)
+            results.append((branch_name, raw))
+            time.sleep(0.2)
 
         except Exception:
             results.append((branch_name, None))
@@ -68,7 +64,13 @@ def get_all_sheets(branches):
 
 all_data = get_all_sheets(branches)
 
-# ---------------- MAIN STOCK DATA ----------------
+# =========================================================
+# 📊 DAILY + WEEKLY DATA BUILD
+# =========================================================
+
+daily_items = {}
+weekly_items = {}
+
 for branch_name, raw in all_data:
 
     if not raw or len(raw) < 2:
@@ -80,108 +82,70 @@ for branch_name, raw in all_data:
     df = pd.DataFrame(rows, columns=headers)
     item_col = headers[0]
 
-    if selected_date_str not in headers:
-        continue
+    # ---------------- DAILY (selected date) ----------------
+    if selected_date_str in headers:
 
-    chosen_col = selected_date_str
+        for _, row in df.iterrows():
+            item = str(row[item_col]).strip()
+            qty = row.get(selected_date_str, "")
+
+            if item not in daily_items:
+                daily_items[item] = {bn: 0 for bn in branch_names}
+
+            try:
+                daily_items[item][branch_name] = float(qty) if qty != "" else 0
+            except:
+                daily_items[item][branch_name] = 0
+
+    # ---------------- WEEKLY (last 7 columns sum) ----------------
+    date_cols = headers[1:]
+    last_7 = date_cols[-7:] if len(date_cols) >= 7 else date_cols
 
     for _, row in df.iterrows():
         item = str(row[item_col]).strip()
-        qty = row.get(chosen_col, "")
 
-        if item not in all_items:
-            all_items[item] = {bn: 0 for bn in branch_names}
+        if item not in weekly_items:
+            weekly_items[item] = {bn: 0 for bn in branch_names}
 
-        try:
-            all_items[item][branch_name] = float(qty) if qty != "" else 0
-        except:
-            all_items[item][branch_name] = 0
+        total = 0
+        for d in last_7:
+            try:
+                total += float(row.get(d, 0) or 0)
+            except:
+                pass
 
-# ---------------- DATAFRAME ----------------
-rows = []
-for i, (item, values) in enumerate(all_items.items(), start=1):
+        weekly_items[item][branch_name] = total
+
+# =========================================================
+# 📦 DAILY DATAFRAME
+# =========================================================
+
+daily_rows = []
+for i, (item, values) in enumerate(daily_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
     row.update(values)
-    rows.append(row)
+    daily_rows.append(row)
 
-df = pd.DataFrame(rows)
-
-st.subheader("📊 Stock Data")
-st.dataframe(df, use_container_width=True)
+df_daily = pd.DataFrame(daily_rows)
 
 # =========================================================
-# 📦 STOCK VIEW (DAILY + WEEKLY ONLY)
+# 📦 WEEKLY DATAFRAME
 # =========================================================
 
-st.markdown("---")
-st.subheader("📦 Stock View (Daily & Weekly Items)")
+weekly_rows = []
+for i, (item, values) in enumerate(weekly_items.items(), start=1):
+    row = {"Sl No": i, "Item Name": item}
+    row.update(values)
+    weekly_rows.append(row)
 
-selected_branch = st.selectbox("Select Branch", ["-- Select --"] + branch_names)
+df_weekly = pd.DataFrame(weekly_rows)
 
-if selected_branch != "-- Select --":
+# =========================================================
+# 📊 DISPLAY
+# =========================================================
 
-    branch = next(b for b in branches if b["BranchName"] == selected_branch)
+st.subheader("📊 Daily Stock Data (All Branches)")
+st.dataframe(df_daily, use_container_width=True)
 
-    sheet = client.open_by_key(branch["SheetID"])
-    ws = sheet.worksheet("Stocks")
-
-    data = ws.get_all_values()
-
-    headers = data[0]
-    date_columns = headers[1:]
-
-    daily = []
-    weekly = []
-
-    current_section = None
-
-    for row in data:
-
-        if not row:
-            continue
-
-        text = " ".join(row).strip().lower()
-
-        if "daily item" in text:
-            current_section = "daily"
-            continue
-
-        if "weekly item" in text:
-            current_section = "weekly"
-            continue
-
-        if current_section is None:
-            continue
-
-        if not row[0]:
-            continue
-
-        item = row[0].strip()
-
-        values = row[1:]
-        values = values + [""] * (len(date_columns) - len(values))
-
-        cleaned = []
-        for v in values:
-            try:
-                cleaned.append(float(v) if v != "" else 0)
-            except:
-                cleaned.append(0)
-
-        row_dict = {"Item": item}
-
-        for i, col in enumerate(date_columns):
-            row_dict[col] = cleaned[i]
-
-        if current_section == "daily":
-            daily.append(row_dict)
-
-        elif current_section == "weekly":
-            weekly.append(row_dict)
-
-    # ---------------- DISPLAY ----------------
-    st.write("### 📊 Daily Items")
-    st.dataframe(pd.DataFrame(daily), use_container_width=True)
-
-    st.write("### 📊 Weekly Items")
-    st.dataframe(pd.DataFrame(weekly), use_container_width=True)
+st.subheader("📊 Weekly Stock Data (All Branches)")
+st.dataframe(df_weekly, use_container_width=True)
