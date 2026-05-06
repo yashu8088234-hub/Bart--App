@@ -233,7 +233,3 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-
-
-
-bro there are two box for ai u  see this
