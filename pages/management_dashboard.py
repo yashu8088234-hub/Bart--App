@@ -46,17 +46,15 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
-# ---------------- REFRESH BUTTON (RATE CONTROL) ----------------
+# ---------------- REFRESH BUTTON ----------------
 if st.button("🔄 Refresh Data"):
 
     now = time.time()
 
-    # 🔴 prevent spam clicking
     if now - st.session_state.last_fetch_time < 5:
         st.warning("⏳ Please wait a few seconds before refreshing again.")
         st.stop()
 
-    # 🔴 prevent parallel fetch
     if st.session_state.is_fetching:
         st.warning("⏳ Data is already loading. Please wait...")
         st.stop()
@@ -76,7 +74,6 @@ def get_all_sheets(branches):
         branch_name = branch["BranchName"]
 
         try:
-            # reuse opened sheet (IMPORTANT optimization)
             if sheet_id not in sheet_cache:
                 sheet_cache[sheet_id] = client.open_by_key(sheet_id)
 
@@ -87,7 +84,6 @@ def get_all_sheets(branches):
 
             results.append((branch_name, raw))
 
-            # 🔴 gentle throttle to avoid burst
             time.sleep(0.25)
 
         except Exception as e:
@@ -96,7 +92,7 @@ def get_all_sheets(branches):
 
     return results
 
-# ---------------- FETCH (SAFE WRAPPER) ----------------
+# ---------------- FETCH ----------------
 try:
     st.session_state.is_fetching = True
     all_data = get_all_sheets(branches)
@@ -145,7 +141,7 @@ df = pd.DataFrame(rows)
 st.subheader("📊 Stock Data")
 st.dataframe(df, use_container_width=True)
 
-# ---------------- LOW STOCK HIGHLIGHT ----------------
+# ---------------- LOW STOCK ----------------
 st.markdown("## ⚠️ Low Stock Highlight")
 
 if df.empty:
@@ -168,3 +164,83 @@ valid_columns = [col for col in branch_names if col in df.columns]
 styled_df = df.style.applymap(highlight_low, subset=valid_columns)
 
 st.dataframe(styled_df, use_container_width=True)
+
+# =========================================================
+# ✅ STOCK VIEW (ADDED - DAILY + WEEKLY SPLIT)
+# =========================================================
+
+st.markdown("---")
+st.subheader("🔍 Stock View (Daily & Weekly)")
+
+selected_branch = st.selectbox("Select Branch for Stock View", ["-- Select --"] + branch_names)
+
+if selected_branch != "-- Select --":
+
+    branch = next(b for b in branches if b["BranchName"] == selected_branch)
+    sheet = client.open_by_key(branch["SheetID"])
+    ws = sheet.worksheet("Stocks")
+
+    data = ws.get_all_values()
+
+    headers = data[0]
+    date_columns = headers[1:]
+
+    daily = []
+    weekly = []
+
+    current_section = None
+
+    for row in data:
+
+        if not row:
+            continue
+
+        text = " ".join(row).strip().lower()
+
+        if "daily item" in text:
+            current_section = "daily"
+            continue
+
+        if "weekly item" in text:
+            current_section = "weekly"
+            continue
+
+        if current_section is None:
+            continue
+
+        if not row[0]:
+            continue
+
+        item = row[0].strip()
+
+        values = row[1:]
+        values = values + [""] * (len(date_columns) - len(values))
+
+        cleaned = []
+        total = 0
+
+        for v in values:
+            try:
+                num = float(v) if v != "" else 0
+            except:
+                num = 0
+            cleaned.append(num)
+            total += num
+
+        row_dict = {"Item": item}
+
+        for i, col in enumerate(date_columns):
+            row_dict[col] = cleaned[i]
+
+        row_dict["Total"] = total
+
+        if current_section == "daily":
+            daily.append(row_dict)
+        elif current_section == "weekly":
+            weekly.append(row_dict)
+
+    st.write("### 📦 Daily Items")
+    st.dataframe(pd.DataFrame(daily), use_container_width=True, height=350)
+
+    st.write("### 📦 Weekly Items")
+    st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=350)
