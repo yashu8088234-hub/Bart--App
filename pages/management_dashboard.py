@@ -36,64 +36,64 @@ branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
-
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
-
-
-
-
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
-# ---------------- FETCH SHEET ----------------
+
+# ---------------- FIXED PART (MINIMAL CHANGE) ----------------
+# PRE-FETCH ALL SHEETS ONCE (instead of calling inside loop repeatedly)
 @st.cache_data(ttl=300)
-def get_sheet(sheet_id):
-    file = client.open_by_key(sheet_id)
-    ws = file.worksheet("Stocks")
-    return ws.get_all_values()
+def get_all_sheets(branches):
+    results = []
+    for branch in branches:
+        sheet_id = branch["SheetID"]
+        try:
+            file = client.open_by_key(sheet_id)
+            ws = file.worksheet("Stocks")
+            raw = ws.get_all_values()
+            results.append((branch["BranchName"], raw))
+        except Exception as e:
+            st.error(f"{branch['BranchName']} error: {e}")
+            results.append((branch["BranchName"], None))
+    return results
 
-# ---------------- PROCESS ----------------
-for branch in branches:
-    branch_name = branch["BranchName"]
-    sheet_id = branch["SheetID"]
+all_data = get_all_sheets(tuple((b["BranchName"], b["SheetID"]) for b in branches))
 
-    try:
-        raw = get_sheet(sheet_id)
+# ---------------- PROCESS (UNCHANGED LOGIC) ----------------
+for branch_name, raw in all_data:
 
-        if not raw or len(raw) < 2:
-            continue
+    if not raw or len(raw) < 2:
+        continue
 
-        headers = raw[0]
-        rows = raw[1:]
+    headers = raw[0]
+    rows = raw[1:]
 
-        df = pd.DataFrame(rows, columns=headers)
+    df = pd.DataFrame(rows, columns=headers)
 
-        item_col = headers[0]
+    item_col = headers[0]
 
-        # ---------------- FIND DATE COLUMN (YOUR FORMAT: YYYY-MM-DD) ----------------
-        if selected_date_str not in headers:
-            continue
+    # ---------------- FIND DATE COLUMN ----------------
+    if selected_date_str not in headers:
+        continue
 
-        chosen_col = selected_date_str
+    chosen_col = selected_date_str
 
-        # ---------------- BUILD DATA ----------------
-        for _, row in df.iterrows():
-            item = str(row[item_col]).strip()
-            qty = row.get(chosen_col, "")
+    # ---------------- BUILD DATA ----------------
+    for _, row in df.iterrows():
+        item = str(row[item_col]).strip()
+        qty = row.get(chosen_col, "")
 
-            if item not in all_items:
-                all_items[item] = {bn: 0 for bn in branch_names}
+        if item not in all_items:
+            all_items[item] = {bn: 0 for bn in branch_names}
 
-            try:
-                all_items[item][branch_name] = float(qty) if qty != "" else 0
-            except:
-                all_items[item][branch_name] = 0
-
-    except Exception as e:
-        st.error(f"{branch_name} error: {e}")
+        try:
+            all_items[item][branch_name] = float(qty) if qty != "" else 0
+        except:
+            all_items[item][branch_name] = 0
 
 # ---------------- FINAL DATAFRAME ----------------
 rows = []
@@ -126,7 +126,6 @@ def highlight_low(val):
         return ""
     return ""
 
-# SAFE COLUMN SELECTION
 valid_columns = [col for col in branch_names if col in df.columns]
 
 styled_df = df.style.applymap(highlight_low, subset=valid_columns)
