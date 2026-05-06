@@ -1,19 +1,30 @@
 import streamlit as st
 from groq import Groq
 
+# ---------------- KEY ----------------
 api_key = st.secrets.get("GROQ_API_KEY")
 
 if not api_key:
-    raise ValueError("GROQ_API_KEY not found in Streamlit secrets!")
+    raise ValueError("Missing GROQ_API_KEY in Streamlit secrets")
 
 client = Groq(api_key=api_key)
 
+# ---------------- SYSTEM STYLE ----------------
 SYSTEM_PROMPT = """
-You are BART AI, a natural, human-like assistant like ChatGPT.
-Be helpful, friendly, and conversational.
+You are BART AI, a highly intelligent and natural assistant.
+
+Rules:
+- Respond like ChatGPT (clean, human, natural)
+- No technical messages
+- No error outputs
+- Be concise but helpful
 """
 
+# ---------------- MAIN FUNCTION ----------------
 def run_ai(user_input, context=None):
+    if context is None:
+        context = {}
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_input}
@@ -26,7 +37,8 @@ def run_ai(user_input, context=None):
             temperature=0.8
         )
 
-        return response.choices[0].message.content
+        return response.choices[0].message.content.strip()
 
-    except Exception as e:
-        return f"AI error 😅: {str(e)}"
+    except Exception:
+        # ❗ CLEAN fallback (no errors shown to user)
+        return "I’m having a small issue right now — please try again in a moment."
