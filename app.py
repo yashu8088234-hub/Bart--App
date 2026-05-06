@@ -1,5 +1,6 @@
 import streamlit as st
 from ai_core import run_ai
+import streamlit.components.v1 as components
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -126,15 +127,13 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT ----------------
+# ---------------- CHAT BACKEND (your existing logic) ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ONLY ONE INPUT (NO HTML, NO JS)
 user_input = st.text_input("Message", label_visibility="collapsed")
 send = bool(user_input)
 
-# AI LOGIC
 if send and user_input:
     context = {
         "revenue": 0,
@@ -147,7 +146,6 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-# display chat
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
@@ -167,23 +165,15 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# =========================================================
+# 🤖 FLOATING AI CHATBOT (DO NOT TOUCH MAIN UI)
+# =========================================================
 
-
-
-
-
-
-
-
-
-
-import streamlit.components.v1 as components
-
-chat_widget = f"""
+chat_widget = """
 <style>
 
 /* Floating button */
-#ai-bot-btn {{
+#ai-bot-btn {
     position: fixed;
     bottom: 25px;
     right: 25px;
@@ -199,10 +189,10 @@ chat_widget = f"""
     cursor: pointer;
     z-index: 999999;
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}}
+}
 
 /* Chat window */
-#ai-chat-window {{
+#ai-chat-window {
     position: fixed;
     bottom: 100px;
     right: 25px;
@@ -215,34 +205,33 @@ chat_widget = f"""
     z-index: 999999;
     box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     overflow: hidden;
-}}
+}
 
 /* Header */
-#ai-chat-header {{
+#ai-chat-header {
     background: #C0392B;
     color: white;
     padding: 10px;
     font-weight: bold;
-    cursor: move;
-}}
+}
 
-/* Messages */
-#ai-chat-body {{
+/* Body */
+#ai-chat-body {
     flex: 1;
     padding: 10px;
     overflow-y: auto;
     font-family: Arial;
     font-size: 14px;
-}}
+}
 
 /* Input */
-#ai-chat-input {{
+#ai-chat-input {
     width: 100%;
     border: none;
     padding: 12px;
     outline: none;
     border-top: 1px solid #eee;
-}}
+}
 
 </style>
 
@@ -250,35 +239,21 @@ chat_widget = f"""
 
 <div id="ai-chat-window">
     <div id="ai-chat-header">BART AI Assistant</div>
-    <div id="ai-chat-body">Hi 👋 Ask me anything about stock or café.</div>
+    <div id="ai-chat-body">Hi 👋 I can help you with stock & café info.</div>
     <input id="ai-chat-input" placeholder="Type a message..." />
 </div>
 
 <script>
 
-function toggleChat() {{
+function toggleChat() {
     var win = document.getElementById("ai-chat-window");
-    if (win.style.display === "flex") {{
+    if (win.style.display === "flex") {
         win.style.display = "none";
-    }} else {{
+    } else {
         win.style.display = "flex";
         win.style.flexDirection = "column";
-    }}
-}}
-
-// simple send handler (visual only)
-document.addEventListener("keydown", function(e) {{
-    if (e.key === "Enter") {{
-        let input = document.getElementById("ai-chat-input");
-        if (!input.value) return;
-
-        let body = document.getElementById("ai-chat-body");
-        body.innerHTML += "<div><b>You:</b> " + input.value + "</div>";
-
-        input.value = "";
-        body.scrollTop = body.scrollHeight;
-    }}
-}});
+    }
+}
 
 </script>
 """
