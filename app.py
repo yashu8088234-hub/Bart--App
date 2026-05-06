@@ -81,7 +81,7 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT AREA */
+/* CHAT BOX */
 .chat-box {
     max-height: 55vh;
     overflow-y: auto;
@@ -116,7 +116,7 @@ div.stButton > button:hover {
     max-width: 70%;
 }
 
-/* FLOATING CHAT INPUT (RESTORED STYLE, NO JS) */
+/* FLOATING CHAT INPUT */
 .chat-wrapper {
     position: fixed;
     bottom: 20px;
@@ -129,28 +129,38 @@ div.stButton > button:hover {
     z-index: 100;
 }
 
+/* INPUT FIELD */
 .chat-wrapper input {
     flex: 1;
-    height: 50px;
-    border-radius: 12px;
+    height: 48px;
+    border-radius: 14px;
     border: none;
     padding: 0 15px;
     font-size: 15px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    outline: none;
 }
 
+/* SMALL AI SEND BUTTON (FIXED) */
 .chat-wrapper button {
-    height: 50px;
-    width: 50px;
-    border-radius: 12px;
+    height: 48px;
+    width: 48px;
+    border-radius: 50%;
     border: none;
     background: #2C2A28;
     color: white;
     cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: 0.2s ease;
 }
 
 .chat-wrapper button:hover {
     background: #C0392B;
+    transform: scale(1.05);
 }
 
 /* SECTION */
@@ -184,8 +194,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
-st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -195,8 +203,6 @@ with col1:
 with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard")
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- SESSION ----------------
 if "chat" not in st.session_state:
@@ -213,7 +219,7 @@ for sender, msg in st.session_state.chat[-15:]:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- FLOATING INPUT (SAFE VERSION) ----------------
+# ---------------- CHAT INPUT ----------------
 st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
 
 user_input = st.text_input("", placeholder="Message...", label_visibility="collapsed")
