@@ -130,7 +130,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-user_input = st.text_input("🤖 Hi, I am BART AI Assistant — how can I help you?   <p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>")
+user_input = st.text_input("🤖 Hi, I am BART AI Assistant — how can I help you?   "<p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>)
 send = bool(user_input)
 
 if send and user_input:
