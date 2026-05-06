@@ -64,7 +64,6 @@ st.markdown("""
     justify-content: center;
     gap: 20px;
     margin: 20px 0 35px;
-    flex-wrap: wrap;
 }
 
 div.stButton > button {
@@ -82,7 +81,7 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT BOX */
+/* CHAT AREA */
 .chat-box {
     max-height: 55vh;
     overflow-y: auto;
@@ -117,7 +116,7 @@ div.stButton > button:hover {
     max-width: 70%;
 }
 
-/* FLOATING CHAT INPUT (RESTORED STYLE) */
+/* FLOATING CHAT INPUT (RESTORED STYLE, NO JS) */
 .chat-wrapper {
     position: fixed;
     bottom: 20px;
@@ -153,6 +152,25 @@ div.stButton > button:hover {
 .chat-wrapper button:hover {
     background: #C0392B;
 }
+
+/* SECTION */
+.section {
+    background: rgba(255,255,255,0.9);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.section h2 {
+    color: #C0392B;
+    text-align: center;
+}
+
+.section p {
+    color: #555;
+    text-align: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -166,6 +184,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -175,6 +195,8 @@ with col1:
 with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- SESSION ----------------
 if "chat" not in st.session_state:
@@ -191,7 +213,7 @@ for sender, msg in st.session_state.chat[-15:]:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- FLOATING INPUT ----------------
+# ---------------- FLOATING INPUT (SAFE VERSION) ----------------
 st.markdown("<div class='chat-wrapper'>", unsafe_allow_html=True)
 
 user_input = st.text_input("", placeholder="Message...", label_visibility="collapsed")
@@ -218,8 +240,15 @@ if send and user_input:
 
 # ---------------- INFO ----------------
 st.markdown("""
-<div style="margin-top:40px; padding:20px; background:white; border-radius:16px; text-align:center;">
-<h2 style="color:#C0392B;">Our Experience</h2>
+<div class="section">
+<h2>Our Experience</h2>
 <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="section">
+<h2>Visit Us</h2>
+<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
 </div>
 """, unsafe_allow_html=True)
