@@ -3,6 +3,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import datetime
+import time
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 
@@ -31,7 +32,6 @@ def load_branches():
 
 branches = load_branches()
 
-# KEEP EXACT NAMES (IMPORTANT)
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE PICKER ----------------
@@ -44,26 +44,37 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- FIXED PART (MINIMAL CHANGE) ----------------
-# PRE-FETCH ALL SHEETS ONCE (instead of calling inside loop repeatedly)
-@st.cache_data(ttl=300)
+# ---------------- SAFE FETCH (FIXED) ----------------
+@st.cache_data(ttl=600)
 def get_all_sheets(branches):
     results = []
+
     for branch in branches:
         sheet_id = branch["SheetID"]
+        branch_name = branch["BranchName"]
+
         try:
             file = client.open_by_key(sheet_id)
             ws = file.worksheet("Stocks")
+
             raw = ws.get_all_values()
-            results.append((branch["BranchName"], raw))
+
+            results.append((branch_name, raw))
+
+            # 🔴 SAFETY THROTTLE (prevents API burst)
+            time.sleep(0.2)
+
         except Exception as e:
-            st.error(f"{branch['BranchName']} error: {e}")
-            results.append((branch["BranchName"], None))
+            results.append((branch_name, None))
+            st.error(f"{branch_name} error: {e}")
+
     return results
 
-all_data = get_all_sheets(tuple((b["BranchName"], b["SheetID"]) for b in branches))
 
-# ---------------- PROCESS (UNCHANGED LOGIC) ----------------
+# ---------------- FIXED CALL ----------------
+all_data = get_all_sheets(branches)
+
+# ---------------- PROCESS ----------------
 for branch_name, raw in all_data:
 
     if not raw or len(raw) < 2:
@@ -76,13 +87,11 @@ for branch_name, raw in all_data:
 
     item_col = headers[0]
 
-    # ---------------- FIND DATE COLUMN ----------------
     if selected_date_str not in headers:
         continue
 
     chosen_col = selected_date_str
 
-    # ---------------- BUILD DATA ----------------
     for _, row in df.iterrows():
         item = str(row[item_col]).strip()
         qty = row.get(chosen_col, "")
