@@ -33,44 +33,77 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
+# ---------------- GLOBAL SAFETY LOCKS ----------------
+if "last_fetch_time" not in st.session_state:
+    st.session_state.last_fetch_time = 0
+
+if "is_fetching" not in st.session_state:
+    st.session_state.is_fetching = False
+
 # ---------------- DATE PICKER ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# ---------------- SAFE FETCH ----------------
+all_items = {}
+
+# ---------------- REFRESH BUTTON (RATE CONTROL) ----------------
+if st.button("🔄 Refresh Data"):
+
+    now = time.time()
+
+    # 🔴 prevent spam clicking
+    if now - st.session_state.last_fetch_time < 5:
+        st.warning("⏳ Please wait a few seconds before refreshing again.")
+        st.stop()
+
+    # 🔴 prevent parallel fetch
+    if st.session_state.is_fetching:
+        st.warning("⏳ Data is already loading. Please wait...")
+        st.stop()
+
+    st.session_state.last_fetch_time = now
+    st.cache_data.clear()
+    st.rerun()
+
+# ---------------- SAFE FETCH FUNCTION ----------------
 @st.cache_data(ttl=600)
 def get_all_sheets(branches):
     results = []
-    cache = {}
+    sheet_cache = {}
 
     for branch in branches:
         sheet_id = branch["SheetID"]
         branch_name = branch["BranchName"]
 
         try:
-            if sheet_id not in cache:
-                cache[sheet_id] = client.open_by_key(sheet_id)
+            # reuse opened sheet (IMPORTANT optimization)
+            if sheet_id not in sheet_cache:
+                sheet_cache[sheet_id] = client.open_by_key(sheet_id)
 
-            ws = cache[sheet_id].worksheet("Stocks")
+            file = sheet_cache[sheet_id]
+            ws = file.worksheet("Stocks")
+
             raw = ws.get_all_values()
 
             results.append((branch_name, raw))
-            time.sleep(0.2)
 
-        except Exception:
+            # 🔴 gentle throttle to avoid burst
+            time.sleep(0.25)
+
+        except Exception as e:
             results.append((branch_name, None))
+            st.error(f"{branch_name} error: {e}")
 
     return results
 
-all_data = get_all_sheets(branches)
+# ---------------- FETCH (SAFE WRAPPER) ----------------
+try:
+    st.session_state.is_fetching = True
+    all_data = get_all_sheets(branches)
+finally:
+    st.session_state.is_fetching = False
 
-# =========================================================
-# 📊 DAILY + WEEKLY DATA BUILD
-# =========================================================
-
-daily_items = {}
-weekly_items = {}
-
+# ---------------- PROCESS DATA ----------------
 for branch_name, raw in all_data:
 
     if not raw or len(raw) < 2:
@@ -82,70 +115,56 @@ for branch_name, raw in all_data:
     df = pd.DataFrame(rows, columns=headers)
     item_col = headers[0]
 
-    # ---------------- DAILY (selected date) ----------------
-    if selected_date_str in headers:
+    if selected_date_str not in headers:
+        continue
 
-        for _, row in df.iterrows():
-            item = str(row[item_col]).strip()
-            qty = row.get(selected_date_str, "")
-
-            if item not in daily_items:
-                daily_items[item] = {bn: 0 for bn in branch_names}
-
-            try:
-                daily_items[item][branch_name] = float(qty) if qty != "" else 0
-            except:
-                daily_items[item][branch_name] = 0
-
-    # ---------------- WEEKLY (last 7 columns sum) ----------------
-    date_cols = headers[1:]
-    last_7 = date_cols[-7:] if len(date_cols) >= 7 else date_cols
+    chosen_col = selected_date_str
 
     for _, row in df.iterrows():
         item = str(row[item_col]).strip()
+        qty = row.get(chosen_col, "")
 
-        if item not in weekly_items:
-            weekly_items[item] = {bn: 0 for bn in branch_names}
+        if item not in all_items:
+            all_items[item] = {bn: 0 for bn in branch_names}
 
-        total = 0
-        for d in last_7:
-            try:
-                total += float(row.get(d, 0) or 0)
-            except:
-                pass
+        try:
+            all_items[item][branch_name] = float(qty) if qty != "" else 0
+        except:
+            all_items[item][branch_name] = 0
 
-        weekly_items[item][branch_name] = total
-
-# =========================================================
-# 📦 DAILY DATAFRAME
-# =========================================================
-
-daily_rows = []
-for i, (item, values) in enumerate(daily_items.items(), start=1):
+# ---------------- FINAL DATAFRAME ----------------
+rows = []
+for i, (item, values) in enumerate(all_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
     row.update(values)
-    daily_rows.append(row)
+    rows.append(row)
 
-df_daily = pd.DataFrame(daily_rows)
+df = pd.DataFrame(rows)
 
-# =========================================================
-# 📦 WEEKLY DATAFRAME
-# =========================================================
+# ---------------- DISPLAY ----------------
+st.subheader("📊 Stock Data")
+st.dataframe(df, use_container_width=True)
 
-weekly_rows = []
-for i, (item, values) in enumerate(weekly_items.items(), start=1):
-    row = {"Sl No": i, "Item Name": item}
-    row.update(values)
-    weekly_rows.append(row)
+# ---------------- LOW STOCK HIGHLIGHT ----------------
+st.markdown("## ⚠️ Low Stock Highlight")
 
-df_weekly = pd.DataFrame(weekly_rows)
+if df.empty:
+    st.warning("No stock data found for selected date")
+    st.stop()
 
-# =========================================================
-# 📊 DISPLAY
-# =========================================================
+def highlight_low(val):
+    try:
+        val = float(val)
+        if val == 0:
+            return "background-color: red; color: white;"
+        elif val < 5:
+            return "background-color: orange;"
+    except:
+        return ""
+    return ""
 
-st.subheader("📊 Daily Stock Data (All Branches)")
-st.dataframe(df_daily, use_container_width=True)
+valid_columns = [col for col in branch_names if col in df.columns]
 
-st.subheader("📊 Weekly Stock Data (All Branches)")
-st.dataframe(df_weekly, use_container_width=True)
+styled_df = df.style.applymap(highlight_low, subset=valid_columns)
+
+st.dataframe(styled_df, use_container_width=True)
