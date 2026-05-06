@@ -130,27 +130,32 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-
-
+# ✅ IMPORTANT: session state key for input box
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
 
 user_input = st.text_input(
     "",
-    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
+    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?",
+    key="user_input"
 )
-send = bool(user_input)
 
-if send and user_input:
+if st.session_state.user_input:
     context = {
         "revenue": 0,
         "items": 0,
         "sales": st.session_state.get("pending_sales", [])
     }
 
-    response = run_ai(user_input, context)
+    response = run_ai(st.session_state.user_input, context)
 
-    st.session_state.chat.append(("You", user_input))
+    st.session_state.chat.append(("You", st.session_state.user_input))
     st.session_state.chat.append(("AI", response))
 
+    # ✅ CLEAR INPUT BOX AFTER SENDING
+    st.session_state.user_input = ""
+
+# ---------------- CHAT DISPLAY ----------------
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
@@ -169,8 +174,3 @@ st.markdown("""
 <p>Find us in Jeddah branches or visit bart.sa for more information.</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-now in this everythnng is gopod so if the user wneter the chat after response the data what he types is stayinng inside it must hbe ckleared 
-
