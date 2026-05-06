@@ -8,7 +8,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- MODERN UI ----------------
+# ---------------- GLOBAL STYLES ----------------
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
@@ -21,44 +21,56 @@ st.markdown("""
 }
 
 .block-container {
-    padding: 1.5rem 2rem !important;
-    max-width: 1200px;
+    padding: 1.2rem 2rem !important;
+    max-width: 1100px;
+    margin: auto;
 }
 
+/* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
-    padding: 70px 35px;
+    padding: 60px 30px;
     border-radius: 28px;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    margin-top: 20px;
+    margin-bottom: 25px;
 }
 
 .hero h1 {
-    font-size: 74px;
+    font-size: 70px;
     font-weight: 900;
-    letter-spacing: 10px;
+    letter-spacing: 8px;
     color: #C0392B;
+    margin: 0;
 }
 
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
+    margin-top: 10px;
 }
 
 .hero p {
-    font-size: 16px;
+    font-size: 15px;
     color: #555;
-    max-width: 800px;
-    margin: auto;
-    line-height: 1.7;
+    max-width: 750px;
+    margin: 10px auto 0;
+    line-height: 1.6;
+}
+
+/* LOGIN ROW CLEAN ALIGNMENT */
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
 }
 
 div.stButton > button {
-    height: 55px;
-    width: 220px;
+    height: 50px;
+    width: 200px;
     border-radius: 12px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     background: #2C2A28;
     color: white;
@@ -69,21 +81,28 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
+/* SECTION CARDS */
 .section {
-    background: rgba(255,255,255,0.85);
-    padding: 40px 25px;
-    margin-top: 25px;
-    border-radius: 18px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.06);
-    text-align: center;
+    background: rgba(255,255,255,0.9);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
 
 .section h2 {
     color: #C0392B;
+    text-align: center;
 }
 
 .section p {
     color: #555;
+    text-align: center;
+}
+
+/* CHAT ALIGNMENT FIX */
+.chat-box {
+    margin-top: 20px;
 }
 
 </style>
@@ -94,14 +113,13 @@ st.markdown("""
 <div class="hero">
     <h1>BART</h1>
     <h2>Coffee • French Toast • Fresh Bites</h2>
-    <p>
-        A modern café experience built for speed, quality, and taste.<br>
-        📍 Jeddah • bart.sa
-    </p>
+    <p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -112,42 +130,39 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-# ---------------- CHAT (EMBEDDED SECTION) ----------------
+st.markdown('</div>', unsafe_allow_html=True)
 
-# chat container (inside page, not full-page input bar)
-with st.container():
-    st.markdown("<div class='section'><h2>Chat</h2></div>", unsafe_allow_html=True)
+# ---------------- CHAT ----------------
+st.markdown("<div class='section chat-box'><h2>Chat</h2></div>", unsafe_allow_html=True)
 
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-    # input row INSIDE section
-    col1, col2 = st.columns([10, 1])
+col1, col2 = st.columns([10, 1])
 
-    with col1:
-        user_input = st.text_input("Message...", label_visibility="collapsed")
+with col1:
+    user_input = st.text_input("Message...", label_visibility="collapsed")
 
-    with col2:
-        send = st.button("➤")
+with col2:
+    send = st.button("➤")
 
-    if send and user_input:
-        context = {
-            "revenue": 0,
-            "items": 0,
-            "sales": st.session_state.get("pending_sales", [])
-        }
+if send and user_input:
+    context = {
+        "revenue": 0,
+        "items": 0,
+        "sales": st.session_state.get("pending_sales", [])
+    }
 
-        response = run_ai(user_input, context)
+    response = run_ai(user_input, context)
 
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
+    st.session_state.chat.append(("You", user_input))
+    st.session_state.chat.append(("AI", response))
 
-    # chat history inside same box
-    for sender, msg in st.session_state.chat[-10:]:
-        if sender == "You":
-            st.markdown(f"**You:** {msg}")
-        else:
-            st.markdown(f"**AI:** {msg}")
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
