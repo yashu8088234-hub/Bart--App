@@ -197,7 +197,8 @@ if query:
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-user_input = st.text_input("Talk to AI...")
+# Chat input (clean ChatGPT-style, no button, arrow send)
+user_input = st.chat_input("Message...")
 
 if user_input:
     context = {
