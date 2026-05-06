@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
@@ -82,23 +81,6 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* FLOATING BOT BUTTON */
-.fab {
-    position: fixed;
-    bottom: 25px;
-    right: 25px;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: #2C2A28;
-    color: white;
-    font-size: 28px;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.25);
-    z-index: 9999;
-}
-
 /* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
@@ -106,17 +88,19 @@ div.stButton > button:hover {
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.section h2 {
+    color: #C0392B;
+    text-align: center;
+}
+
+.section p {
+    color: #555;
     text-align: center;
 }
 </style>
 """, unsafe_allow_html=True)
-
-# ---------------- SESSION STATE ----------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-if "open_chat" not in st.session_state:
-    st.session_state.open_chat = False
 
 # ---------------- HERO ----------------
 st.markdown("""
@@ -128,6 +112,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -138,124 +124,17 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-# ---------------- FLOATING BUTTON ----------------
-if st.button("🤖"):
-    st.session_state.open_chat = True
+st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- FLOATING CHAT WINDOW ----------------
-if st.session_state.open_chat:
+# ---------------- CHAT ----------------
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-    chat_html = f"""
-    <style>
-    #bot {{
-        position: fixed;
-        bottom: 100px;
-        right: 30px;
-        width: 350px;
-        height: 480px;
-        background: white;
-        border-radius: 18px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-        z-index: 9999;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        font-family: Arial;
-    }}
-
-    #header {{
-        background: #2C2A28;
-        color: white;
-        padding: 10px;
-        cursor: move;
-        font-weight: bold;
-    }}
-
-    #messages {{
-        flex: 1;
-        padding: 10px;
-        overflow-y: auto;
-        font-size: 13px;
-    }}
-
-    #input {{
-        display: flex;
-        border-top: 1px solid #eee;
-    }}
-
-    #text {{
-        flex: 1;
-        padding: 10px;
-        border: none;
-        outline: none;
-    }}
-
-    #btn {{
-        width: 60px;
-        background: #C0392B;
-        color: white;
-        border: none;
-    }}
-
-    #close {{
-        float: right;
-        cursor: pointer;
-    }}
-    </style>
-
-    <div id="bot">
-        <div id="header">
-            🤖 BART AI
-            <span id="close">✖</span>
-        </div>
-
-        <div id="messages">
-            {"".join([f"<div><b>{s}:</b> {m}</div>" for s, m in st.session_state.chat[-15:]])}
-        </div>
-
-        <div id="input">
-            <input id="text" placeholder="Ask something..." />
-            <button id="btn">➤</button>
-        </div>
-    </div>
-
-    <script>
-    const bot = document.getElementById("bot");
-    const header = document.getElementById("header");
-    const close = document.getElementById("close");
-
-    let dragging = false;
-    let offsetX, offsetY;
-
-    header.onmousedown = (e) => {{
-        dragging = true;
-        offsetX = e.clientX - bot.offsetLeft;
-        offsetY = e.clientY - bot.offsetTop;
-    }};
-
-    document.onmouseup = () => dragging = false;
-
-    document.onmousemove = (e) => {{
-        if (dragging) {{
-            bot.style.left = (e.clientX - offsetX) + "px";
-            bot.style.top = (e.clientY - offsetY) + "px";
-            bot.style.right = "auto";
-            bot.style.bottom = "auto";
-        }}
-    }};
-
-    close.onclick = () => {{
-        bot.style.display = "none";
-    }};
-    </script>
-    """
-
-    components.html(chat_html, height=520)
-
-# ---------------- AI INPUT ----------------
-user_input = st.text_input("hidden_input", label_visibility="collapsed")
+# ONLY ONE INPUT (NO HTML, NO JS)
+user_input = st.text_input("Message", label_visibility="collapsed")
 send = bool(user_input)
 
+# AI LOGIC
 if send and user_input:
     context = {
         "revenue": 0,
@@ -267,6 +146,13 @@ if send and user_input:
 
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
+
+# display chat
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
