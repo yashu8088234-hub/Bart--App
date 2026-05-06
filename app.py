@@ -81,6 +81,57 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
+/* FLOATING CHAT */
+.chat-float {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    width: 360px;
+    height: 520px;
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-header {
+    background: #2C2A28;
+    color: white;
+    padding: 12px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.chat-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    font-size: 14px;
+}
+
+.chat-input {
+    display: flex;
+    border-top: 1px solid #eee;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    outline: none;
+}
+
+.chat-input button {
+    width: 60px;
+    background: #C0392B;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
 /* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
@@ -126,15 +177,34 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT ----------------
+# ---------------- SESSION ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ONLY Streamlit input (no HTML box anymore)
-user_input = st.text_input("hidden_input", label_visibility="collapsed")
-send = bool(user_input)
+# ---------------- FLOATING CHAT UI ----------------
+st.markdown('<div class="chat-float">', unsafe_allow_html=True)
 
-# AI LOGIC
+st.markdown('<div class="chat-header">BART AI Assistant</div>', unsafe_allow_html=True)
+
+# CHAT HISTORY
+st.markdown('<div class="chat-body">', unsafe_allow_html=True)
+
+for sender, msg in st.session_state.chat[-15:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# INPUT
+with st.form("chat_form", clear_on_submit=True):
+    user_input = st.text_input("Ask something...")
+    send = st.form_submit_button("➤")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------- AI LOGIC ----------------
 if send and user_input:
     context = {
         "revenue": 0,
@@ -146,13 +216,6 @@ if send and user_input:
 
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
-
-# display chat
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
