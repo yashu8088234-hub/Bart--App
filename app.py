@@ -130,14 +130,29 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# input row (embedded, not full width)
-col1, col2 = st.columns([6, 1])
+# input row (embedded, compact chat style)
+col1, col2 = st.columns([10, 1])
 
 with col1:
     user_input = st.text_input("Message...", label_visibility="collapsed")
 
 with col2:
     send = st.button("➤")
+
+# compact chat button styling
+st.markdown("""
+<style>
+/* only shrink chat send button (last column button) */
+div[data-testid="column"]:last-of-type button {
+    height: 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    padding: 0px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 if send and user_input:
     context = {
