@@ -2,9 +2,10 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-import datetime
 import time
+from concurrent.futures import ThreadPoolExecutor
 
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
 
 st.title("📦 BART - Stock Management (All Branches)")
@@ -33,7 +34,7 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- GLOBAL SAFETY LOCKS ----------------
+# ---------------- SESSION SAFETY FLAGS ----------------
 if "last_fetch_time" not in st.session_state:
     st.session_state.last_fetch_time = 0
 
@@ -46,17 +47,14 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 all_items = {}
 
-# ---------------- REFRESH BUTTON (RATE CONTROL) ----------------
+# ---------------- REFRESH BUTTON ----------------
 if st.button("🔄 Refresh Data"):
-
     now = time.time()
 
-    # 🔴 prevent spam clicking
     if now - st.session_state.last_fetch_time < 5:
         st.warning("⏳ Please wait a few seconds before refreshing again.")
         st.stop()
 
-    # 🔴 prevent parallel fetch
     if st.session_state.is_fetching:
         st.warning("⏳ Data is already loading. Please wait...")
         st.stop()
@@ -65,41 +63,32 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- SAFE FETCH FUNCTION ----------------
-@st.cache_data(ttl=600)
-def get_all_sheets(branches):
-    results = []
-    sheet_cache = {}
+# ---------------- PRELOAD SHEETS ----------------
+@st.cache_resource
+def get_sheets(branches):
+    cache = {}
+    for b in branches:
+        cache[b["SheetID"]] = client.open_by_key(b["SheetID"])
+    return cache
 
-    for branch in branches:
-        sheet_id = branch["SheetID"]
-        branch_name = branch["BranchName"]
+sheet_cache = get_sheets(branches)
 
-        try:
-            # reuse opened sheet (IMPORTANT optimization)
-            if sheet_id not in sheet_cache:
-                sheet_cache[sheet_id] = client.open_by_key(sheet_id)
+# ---------------- FETCH FUNCTION (PARALLEL) ----------------
+def fetch_branch(branch):
+    try:
+        file = sheet_cache[branch["SheetID"]]
+        ws = file.worksheet("Stocks")
+        return branch["BranchName"], ws.get_all_values()
+    except Exception as e:
+        return branch["BranchName"], None
 
-            file = sheet_cache[sheet_id]
-            ws = file.worksheet("Stocks")
-
-            raw = ws.get_all_values()
-
-            results.append((branch_name, raw))
-
-            # 🔴 gentle throttle to avoid burst
-            time.sleep(0.25)
-
-        except Exception as e:
-            results.append((branch_name, None))
-            st.error(f"{branch_name} error: {e}")
-
-    return results
-
-# ---------------- FETCH (SAFE WRAPPER) ----------------
+# ---------------- SAFE FETCH WRAPPER ----------------
 try:
     st.session_state.is_fetching = True
-    all_data = get_all_sheets(branches)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        all_data = list(executor.map(fetch_branch, branches))
+
 finally:
     st.session_state.is_fetching = False
 
@@ -112,13 +101,13 @@ for branch_name, raw in all_data:
     headers = raw[0]
     rows = raw[1:]
 
-    df = pd.DataFrame(rows, columns=headers)
-    item_col = headers[0]
-
     if selected_date_str not in headers:
         continue
 
+    item_col = headers[0]
     chosen_col = selected_date_str
+
+    df = pd.DataFrame(rows, columns=headers)
 
     for _, row in df.iterrows():
         item = str(row[item_col]).strip()
@@ -143,28 +132,23 @@ df = pd.DataFrame(rows)
 
 # ---------------- DISPLAY ----------------
 st.subheader("📊 Stock Data")
-st.dataframe(df, use_container_width=True)
-
-# ---------------- LOW STOCK HIGHLIGHT ----------------
-st.markdown("## ⚠️ Low Stock Highlight")
 
 if df.empty:
     st.warning("No stock data found for selected date")
-    st.stop()
+else:
+    st.dataframe(df, use_container_width=True)
 
-def highlight_low(val):
-    try:
-        val = float(val)
-        if val == 0:
-            return "background-color: red; color: white;"
-        elif val < 5:
-            return "background-color: orange;"
-    except:
-        return ""
-    return ""
+# ---------------- OPTIONAL: SEARCH ----------------
+search = st.text_input("🔎 Search Item")
+if search and not df.empty:
+    df = df[df["Item Name"].str.contains(search, case=False, na=False)]
+    st.dataframe(df, use_container_width=True)
 
-valid_columns = [col for col in branch_names if col in df.columns]
-
-styled_df = df.style.applymap(highlight_low, subset=valid_columns)
-
-st.dataframe(styled_df, use_container_width=True)
+# ---------------- DOWNLOAD ----------------
+if not df.empty:
+    st.download_button(
+        "📥 Download CSV",
+        df.to_csv(index=False),
+        "stock_report.csv",
+        "text/csv"
+    )
