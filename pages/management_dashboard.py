@@ -34,7 +34,7 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- SESSION SAFETY FLAGS ----------------
+# ---------------- SESSION SAFETY ----------------
 if "last_fetch_time" not in st.session_state:
     st.session_state.last_fetch_time = 0
 
@@ -63,7 +63,7 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- PRELOAD SHEETS ----------------
+# ---------------- SHEET CACHE ----------------
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
@@ -73,16 +73,16 @@ def get_sheets(branches):
 
 sheet_cache = get_sheets(branches)
 
-# ---------------- FETCH FUNCTION (PARALLEL) ----------------
+# ---------------- FETCH FUNCTION ----------------
 def fetch_branch(branch):
     try:
         file = sheet_cache[branch["SheetID"]]
         ws = file.worksheet("Stocks")
         return branch["BranchName"], ws.get_all_values()
-    except Exception as e:
+    except:
         return branch["BranchName"], None
 
-# ---------------- SAFE FETCH WRAPPER ----------------
+# ---------------- FETCH DATA ----------------
 try:
     st.session_state.is_fetching = True
 
@@ -109,26 +109,56 @@ for branch_name, raw in all_data:
 
     df = pd.DataFrame(rows, columns=headers)
 
+    current_type = None  # 🔥 detects DAILY / WEEKLY section
+
     for _, row in df.iterrows():
-        item = str(row[item_col]).strip()
+
+        first_cell = str(row[item_col]).strip()
+
+        # ---------------- SECTION DETECTION ----------------
+        if "DAILY ITEM" in first_cell.upper():
+            current_type = "Daily"
+            continue
+
+        if "WEEKLY ITEM" in first_cell.upper():
+            current_type = "Weekly"
+            continue
+
+        # skip empty rows
+        if first_cell == "" or first_cell.lower() == "nan":
+            continue
+
+        item = first_cell
         qty = row.get(chosen_col, "")
 
         if item not in all_items:
             all_items[item] = {bn: 0 for bn in branch_names}
+            all_items[item]["Type"] = current_type
 
         try:
             all_items[item][branch_name] = float(qty) if qty != "" else 0
         except:
             all_items[item][branch_name] = 0
 
-# ---------------- FINAL DATAFRAME ----------------
+# ---------------- BUILD DATAFRAME ----------------
 rows = []
+
 for i, (item, values) in enumerate(all_items.items(), start=1):
-    row = {"Sl No": i, "Item Name": item}
+    row = {
+        "Sl No": i,
+        "Item Name": item,
+        "Type": values.get("Type", "Unknown")
+    }
     row.update(values)
     rows.append(row)
 
 df = pd.DataFrame(rows)
+
+# ---------------- SEARCH ----------------
+search = st.text_input("🔎 Search Item")
+
+if search and not df.empty:
+    df = df[df["Item Name"].str.contains(search, case=False, na=False)]
 
 # ---------------- DISPLAY ----------------
 st.subheader("📊 Stock Data")
@@ -136,13 +166,20 @@ st.subheader("📊 Stock Data")
 if df.empty:
     st.warning("No stock data found for selected date")
 else:
-    st.dataframe(df, use_container_width=True)
 
-# ---------------- OPTIONAL: SEARCH ----------------
-search = st.text_input("🔎 Search Item")
-if search and not df.empty:
-    df = df[df["Item Name"].str.contains(search, case=False, na=False)]
-    st.dataframe(df, use_container_width=True)
+    tab1, tab2, tab3 = st.tabs(["🟢 Daily Items", "🔵 Weekly Items", "⚪ Unclassified"])
+
+    with tab1:
+        st.dataframe(df[df["Type"] == "Daily"].drop(columns=["Type"]),
+                     use_container_width=True)
+
+    with tab2:
+        st.dataframe(df[df["Type"] == "Weekly"].drop(columns=["Type"]),
+                     use_container_width=True)
+
+    with tab3:
+        st.dataframe(df[df["Type"] == "Unknown"].drop(columns=["Type"]),
+                     use_container_width=True)
 
 # ---------------- DOWNLOAD ----------------
 if not df.empty:
