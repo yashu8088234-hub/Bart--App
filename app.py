@@ -166,3 +166,121 @@ st.markdown("""
 <p>Find us in Jeddah branches or visit bart.sa for more information.</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+import streamlit.components.v1 as components
+
+chat_widget = f"""
+<style>
+
+/* Floating button */
+#ai-bot-btn {{
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    width: 60px;
+    height: 60px;
+    background: #C0392B;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 26px;
+    cursor: pointer;
+    z-index: 999999;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}}
+
+/* Chat window */
+#ai-chat-window {{
+    position: fixed;
+    bottom: 100px;
+    right: 25px;
+    width: 340px;
+    height: 450px;
+    background: white;
+    border-radius: 16px;
+    display: none;
+    flex-direction: column;
+    z-index: 999999;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    overflow: hidden;
+}}
+
+/* Header */
+#ai-chat-header {{
+    background: #C0392B;
+    color: white;
+    padding: 10px;
+    font-weight: bold;
+    cursor: move;
+}}
+
+/* Messages */
+#ai-chat-body {{
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    font-family: Arial;
+    font-size: 14px;
+}}
+
+/* Input */
+#ai-chat-input {{
+    width: 100%;
+    border: none;
+    padding: 12px;
+    outline: none;
+    border-top: 1px solid #eee;
+}}
+
+</style>
+
+<div id="ai-bot-btn" onclick="toggleChat()">🤖</div>
+
+<div id="ai-chat-window">
+    <div id="ai-chat-header">BART AI Assistant</div>
+    <div id="ai-chat-body">Hi 👋 Ask me anything about stock or café.</div>
+    <input id="ai-chat-input" placeholder="Type a message..." />
+</div>
+
+<script>
+
+function toggleChat() {{
+    var win = document.getElementById("ai-chat-window");
+    if (win.style.display === "flex") {{
+        win.style.display = "none";
+    }} else {{
+        win.style.display = "flex";
+        win.style.flexDirection = "column";
+    }}
+}}
+
+// simple send handler (visual only)
+document.addEventListener("keydown", function(e) {{
+    if (e.key === "Enter") {{
+        let input = document.getElementById("ai-chat-input");
+        if (!input.value) return;
+
+        let body = document.getElementById("ai-chat-body");
+        body.innerHTML += "<div><b>You:</b> " + input.value + "</div>";
+
+        input.value = "";
+        body.scrollTop = body.scrollHeight;
+    }}
+}});
+
+</script>
+"""
+
+components.html(chat_widget, height=0)
