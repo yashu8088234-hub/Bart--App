@@ -33,7 +33,7 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- DATE (kept for consistency) ----------------
+# ---------------- DATE ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
@@ -65,7 +65,7 @@ def get_all_sheets(branches):
 all_data = get_all_sheets(branches)
 
 # =========================================================
-# 📦 DAILY + WEEKLY SEPARATION (FIXED LOGIC)
+# 📦 DAILY + WEEKLY FIXED PARSING
 # =========================================================
 
 daily_items = {}
@@ -87,14 +87,14 @@ for branch_name, raw in all_data:
 
     for _, row in df.iterrows():
 
-        # detect section from row content (same as your Stock View logic)
-        row_text = " ".join(str(x) for x in row.values).strip().lower()
+        # ---------------- SECTION DETECTION (FIXED) ----------------
+        row_str = " ".join([str(x) for x in row.values]).strip().lower()
 
-        if "daily item" in row_text:
+        if "daily item" in row_str:
             current_section = "daily"
             continue
 
-        if "weekly item" in row_text:
+        if "weekly item" in row_str:
             current_section = "weekly"
             continue
 
@@ -103,19 +103,22 @@ for branch_name, raw in all_data:
 
         item = str(row[item_col]).strip()
 
-        if item == "" or item.lower() in ["daily item", "weekly item"]:
+        if not item:
             continue
 
-        values = row[1:]
+        # skip section labels accidentally
+        if "daily item" in item.lower() or "weekly item" in item.lower():
+            continue
 
-        # convert safely
+        # ---------------- VALUE SUM ----------------
         total = 0
-        for v in values:
+        for v in row[1:]:
             try:
                 total += float(v) if v != "" else 0
             except:
                 pass
 
+        # ---------------- STORE ----------------
         if current_section == "daily":
             if item not in daily_items:
                 daily_items[item] = {bn: 0 for bn in branch_names}
