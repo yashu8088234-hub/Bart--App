@@ -8,14 +8,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ---------------- SESSION ----------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
 # ---------------- GLOBAL STYLES ----------------
 st.markdown("""
 <style>
-
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stToolbar"] {display:none;}
 [data-testid="stSidebar"] {display:none;}
@@ -23,6 +18,12 @@ st.markdown("""
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
+}
+
+.block-container {
+    padding: 1.2rem 2rem !important;
+    max-width: 1100px;
+    margin: auto;
 }
 
 /* HERO */
@@ -80,76 +81,37 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT AREA */
-.chat-container {
-    height: 55vh;
-    overflow-y: auto;
-    padding: 10px 20px;
-    margin-bottom: 100px;
+/* CHAT INPUT */
+.chat-wrapper {
+    position: relative;
+    width: 100%;
+    margin-top: 10px;
 }
 
-/* USER MESSAGE */
-.user {
-    text-align: right;
-    background: #2C2A28;
-    color: white;
-    padding: 10px 14px;
+.chat-wrapper input {
+    width: 100%;
+    height: 50px;
     border-radius: 12px;
-    margin: 6px 0;
-    max-width: 70%;
-    float: right;
-    clear: both;
-}
-
-/* AI MESSAGE */
-.ai {
-    text-align: left;
-    background: #F7F1EA;
-    color: #222;
-    padding: 10px 14px;
-    border-radius: 12px;
-    margin: 6px 0;
-    max-width: 70%;
-    float: left;
-    clear: both;
-}
-
-/* FLOATING CHAT INPUT */
-.input-bar {
-    position: fixed;
-    bottom: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    max-width: 700px;
-    display: flex;
-    gap: 10px;
-    z-index: 999;
-}
-
-.input-bar input {
-    flex: 1;
-    height: 48px;
-    border-radius: 14px;
     border: none;
-    padding: 0 15px;
+    padding: 0 50px 0 15px;
     font-size: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    outline: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
 }
 
-.input-bar button {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+.chat-wrapper button {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    height: 40px;
+    width: 40px;
+    border-radius: 10px;
     border: none;
     background: #2C2A28;
     color: white;
-    font-size: 18px;
     cursor: pointer;
 }
 
-.input-bar button:hover {
+.chat-wrapper button:hover {
     background: #C0392B;
 }
 
@@ -160,17 +122,17 @@ div.stButton > button:hover {
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-    text-align: center;
 }
 
 .section h2 {
     color: #C0392B;
+    text-align: center;
 }
 
 .section p {
     color: #555;
+    text-align: center;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -190,51 +152,72 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("Staff Login"):
-        st.switch_page("pages/staff_dashboard")
+        st.switch_page("pages/staff_dashboard.py")
 
 with col2:
     if st.button("Management Login"):
-        st.switch_page("pages/management_dashboard")
+        st.switch_page("pages/management_dashboard.py")
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT DISPLAY ----------------
-st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+# ---------------- CHAT ----------------
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-for sender, msg in st.session_state.chat[-20:]:
-    if sender == "You":
-        st.markdown(f"<div class='user'>{msg}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='ai'>{msg}</div>", unsafe_allow_html=True)
+# custom input
+st.markdown("""
+<div class="chat-wrapper">
+    <input id="chat_input" type="text" placeholder="Message..." />
+    <button id="send_btn">➤</button>
+</div>
 
-st.markdown("</div>", unsafe_allow_html=True)
+<script>
+const input = document.getElementById("chat_input");
+const btn = document.getElementById("send_btn");
 
-# ---------------- FLOATING INPUT ----------------
-st.markdown("<div class='input-bar'>", unsafe_allow_html=True)
+btn.onclick = () => {
+    const value = input.value;
+    if (value) {
+        const hidden = window.parent.document.querySelector('input[aria-label="hidden_input"]');
+        hidden.value = value;
+        hidden.dispatchEvent(new Event("input", { bubbles: true }));
+        input.value = "";
+    }
+};
 
-user_input = st.text_input("", placeholder="Message...", label_visibility="collapsed")
-send = st.button("➤")
+input.addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+        btn.click();
+    }
+});
+</script>
+""", unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+# hidden streamlit input
+user_input = st.text_input("hidden_input", label_visibility="collapsed")
+send = bool(user_input)
 
-# ---------------- AI LOGIC ----------------
+# AI LOGIC
 if send and user_input:
-    st.session_state.chat.append(("You", user_input))
-
     context = {
         "revenue": 0,
         "items": 0,
         "sales": st.session_state.get("pending_sales", [])
     }
 
-    with st.spinner("BART is thinking..."):
-        response = run_ai(user_input, context)
+    response = run_ai(user_input, context)
 
+    st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-    st.rerun()
+# display chat
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
-# ---------------- INFO SECTIONS ----------------
+# ---------------- INFO ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
