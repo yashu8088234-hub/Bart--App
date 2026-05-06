@@ -34,11 +34,10 @@ st.markdown("""
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
     margin-bottom: 25px;
-    animation: fadeIn 0.8s ease-in-out;
 }
 
 .hero h1 {
-    font-size: clamp(40px, 6vw, 70px);
+    font-size: 70px;
     font-weight: 900;
     letter-spacing: 8px;
     color: #C0392B;
@@ -59,13 +58,12 @@ st.markdown("""
     line-height: 1.6;
 }
 
-/* LOGIN BUTTONS */
+/* LOGIN */
 .login-row {
     display: flex;
     justify-content: center;
     gap: 20px;
     margin: 20px 0 35px;
-    flex-wrap: wrap;
 }
 
 div.stButton > button {
@@ -83,8 +81,51 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT BUBBLES */
-.chat-bubble-user {
+/* CHAT WRAPPER (YOUR ORIGINAL STYLE IMPROVED) */
+.chat-wrapper {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    max-width: 700px;
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+}
+
+.chat-wrapper input {
+    flex: 1;
+    height: 50px;
+    border-radius: 12px;
+    border: none;
+    padding: 0 15px;
+    font-size: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.chat-wrapper button {
+    height: 50px;
+    width: 50px;
+    border-radius: 12px;
+    border: none;
+    background: #2C2A28;
+    color: white;
+    cursor: pointer;
+}
+
+.chat-wrapper button:hover {
+    background: #C0392B;
+}
+
+/* CHAT DISPLAY */
+.chat-box {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-bottom: 80px;
+}
+
+.user-msg {
     text-align: right;
     background: #2C2A28;
     color: white;
@@ -94,10 +135,10 @@ div.stButton > button:hover {
     display: inline-block;
     float: right;
     clear: both;
-    max-width: 75%;
+    max-width: 70%;
 }
 
-.chat-bubble-ai {
+.ai-msg {
     text-align: left;
     background: #F7F1EA;
     color: #222;
@@ -107,32 +148,7 @@ div.stButton > button:hover {
     display: inline-block;
     float: left;
     clear: both;
-    max-width: 75%;
-}
-
-/* SECTION */
-.section {
-    background: rgba(255,255,255,0.9);
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
-
-.section p {
-    color: #555;
-    text-align: center;
-}
-
-/* ANIMATION */
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(10px);}
-    to {opacity: 1; transform: translateY(0);}
+    max-width: 70%;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -157,52 +173,45 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard")
 
-# ---------------- SESSION STATE ----------------
+# ---------------- SESSION ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
 # ---------------- CHAT DISPLAY ----------------
+st.markdown("<div class='chat-box'>", unsafe_allow_html=True)
+
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
-        st.markdown(f"<div class='chat-bubble-user'>{msg}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='user-msg'>{msg}</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='chat-bubble-ai'>{msg}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='ai-msg'>{msg}</div>", unsafe_allow_html=True)
 
-st.markdown("<div style='clear: both;'></div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- CHAT INPUT (SAFE & MODERN) ----------------
-user_input = st.chat_input("Message BART...")
+# ---------------- CHAT INPUT (NO JS HACK) ----------------
+st.markdown("""
+<form action="" method="post">
+</form>
+""", unsafe_allow_html=True)
 
-if user_input:
-    # Add user message
+# normal hidden-safe input (Streamlit controlled)
+user_input = st.text_input("", placeholder="Message...", label_visibility="collapsed")
+
+send = st.button("➤")
+
+# ---------------- AI LOGIC ----------------
+if send and user_input:
     st.session_state.chat.append(("You", user_input))
 
-    # Context for AI
     context = {
         "revenue": 0,
         "items": 0,
         "sales": st.session_state.get("pending_sales", [])
     }
 
-    # AI response with loading
     with st.spinner("BART is thinking..."):
         response = run_ai(user_input, context)
 
     st.session_state.chat.append(("AI", response))
 
     st.rerun()
-
-# ---------------- INFO SECTION ----------------
-st.markdown("""
-<div class="section">
-<h2>Our Experience</h2>
-<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="section">
-<h2>Visit Us</h2>
-<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
-</div>
-""", unsafe_allow_html=True)
