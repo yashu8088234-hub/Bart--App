@@ -177,9 +177,7 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-with col3:
-    if st.button("Manager Login"):
-        st.switch_page("pages/manager_dashboard.py")
+
 
 st.markdown('</div>', unsafe_allow_html=True)
 
