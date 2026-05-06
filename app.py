@@ -58,7 +58,14 @@ st.markdown("""
     line-height: 1.6;
 }
 
-/* BUTTONS */
+/* LOGIN */
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
 div.stButton > button {
     height: 50px;
     width: 200px;
@@ -81,6 +88,15 @@ div.stButton > button:hover {
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.section h2 {
+    color: #C0392B;
+    text-align: center;
+}
+
+.section p {
+    color: #555;
     text-align: center;
 }
 </style>
@@ -96,6 +112,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -106,44 +124,38 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
-# ---------------- CHAT STATE ----------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- DISPLAY CHAT (WHATSAPP STYLE) ----------------
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+# ---------------- CHAT BACKEND ----------------
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-# ---------------- CHAT INPUT (IMPORTANT FIX) ----------------
-user_input = st.chat_input("💬 Ask BART AI anything...")
 
-if user_input:
 
-    # Save user message
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
 
-    # Build context
+user_input = st.text_input(
+    "",
+    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
+)
+send = bool(user_input)
+
+if send and user_input:
     context = {
         "revenue": 0,
         "items": 0,
         "sales": st.session_state.get("pending_sales", [])
     }
 
-    # Get AI response
     response = run_ai(user_input, context)
 
-    # Save AI response
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": response
-    })
+    st.session_state.chat.append(("You", user_input))
+    st.session_state.chat.append(("AI", response))
 
-    # Rerun so chat updates instantly
-    st.rerun()
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
@@ -157,3 +169,5 @@ st.markdown("""
 <p>Find us in Jeddah branches or visit bart.sa for more information.</p>
 </div>
 """, unsafe_allow_html=True)
+
+e 
