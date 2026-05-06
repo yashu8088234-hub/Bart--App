@@ -59,6 +59,13 @@ st.markdown("""
 }
 
 /* LOGIN */
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
 div.stButton > button {
     height: 50px;
     width: 200px;
@@ -105,6 +112,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- LOGIN ----------------
+st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -115,26 +124,22 @@ with col2:
     if st.button("Management Login"):
         st.switch_page("pages/management_dashboard.py")
 
+st.markdown('</div>', unsafe_allow_html=True)
+
 # ---------------- CHAT BACKEND ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ✅ INPUT STATE
-if "chat_input" not in st.session_state:
-    st.session_state.chat_input = ""
 
-# ---------------- INPUT ----------------
+
+
 user_input = st.text_input(
     "",
-    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?",
-    key="chat_input"
+    placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
 )
+send = bool(user_input)
 
-send = st.button("Send")
-
-# ---------------- PROCESS ----------------
 if send and user_input:
-
     context = {
         "revenue": 0,
         "items": 0,
@@ -146,10 +151,6 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-    # ✅ ONLY CLEAR INPUT BOX
-    st.session_state.chat_input = ""
-
-# ---------------- OLD SIMPLE CHAT DISPLAY ----------------
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
@@ -168,3 +169,6 @@ st.markdown("""
 <p>Find us in Jeddah branches or visit bart.sa for more information.</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+
