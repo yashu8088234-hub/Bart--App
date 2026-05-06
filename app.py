@@ -81,7 +81,7 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* CHAT INPUT (same look, button inside) */
+/* CHAT INPUT */
 .chat-wrapper {
     position: relative;
     width: 100%;
@@ -164,7 +164,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# custom input UI
+# custom input
 st.markdown("""
 <div class="chat-wrapper">
     <input id="chat_input" type="text" placeholder="Message..." />
@@ -193,11 +193,11 @@ input.addEventListener("keypress", function(e) {
 </script>
 """, unsafe_allow_html=True)
 
-# hidden input (keeps your logic same)
+# hidden streamlit input
 user_input = st.text_input("hidden_input", label_visibility="collapsed")
 send = bool(user_input)
 
-# LOGIC (unchanged)
+# AI LOGIC
 if send and user_input:
     context = {
         "revenue": 0,
@@ -210,6 +210,7 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
+# display chat
 for sender, msg in st.session_state.chat[-10:]:
     if sender == "You":
         st.markdown(f"**You:** {msg}")
