@@ -1,29 +1,20 @@
-import os
-import time
+import streamlit as st
 from openai import OpenAI
+import time
 
-# ---------------- SAFE CLIENT INIT ----------------
-api_key = os.getenv("OPENAI_API_KEY")
+# ---------------- GET KEY FROM STREAMLIT SECRETS ----------------
+api_key = st.secrets.get("OPENAI_API_KEY")
 
 if not api_key:
-    raise ValueError("OPENAI_API_KEY is missing. Add it in Streamlit Secrets.")
+    raise ValueError("OPENAI_API_KEY not found in Streamlit secrets!")
 
 client = OpenAI(api_key=api_key)
 
-# ---------------- HUMAN-LIKE SYSTEM PROMPT ----------------
 SYSTEM_PROMPT = """
-You are BART AI, a highly intelligent, natural, human-like assistant.
-
-Rules:
-- Speak naturally like ChatGPT
-- Be helpful, calm, and conversational
-- Understand context deeply
-- Avoid robotic or scripted answers
-- Ask clarifying questions when needed
-- Keep responses clean and useful
+You are a natural, human-like assistant.
+Speak casually, clearly, and intelligently like ChatGPT.
 """
 
-# ---------------- MAIN AI FUNCTION ----------------
 def run_ai(user_input, context=None):
     if context is None:
         context = {}
@@ -33,32 +24,15 @@ def run_ai(user_input, context=None):
         {"role": "user", "content": user_input}
     ]
 
-    # Optional context injection (sales, etc.)
-    if context:
-        messages.insert(1, {
-            "role": "system",
-            "content": f"Business context: {context}"
-        })
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.8
+        )
 
-    # ---------------- RETRY LOGIC (RATE LIMIT SAFE) ----------------
-    for attempt in range(3):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=0.8
-            )
+        return response.choices[0].message.content
 
-            return response.choices[0].message.content
-
-        except Exception as e:
-            # small delay to avoid rate spikes
-            time.sleep(1.5)
-
-            last_error = str(e)
-
-    # ---------------- FALLBACK (IF OPENAI FAILS) ----------------
-    return (
-        "I'm having a small technical delay right now 😅 "
-        "Please try again in a moment."
-    )
+    except Exception as e:
+        # 👇 THIS IS IMPORTANT FOR DEBUGGING
+        return f"ERROR: {str(e)}"
