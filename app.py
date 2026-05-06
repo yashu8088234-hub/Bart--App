@@ -131,11 +131,7 @@ if "chat" not in st.session_state:
     st.session_state.chat = []
 
 
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
+
 
 user_input = st.text_input(
     "",
@@ -155,11 +151,11 @@ if send and user_input:
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
 
-
-  # ✅ CLEAR ONLY INPUT BOX
-    st.session_state.chat_input = ""
-
-
+for sender, msg in st.session_state.chat[-10:]:
+    if sender == "You":
+        st.markdown(f"**You:** {msg}")
+    else:
+        st.markdown(f"**AI:** {msg}")
 
 # ---------------- INFO ----------------
 st.markdown("""
@@ -174,4 +170,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
+
+now in this everythnng is gopod so if the user wneter the chat after response the data what he types is stayinng inside it must hbe ckleared 
 
