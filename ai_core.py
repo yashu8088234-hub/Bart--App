@@ -1,6 +1,6 @@
 from openai import OpenAI
 
-client = OpenAI(api_key="YOUR_API_KEY_HERE")
+client = OpenAI(api_key="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")
 
 SYSTEM_PROMPT = """
 You are BART AI, a highly intelligent, natural, human-like assistant.
