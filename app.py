@@ -58,7 +58,7 @@ st.markdown("""
     line-height: 1.6;
 }
 
-/* LOGIN */
+/* LOGIN ROW CLEAN ALIGNMENT */
 .login-row {
     display: flex;
     justify-content: center;
@@ -79,22 +79,6 @@ div.stButton > button {
 
 div.stButton > button:hover {
     background: #C0392B;
-}
-
-/* CHAT INPUT FIX */
-.chat-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: white;
-    padding: 8px;
-    border-radius: 14px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-    margin-top: 10px;
-}
-
-.chat-container input {
-    flex: 1;
 }
 
 /* SECTION CARDS */
@@ -143,13 +127,12 @@ with col2:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- CHAT ----------------
+st.markdown("", unsafe_allow_html=True)
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# NEW: wrapped layout
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-
-col1, col2 = st.columns([12, 1])
+col1, col2 = st.columns([10, 1])
 
 with col1:
     user_input = st.text_input("Message...", label_visibility="collapsed")
@@ -157,9 +140,6 @@ with col1:
 with col2:
     send = st.button("➤")
 
-st.markdown('</div>', unsafe_allow_html=True)
-
-# LOGIC (unchanged)
 if send and user_input:
     context = {
         "revenue": 0,
