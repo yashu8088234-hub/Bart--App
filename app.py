@@ -365,36 +365,46 @@ else:
         st.session_state.chat.append(("AI", response))
 
     # =========================================================
-    # FLOATING CHAT (FIXED OVERLAY WORKING)
-    # =========================================================
+# 💬 CLEAN STREAMLIT CHAT UI (REPLACE OLD HTML CHAT)
+# =========================================================
 
-    chat_html = """
-    <div class="chat-overlay">
-        <div class="chat-overlay-header">💬 BART AI</div>
-        <div class="chat-overlay-body">
-    """
+st.markdown("## 💬 BART AI Chat")
 
-    for sender, msg in reversed(st.session_state.chat[-20:]):
+chat_container = st.container()
+
+with chat_container:
+    for sender, msg in st.session_state.chat[-20:]:
 
         if sender == "You":
-            chat_html += f"""
-            <div class="chat-overlay-msg chat-overlay-user">
-                <b>You:</b> {msg}
-            </div>
-            """
+            st.markdown(
+                f"""
+                <div style="
+                    background:#f1f1f1;
+                    padding:10px;
+                    border-radius:10px;
+                    margin-bottom:8px;
+                    text-align:right;
+                ">
+                    <b>You:</b> {msg}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
         else:
-            chat_html += f"""
-            <div class="chat-overlay-msg chat-overlay-ai">
-                <b>BART:</b> {msg}
-            </div>
-            """
-
-    chat_html += """
-        </div>
-    </div>
-    """
-
-    st.markdown(chat_html, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <div style="
+                    background:#fff3f3;
+                    padding:10px;
+                    border-radius:10px;
+                    margin-bottom:8px;
+                    color:#C0392B;
+                ">
+                    <b>BART:</b> {msg}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
     # =====================================================
     # INFO SECTION
