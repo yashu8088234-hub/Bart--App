@@ -300,11 +300,11 @@ else:
 
     col1, col2 = st.columns(2)
 
-    with col1:
+    with col2:
         if st.button("📦  Management Dashboard"):
             st.switch_page("pages/management_dashboard.py")
 
-    with col2:
+    with col1:
         if st.button("👨‍💼 Staff Dashboard"):
             st.switch_page("pages/staff_dashboard.py")
 
