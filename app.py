@@ -167,10 +167,13 @@ with st.form("chat_form", clear_on_submit=True):
 if send and user_input:
 
     context = {
-        "cache_data": st.session_state.all_data,
-        "master_items": st.session_state.DAILY_ITEMS + st.session_state.WEEKLY_ITEMS,
-        "branch_list": [b["BranchName"] for b in st.session_state.branches]
+    "cache_data": st.session_state.all_data,
+    "branch_list": [b["BranchName"] for b in st.session_state.branches],
+    "master_items": {
+        **st.session_state.DAILY_ITEMS,
+        **st.session_state.WEEKLY_ITEMS
     }
+}
 
     response = run_ai(user_input, context)
 
