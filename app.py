@@ -290,32 +290,6 @@ else:
 
     # =====================================================
 
-     
-    # CHAT INPUT
-    # =====================================================
-     st.markdown("## 💬 BART AI Chat")
-    with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("", placeholder="🤖 Ask something...")
-        send = st.form_submit_button("Send")
-
-    if send and user_input:
-
-        all_items = (
-            list(st.session_state.DAILY_ITEMS.keys()) +
-            list(st.session_state.WEEKLY_ITEMS.keys())
-        )
-
-        context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": [b["BranchName"] for b in st.session_state.branches],
-            "master_items": all_items
-        }
-
-        response = run_ai(user_input, context)
-
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
-
     # =====================================================
     # CHAT DISPLAY (NOW NORMAL SECTION, NOT FLOATING)
     # =====================================================
@@ -353,6 +327,32 @@ else:
                 """,
                 unsafe_allow_html=True
             )
+
+     
+    # CHAT INPUT
+    # =====================================================
+     
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input("", placeholder="🤖 Ask something...")
+        send = st.form_submit_button("Send")
+
+    if send and user_input:
+
+        all_items = (
+            list(st.session_state.DAILY_ITEMS.keys()) +
+            list(st.session_state.WEEKLY_ITEMS.keys())
+        )
+
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": all_items
+        }
+
+        response = run_ai(user_input, context)
+
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
 
     # =====================================================
     # INFO SECTION
