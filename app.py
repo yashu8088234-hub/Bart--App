@@ -293,7 +293,9 @@ else:
     # =====================================================
     # CHAT DISPLAY (NOW NORMAL SECTION, NOT FLOATING)
     # =====================================================
-     st.markdown("## 💬 BART AI Chat")
+    st.markdown("## 💬 BART AI Chat")
+    
+     
 
     for sender, msg in st.session_state.chat[-20:]:
 
