@@ -52,10 +52,12 @@ if "is_fetching" not in st.session_state:
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-all_items = {}
+daily_items = {}
+weekly_items = {}
 
 # ---------------- REFRESH BUTTON ----------------
 if st.button("🔄 Refresh Data"):
+
     now = time.time()
 
     if now - st.session_state.last_fetch_time < 5:
@@ -67,15 +69,19 @@ if st.button("🔄 Refresh Data"):
         st.stop()
 
     st.session_state.last_fetch_time = now
+
     st.cache_data.clear()
+
     st.rerun()
 
 # ---------------- SAFE SHEET LOADER ----------------
 @st.cache_resource
 def get_sheets(branches):
+
     cache = {}
 
     for b in branches:
+
         sheet_id = b.get("SheetID")
 
         # 🔥 FIX: skip empty SheetID
@@ -84,6 +90,7 @@ def get_sheets(branches):
 
         try:
             cache[sheet_id] = client.open_by_key(sheet_id)
+
         except Exception:
             st.warning(f"⚠️ Failed loading {b.get('BranchName')}")
 
@@ -93,6 +100,7 @@ sheet_cache = get_sheets(branches)
 
 # ---------------- FETCH FUNCTION ----------------
 def fetch_branch(branch):
+
     try:
         sheet_id = branch.get("SheetID")
 
@@ -100,6 +108,7 @@ def fetch_branch(branch):
             return branch["BranchName"], None
 
         file = sheet_cache[sheet_id]
+
         ws = file.worksheet("Stocks")
 
         return branch["BranchName"], ws.get_all_values()
@@ -109,6 +118,7 @@ def fetch_branch(branch):
 
 # ---------------- FETCH DATA ----------------
 try:
+
     st.session_state.is_fetching = True
 
     with ThreadPoolExecutor(max_workers=5) as executor:
@@ -131,7 +141,6 @@ for branch_name, raw in all_data:
 
     date_index = headers.index(selected_date_str)
 
-    # ---------------- SECTION TRACKER ----------------
     current_section = None
 
     # ---------------- LOOP ROWS ----------------
@@ -167,21 +176,36 @@ for branch_name, raw in all_data:
 
         try:
             qty = float(qty) if qty != "" else 0
+
         except:
             qty = 0
 
-        # ---------------- STORE STRUCTURE ----------------
-        if item not in all_items:
-            all_items[item] = {
-                bn: 0 for bn in branch_names
-            }
+        # ---------------- DAILY ITEMS ----------------
+        if current_section == "daily":
 
-        all_items[item][branch_name] = qty
+            if item not in daily_items:
 
-# ---------------- FINAL DATAFRAME ----------------
-rows = []
+                daily_items[item] = {
+                    bn: 0 for bn in branch_names
+                }
 
-for i, (item, values) in enumerate(all_items.items(), start=1):
+            daily_items[item][branch_name] = qty
+
+        # ---------------- WEEKLY ITEMS ----------------
+        elif current_section == "weekly":
+
+            if item not in weekly_items:
+
+                weekly_items[item] = {
+                    bn: 0 for bn in branch_names
+                }
+
+            weekly_items[item][branch_name] = qty
+
+# ---------------- DAILY DATAFRAME ----------------
+daily_rows = []
+
+for i, (item, values) in enumerate(daily_items.items(), start=1):
 
     row = {
         "Sl No": i,
@@ -190,33 +214,100 @@ for i, (item, values) in enumerate(all_items.items(), start=1):
 
     row.update(values)
 
-    rows.append(row)
+    daily_rows.append(row)
 
-df = pd.DataFrame(rows)
+daily_df = pd.DataFrame(daily_rows)
 
-# ---------------- DISPLAY ----------------
-st.subheader("📊 Stock Data")
+# ---------------- WEEKLY DATAFRAME ----------------
+weekly_rows = []
 
-if df.empty:
-    st.warning("No stock data found for selected date")
+for i, (item, values) in enumerate(weekly_items.items(), start=1):
+
+    row = {
+        "Sl No": i,
+        "Item Name": item
+    }
+
+    row.update(values)
+
+    weekly_rows.append(row)
+
+weekly_df = pd.DataFrame(weekly_rows)
+
+# ---------------- DAILY DISPLAY ----------------
+st.subheader("📦 Daily Items Stock")
+
+if daily_df.empty:
+    st.warning("No daily stock data found")
+
 else:
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(daily_df, use_container_width=True)
+
+# ---------------- WEEKLY DISPLAY ----------------
+st.subheader("📦 Weekly Items Stock")
+
+if weekly_df.empty:
+    st.warning("No weekly stock data found")
+
+else:
+    st.dataframe(weekly_df, use_container_width=True)
 
 # ---------------- SEARCH ----------------
 search = st.text_input("🔎 Search Item")
 
-if search and not df.empty:
-    filtered = df[
-        df["Item Name"].str.contains(search, case=False, na=False)
-    ]
+if search:
 
-    st.dataframe(filtered, use_container_width=True)
+    # ---------------- DAILY FILTER ----------------
+    if not daily_df.empty:
+
+        filtered_daily = daily_df[
+            daily_df["Item Name"].str.contains(
+                search,
+                case=False,
+                na=False
+            )
+        ]
+
+        st.subheader("📦 Daily Search Results")
+
+        st.dataframe(
+            filtered_daily,
+            use_container_width=True
+        )
+
+    # ---------------- WEEKLY FILTER ----------------
+    if not weekly_df.empty:
+
+        filtered_weekly = weekly_df[
+            weekly_df["Item Name"].str.contains(
+                search,
+                case=False,
+                na=False
+            )
+        ]
+
+        st.subheader("📦 Weekly Search Results")
+
+        st.dataframe(
+            filtered_weekly,
+            use_container_width=True
+        )
 
 # ---------------- DOWNLOAD ----------------
-if not df.empty:
+if not daily_df.empty:
+
     st.download_button(
-        "📥 Download CSV",
-        df.to_csv(index=False),
-        "stock_report.csv",
+        "📥 Download Daily CSV",
+        daily_df.to_csv(index=False),
+        "daily_stock_report.csv",
+        "text/csv"
+    )
+
+if not weekly_df.empty:
+
+    st.download_button(
+        "📥 Download Weekly CSV",
+        weekly_df.to_csv(index=False),
+        "weekly_stock_report.csv",
         "text/csv"
     )
