@@ -290,9 +290,10 @@ else:
 
     # =====================================================
 
-     st.markdown("## 💬 BART AI Chat")
+     
     # CHAT INPUT
     # =====================================================
+     st.markdown("## 💬 BART AI Chat")
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("", placeholder="🤖 Ask something...")
         send = st.form_submit_button("Send")
@@ -318,7 +319,7 @@ else:
     # =====================================================
     # CHAT DISPLAY (NOW NORMAL SECTION, NOT FLOATING)
     # =====================================================
-    
+     st.markdown("## 💬 BART AI Chat")
 
     for sender, msg in st.session_state.chat[-20:]:
 
