@@ -298,18 +298,17 @@ else:
     # ---------------- DASHBOARD BUTTONS ----------------
     st.markdown('<div class="login-row">', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📦 Stock Management"):
+        if st.button("📦  Management Dashboard"):
             st.switch_page("pages/management_dashboard.py")
 
     with col2:
         if st.button("👨‍💼 Staff Dashboard"):
             st.switch_page("pages/staff_dashboard.py")
 
-    with col3:
-        st.button("🤖 BART AI")
+    
 
     st.markdown('</div>', unsafe_allow_html=True)
 
