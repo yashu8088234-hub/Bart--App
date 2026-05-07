@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
+import uuid
 from background import set_background
 from gspread import Cell
 
@@ -37,7 +38,8 @@ if "page" not in st.session_state:
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
-st.session_state.setdefault("show_success", False)
+st.session_state.setdefault("submitted", False)
+st.session_state.setdefault("tx_id", None)
 
 # -----------------------------
 # TITLE
@@ -113,6 +115,8 @@ if daily_start is None or weekly_start is None:
 # -----------------------------
 if st.session_state.page == "mode_select":
 
+    st.session_state.submitted = False  # reset lock
+
     st.markdown("## Select Option")
 
     c1, c2 = st.columns(2)
@@ -184,10 +188,20 @@ for i in range(0, len(filtered_items), 4):
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
+    if st.session_state.submitted:
+        st.warning("Already submitted. Please go back.")
+        st.stop()
+
     missing = [k for k, v in inputs.items() if v is None]
 
     if missing:
         st.error("Missing inputs")
+        st.stop()
+
+    # numeric validation
+    invalid = [k for k, v in inputs.items() if v and not v.isdigit()]
+    if invalid:
+        st.error(f"Invalid numbers: {', '.join(invalid)}")
         st.stop()
 
     st.session_state.draft_data = inputs
@@ -205,113 +219,52 @@ if st.session_state.review_mode:
 
     if st.button("✅ Submit"):
 
+        if st.session_state.submitted:
+            st.warning("Already submitted")
+            st.stop()
+
         try:
-            sheet_data = sheet.get_all_values()
-            headers = sheet_data[0]
+            with st.spinner("Saving stock..."):
 
-            if date_str in headers:
-                col_index = headers.index(date_str) + 1
-            else:
-                col_index = len(headers) + 1
-                sheet.update_cell(1, col_index, date_str)
+                sheet_data = sheet.get_all_values()
+                headers = sheet_data[0]
 
-            col_values = sheet.col_values(1)
-            item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
+                # UNIQUE TRANSACTION ID
+                tx_id = str(uuid.uuid4())[:8]
+                st.session_state.tx_id = tx_id
 
-            cells = []
+                if date_str in headers:
+                    col_index = headers.index(date_str) + 1
+                else:
+                    col_index = len(headers) + 1
+                    sheet.update_cell(1, col_index, date_str)
 
-            for item, qty in st.session_state.draft_data.items():
-                row = item_to_row.get(item)
+                col_values = sheet.col_values(1)
+                item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
-                if row:
-                    cells.append(Cell(row=row, col=col_index, value=qty))
+                cells = []
 
-            if cells:
-                sheet.update_cells(cells, value_input_option="USER_ENTERED")
+                for item, qty in st.session_state.draft_data.items():
+                    row = item_to_row.get(item)
 
-            # -----------------------------
-            # SHOW SUCCESS OVERLAY
-            # -----------------------------
-            st.session_state.show_success = True
+                    if row:
+                        cells.append(Cell(row=row, col=col_index, value=qty))
+
+                if cells:
+                    sheet.update_cells(cells, value_input_option="USER_ENTERED")
+
+                st.session_state.submitted = True
+                st.session_state.review_mode = False
+
+            st.success(f"✔ Submitted Successfully | TX: {tx_id}")
+
+            time.sleep(1)
+
+            st.session_state.page = "mode_select"
+            st.session_state.mode = None
+            st.session_state.draft_data = {}
+
             st.rerun()
 
         except Exception as e:
             st.error(f"Error: {e}")
-
-# -----------------------------
-# SUCCESS OVERLAY (BIG IMPACT)
-# -----------------------------
-if st.session_state.show_success:
-
-    st.markdown("""
-    <style>
-    .overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100vh;
-        background: rgba(0,0,0,0.65);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-    }
-
-    .card {
-        background: white;
-        padding: 50px 40px;
-        border-radius: 20px;
-        text-align: center;
-        width: 600px;
-        max-width: 90%;
-        box-shadow: 0px 15px 40px rgba(0,0,0,0.3);
-        animation: pop 0.25s ease-out;
-    }
-
-    @keyframes pop {
-        from {transform: scale(0.6); opacity: 0;}
-        to {transform: scale(1); opacity: 1;}
-    }
-
-    .check {
-        font-size: 100px;
-        color: #00c853;
-    }
-
-    .title {
-        font-size: 42px;
-        font-weight: 900;
-        color: #1b5e20;
-        margin-top: 10px;
-        letter-spacing: 2px;
-    }
-
-    .sub {
-        font-size: 18px;
-        color: #555;
-        margin-top: 10px;
-    }
-    </style>
-
-    <div class="overlay">
-        <div class="card">
-            <div class="check">✔</div>
-            <div class="title">SUBMITTED</div>
-            <div class="sub">Stock saved successfully in system</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.toast("Stock Submitted Successfully ✔", icon="✔")
-
-    time.sleep(1.5)
-
-    # RESET
-    st.session_state.page = "mode_select"
-    st.session_state.mode = None
-    st.session_state.review_mode = False
-    st.session_state.draft_data = {}
-    st.session_state.show_success = False
-
-    st.rerun()
