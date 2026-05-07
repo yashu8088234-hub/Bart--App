@@ -19,23 +19,24 @@ header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; max-width:100% !important;}
 .stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
+
 div.stButton > button{
     height:55px;
     font-size:18px;
     border-radius:10px;
 }
 
-/* BIG SUCCESS BANNER */
-.big-success {
-    padding: 25px;
-    background: linear-gradient(90deg, #00c853, #64dd17);
-    color: white;
-    font-size: 28px;
-    font-weight: bold;
+/* Professional success box */
+.success-box {
+    padding: 18px;
+    border-radius: 12px;
+    background: #e8f5e9;
+    border: 1px solid #66bb6a;
+    color: #1b5e20;
+    font-size: 20px;
+    font-weight: 600;
     text-align: center;
-    border-radius: 15px;
     margin: 20px 0;
-    box-shadow: 0px 5px 20px rgba(0,0,0,0.2);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -241,21 +242,20 @@ if st.session_state.review_mode:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             # -----------------------------
-            # BIG SUCCESS NOTIFICATION
+            # PROFESSIONAL SUCCESS MESSAGE
             # -----------------------------
-            st.markdown(
-                "<div class='big-success'>🎉 STOCK SUBMITTED SUCCESSFULLY 🎉</div>",
-                unsafe_allow_html=True
-            )
+            st.markdown("""
+            <div class="success-box">
+                ✔ Stock Submitted Successfully
+            </div>
+            """, unsafe_allow_html=True)
 
-            st.success("Your stock has been saved successfully!")
+            st.toast("Saved successfully", icon="✔")
+            st.success("All data has been recorded in the system.")
 
-            st.balloons()
+            time.sleep(1)
 
-            st.toast("Saved to system ✅", icon="✅")
-
-            time.sleep(1.5)
-
+            # RESET STATE
             st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
