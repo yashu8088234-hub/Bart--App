@@ -24,6 +24,19 @@ div.stButton > button{
     font-size:18px;
     border-radius:10px;
 }
+
+/* BIG SUCCESS BANNER */
+.big-success {
+    padding: 25px;
+    background: linear-gradient(90deg, #00c853, #64dd17);
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    border-radius: 15px;
+    margin: 20px 0;
+    box-shadow: 0px 5px 20px rgba(0,0,0,0.2);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,12 +61,11 @@ st.markdown(
 )
 
 # -----------------------------
-# SHEET CHECK (FIXED - SAFE LOAD)
+# SHEET CHECK
 # -----------------------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
-# 🔥 FIX: wait for session_state instead of instant stop
 if not sheet_id or not tab_name:
     with st.spinner("Loading branch..."):
         for _ in range(10):
@@ -208,18 +220,15 @@ if st.session_state.review_mode:
             sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
 
-            # DATE COLUMN
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
-            # FAST LOOKUP
             col_values = sheet.col_values(1)
             item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
-            # CELLS BUILD
             cells = []
 
             for item, qty in st.session_state.draft_data.items():
@@ -228,13 +237,24 @@ if st.session_state.review_mode:
                 if row:
                     cells.append(Cell(row=row, col=col_index, value=qty))
 
-            # SINGLE BATCH UPDATE
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            st.success("✅ Stock Saved")
+            # -----------------------------
+            # BIG SUCCESS NOTIFICATION
+            # -----------------------------
+            st.markdown(
+                "<div class='big-success'>🎉 STOCK SUBMITTED SUCCESSFULLY 🎉</div>",
+                unsafe_allow_html=True
+            )
 
-            time.sleep(0.5)
+            st.success("Your stock has been saved successfully!")
+
+            st.balloons()
+
+            st.toast("Saved to system ✅", icon="✅")
+
+            time.sleep(1.5)
 
             st.session_state.page = "mode_select"
             st.session_state.mode = None
