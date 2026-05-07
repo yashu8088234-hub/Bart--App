@@ -45,9 +45,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* ===================================================== */
-/* LOGIN PAGE */
-/* ===================================================== */
+/* LOGIN */
 
 .login-container {
     max-width: 460px;
@@ -57,11 +55,6 @@ st.markdown("""
     border-radius: 28px;
     padding: 45px 35px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    border: 1px solid rgba(255,255,255,0.4);
-}
-
-.login-logo {
-    text-align:center;
 }
 
 .login-logo h1 {
@@ -69,63 +62,14 @@ st.markdown("""
     font-weight:900;
     letter-spacing:8px;
     color:#C0392B;
-    margin-bottom:5px;
-}
-
-.login-logo p {
-    color:#666;
-    margin-top:0;
-    font-size:15px;
+    text-align:center;
 }
 
 .login-title {
     text-align:center;
-    margin-top:25px;
-    margin-bottom:30px;
 }
 
-.login-title h2 {
-    color:#2C2A28;
-    margin-bottom:6px;
-}
-
-.login-title span {
-    color:#777;
-    font-size:14px;
-}
-
-div[data-baseweb="input"] input {
-    border-radius:14px;
-    height:52px;
-    border:1px solid #E4E4E4;
-    background:white;
-    font-size:15px;
-}
-
-div.stButton > button {
-    width:100%;
-    height:52px;
-    border:none;
-    border-radius:14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color:white;
-    font-size:16px;
-    font-weight:700;
-}
-
-div.stButton > button:hover {
-    opacity:0.92;
-}
-
-/* ===================================================== */
-/* MAIN PAGE */
-/* ===================================================== */
-
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
+/* HERO */
 
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
@@ -147,23 +91,9 @@ div.stButton > button:hover {
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
-    margin-top: 10px;
 }
 
-.hero p {
-    font-size: 15px;
-    color: #555;
-    max-width: 750px;
-    margin: 10px auto 0;
-    line-height: 1.6;
-}
-
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
+/* SECTIONS */
 
 .section {
     background: rgba(255,255,255,0.9);
@@ -173,65 +103,27 @@ div.stButton > button:hover {
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
 
-.section h2 {
-    color: #C0392B;
-    text-align: center;
+/* CHAT BUBBLES */
+
+.chat-box {
+    max-width: 900px;
+    margin: auto;
 }
 
-.section p {
-    color: #555;
-    text-align: center;
-}
-
-/* ===================================================== */
-/* FIXED FLOATING CHAT (REAL OVERLAY FIX) */
-/* ===================================================== */
-
-.chat-overlay {
-    position: fixed !important;
-    top: 90px;
-    right: 20px;
-    width: 360px;
-    height: 520px;
-    background: rgba(255,255,255,0.97);
-    backdrop-filter: blur(12px);
-    border-radius: 18px;
-    box-shadow: 0 12px 45px rgba(0,0,0,0.18);
-    z-index: 999999 !important;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.chat-overlay-header {
-    padding: 12px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color: white;
-    font-weight: bold;
-    text-align: center;
-}
-
-.chat-overlay-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-}
-
-.chat-overlay-msg {
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: 12px;
-    font-size: 14px;
-}
-
-.chat-overlay-user {
+.chat-user {
     background: #f1f1f1;
+    padding: 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
     text-align: right;
 }
 
-.chat-overlay-ai {
+.chat-ai {
     background: #fff3f3;
     color: #C0392B;
+    padding: 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
 }
 
 </style>
@@ -244,24 +136,19 @@ if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-
-    <div class="login-logo">
-        <h1>BART</h1>
-        <p>Coffee • French Toast • Fresh Bites</p>
-    </div>
-
-    <div class="login-title">
-        <h2>Control Center</h2>
-        <span>Secure Internal Access</span>
+        <div class="login-logo">
+            <h1>BART</h1>
+        </div>
+        <div class="login-title">
+            <h2>Control Center</h2>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input("Username", placeholder="Enter username")
-    password = st.text_input("Password", type="password", placeholder="Enter password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-    login = st.button("Login")
-
-    if login:
+    if st.button("Login"):
 
         if (
             username == st.secrets["MANAGER_USERNAME"]
@@ -280,12 +167,10 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid username or password")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.error("Invalid credentials")
 
 # =========================================================
-# MAIN DASHBOARD
+# MAIN APP
 # =========================================================
 else:
 
@@ -302,61 +187,39 @@ else:
     <div class="hero">
         <h1>BART</h1>
         <h2>Coffee • French Toast • Fresh Bites</h2>
-        <p>
-        A modern café experience built for speed,
-        quality, and taste.
-        📍 Jeddah • bart.sa
-        </p>
+        <p>Jeddah • bart.sa</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
+    # =====================================================
+    # NAV BUTTONS
+    # =====================================================
     col1, col2 = st.columns(2)
-
-    with col2:
-        if st.button("📦  Management Dashboard"):
-            st.switch_page("pages/management_dashboard.py")
 
     with col1:
         if st.button("👨‍💼 Staff Dashboard"):
             st.switch_page("pages/staff_dashboard.py")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # =====================================================
-    # SAFE DATA
-    # =====================================================
-    if "all_data" not in st.session_state:
-        st.session_state.all_data = []
-
-    if "branches" not in st.session_state:
-        st.session_state.branches = []
-
-    if "DAILY_ITEMS" not in st.session_state:
-        st.session_state.DAILY_ITEMS = {}
-
-    if "WEEKLY_ITEMS" not in st.session_state:
-        st.session_state.WEEKLY_ITEMS = {}
+    with col2:
+        if st.button("📦 Management Dashboard"):
+            st.switch_page("pages/management_dashboard.py")
 
     # =====================================================
     # CHAT INPUT
     # =====================================================
+    st.markdown("## 💬 BART AI Chat")
+
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("", placeholder="🤖 Ask something...")
+        user_input = st.text_input("", placeholder="Ask something...")
         send = st.form_submit_button("Send")
 
     if send and user_input:
 
-        all_items = (
-            list(st.session_state.DAILY_ITEMS.keys()) +
-            list(st.session_state.WEEKLY_ITEMS.keys())
-        )
-
         context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": [b["BranchName"] for b in st.session_state.branches],
-            "master_items": all_items
+            "cache_data": st.session_state.get("all_data", []),
+            "branch_list": [b["BranchName"] for b in st.session_state.get("branches", [])],
+            "master_items": list(st.session_state.get("DAILY_ITEMS", {}).keys()) +
+                           list(st.session_state.get("WEEKLY_ITEMS", {}).keys())
         }
 
         response = run_ai(user_input, context)
@@ -364,55 +227,31 @@ else:
         st.session_state.chat.append(("You", user_input))
         st.session_state.chat.append(("AI", response))
 
-    # =========================================================
-    # FLOATING CHAT (FIXED OVERLAY WORKING)
-    # =========================================================
+    # =====================================================
+    # CHAT DISPLAY (INLINE)
+    # =====================================================
+    st.markdown('<div class="chat-box">', unsafe_allow_html=True)
 
-    chat_html = """
-    <div class="chat-overlay">
-        <div class="chat-overlay-header">💬 BART AI</div>
-        <div class="chat-overlay-body">
-    """
-
-    for sender, msg in reversed(st.session_state.chat[-20:]):
+    for sender, msg in st.session_state.chat[-20:]:
 
         if sender == "You":
-            chat_html += f"""
-            <div class="chat-overlay-msg chat-overlay-user">
-                <b>You:</b> {msg}
-            </div>
-            """
+            st.markdown(f"<div class='chat-user'><b>You:</b> {msg}</div>", unsafe_allow_html=True)
         else:
-            chat_html += f"""
-            <div class="chat-overlay-msg chat-overlay-ai">
-                <b>BART:</b> {msg}
-            </div>
-            """
+            st.markdown(f"<div class='chat-ai'><b>BART:</b> {msg}</div>", unsafe_allow_html=True)
 
-    chat_html += """
-        </div>
-    </div>
-    """
-
-    st.markdown(chat_html, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # =====================================================
-    # INFO SECTION
+    # INFO SECTIONS
     # =====================================================
     st.markdown("""
     <div class="section">
-    <h2>Our Experience</h2>
-    <p>
-    Relax in a cozy café environment with
-    fast service and premium coffee experience.
-    </p>
+        <h2>Our Experience</h2>
+        <p>Relax in a premium café experience with fast service and quality food.</p>
     </div>
 
     <div class="section">
-    <h2>Visit Us</h2>
-    <p>
-    Find us in Jeddah branches or visit bart.sa
-    for more information.
-    </p>
+        <h2>Visit Us</h2>
+        <p>Jeddah branches + bart.sa</p>
     </div>
     """, unsafe_allow_html=True)
