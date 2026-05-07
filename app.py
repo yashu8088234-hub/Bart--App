@@ -184,7 +184,7 @@ div.stButton > button:hover {
 }
 
 /* ===================================================== */
-/* FIXED FLOATING CHAT (REAL OVERLAY FIX) */
+/* FLOATING CHAT (DRAGGABLE FIX) */
 /* ===================================================== */
 
 .chat-overlay {
@@ -209,6 +209,8 @@ div.stButton > button:hover {
     color: white;
     font-weight: bold;
     text-align: center;
+    cursor: move;
+    user-select: none;
 }
 
 .chat-overlay-body {
@@ -365,12 +367,16 @@ else:
         st.session_state.chat.append(("AI", response))
 
     # =========================================================
-    # FLOATING CHAT (FIXED OVERLAY WORKING)
+    # FLOATING DRAGGABLE CHAT
     # =========================================================
 
     chat_html = """
-    <div class="chat-overlay">
-        <div class="chat-overlay-header">💬 BART AI</div>
+    <div class="chat-overlay" id="chatOverlay">
+
+        <div class="chat-overlay-header" id="chatHeader">
+            💬 BART AI
+        </div>
+
         <div class="chat-overlay-body">
     """
 
@@ -392,6 +398,31 @@ else:
     chat_html += """
         </div>
     </div>
+
+    <script>
+    const box = document.getElementById("chatOverlay");
+    const header = document.getElementById("chatHeader");
+
+    let offsetX = 0, offsetY = 0, isDown = false;
+
+    header.addEventListener("mousedown", function(e) {
+        isDown = true;
+        offsetX = e.clientX - box.offsetLeft;
+        offsetY = e.clientY - box.offsetTop;
+    });
+
+    document.addEventListener("mousemove", function(e) {
+        if (!isDown) return;
+
+        box.style.left = (e.clientX - offsetX) + "px";
+        box.style.top = (e.clientY - offsetY) + "px";
+        box.style.right = "auto";
+    });
+
+    document.addEventListener("mouseup", function() {
+        isDown = false;
+    });
+    </script>
     """
 
     st.markdown(chat_html, unsafe_allow_html=True)
