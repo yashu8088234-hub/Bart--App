@@ -25,19 +25,6 @@ div.stButton > button{
     font-size:18px;
     border-radius:10px;
 }
-
-/* Professional success box */
-.success-box {
-    padding: 18px;
-    border-radius: 12px;
-    background: #e8f5e9;
-    border: 1px solid #66bb6a;
-    color: #1b5e20;
-    font-size: 20px;
-    font-weight: 600;
-    text-align: center;
-    margin: 20px 0;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -242,20 +229,43 @@ if st.session_state.review_mode:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             # -----------------------------
-            # PROFESSIONAL SUCCESS MESSAGE
+            # BIG SUBMITTED SCREEN
             # -----------------------------
             st.markdown("""
-            <div class="success-box">
-                ✔ Stock Submitted Successfully
+            <div style="
+                height: 260px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+                background: linear-gradient(135deg, #00c853, #64dd17);
+                border-radius: 20px;
+                margin: 30px 0;
+                box-shadow: 0px 10px 30px rgba(0,0,0,0.25);
+            ">
+                <div style="font-size: 90px;">✔</div>
+                <div style="
+                    font-size: 42px;
+                    font-weight: 900;
+                    color: white;
+                    letter-spacing: 3px;
+                ">
+                    SUBMITTED
+                </div>
+                <div style="
+                    font-size: 18px;
+                    color: white;
+                    margin-top: 10px;
+                ">
+                    Stock saved successfully in system
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
-            st.toast("Saved successfully", icon="✔")
-            st.success("All data has been recorded in the system.")
+            st.toast("✔ Stock Submitted Successfully", icon="✔")
 
-            time.sleep(1)
+            time.sleep(1.2)
 
-            # RESET STATE
             st.session_state.page = "mode_select"
             st.session_state.mode = None
             st.session_state.review_mode = False
