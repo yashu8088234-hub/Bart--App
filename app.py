@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from ai_core import run_ai
 
 # =========================================================
@@ -12,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE
+# SESSION
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -24,7 +23,7 @@ if "chat" not in st.session_state:
     st.session_state.chat = []
 
 # =========================================================
-# YOUR EXISTING UI STYLES (UNCHANGED)
+# GLOBAL STYLES
 # =========================================================
 st.markdown("""
 <style>
@@ -46,8 +45,194 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* LOGIN + HERO + OTHER STYLES STAY EXACTLY AS YOU HAD THEM */
-/* (NOT MODIFIED TO AVOID UI BREAKAGE) */
+/* ===================================================== */
+/* LOGIN PAGE */
+/* ===================================================== */
+
+.login-container {
+    max-width: 460px;
+    margin: 80px auto;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    border-radius: 28px;
+    padding: 45px 35px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    border: 1px solid rgba(255,255,255,0.4);
+}
+
+.login-logo {
+    text-align:center;
+}
+
+.login-logo h1 {
+    font-size:70px;
+    font-weight:900;
+    letter-spacing:8px;
+    color:#C0392B;
+    margin-bottom:5px;
+}
+
+.login-logo p {
+    color:#666;
+    margin-top:0;
+    font-size:15px;
+}
+
+.login-title {
+    text-align:center;
+    margin-top:25px;
+    margin-bottom:30px;
+}
+
+.login-title h2 {
+    color:#2C2A28;
+    margin-bottom:6px;
+}
+
+.login-title span {
+    color:#777;
+    font-size:14px;
+}
+
+div[data-baseweb="input"] input {
+    border-radius:14px;
+    height:52px;
+    border:1px solid #E4E4E4;
+    background:white;
+    font-size:15px;
+}
+
+div.stButton > button {
+    width:100%;
+    height:52px;
+    border:none;
+    border-radius:14px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    color:white;
+    font-size:16px;
+    font-weight:700;
+}
+
+div.stButton > button:hover {
+    opacity:0.92;
+}
+
+/* ===================================================== */
+/* MAIN PAGE */
+/* ===================================================== */
+
+.block-container {
+    padding: 1.2rem 2rem !important;
+    max-width: 1100px;
+    margin: auto;
+}
+
+.hero {
+    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
+    padding: 60px 30px;
+    border-radius: 28px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
+}
+
+.hero h1 {
+    font-size: 70px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: #C0392B;
+    margin: 0;
+}
+
+.hero h2 {
+    font-size: 22px;
+    color: #2C2A28;
+    margin-top: 10px;
+}
+
+.hero p {
+    font-size: 15px;
+    color: #555;
+    max-width: 750px;
+    margin: 10px auto 0;
+    line-height: 1.6;
+}
+
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
+.section {
+    background: rgba(255,255,255,0.9);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+.section h2 {
+    color: #C0392B;
+    text-align: center;
+}
+
+.section p {
+    color: #555;
+    text-align: center;
+}
+
+/* ===================================================== */
+/* FIXED FLOATING CHAT (REAL OVERLAY FIX) */
+/* ===================================================== */
+
+.chat-overlay {
+    position: fixed !important;
+    top: 90px;
+    right: 20px;
+    width: 360px;
+    height: 520px;
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(12px);
+    border-radius: 18px;
+    box-shadow: 0 12px 45px rgba(0,0,0,0.18);
+    z-index: 999999 !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-overlay-header {
+    padding: 12px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+.chat-overlay-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.chat-overlay-msg {
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.chat-overlay-user {
+    background: #f1f1f1;
+    text-align: right;
+}
+
+.chat-overlay-ai {
+    background: #fff3f3;
+    color: #C0392B;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -59,197 +244,175 @@ if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-        <h1 style="text-align:center;color:#C0392B;">BART LOGIN</h1>
+
+    <div class="login-logo">
+        <h1>BART</h1>
+        <p>Coffee • French Toast • Fresh Bites</p>
+    </div>
+
+    <div class="login-title">
+        <h2>Control Center</h2>
+        <span>Secure Internal Access</span>
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    username = st.text_input("Username", placeholder="Enter username")
+    password = st.text_input("Password", type="password", placeholder="Enter password")
 
-    if st.button("Login"):
+    login = st.button("Login")
 
-        if username == st.secrets["MANAGER_USERNAME"] and password == st.secrets["MANAGER_PASSWORD"]:
+    if login:
+
+        if (
+            username == st.secrets["MANAGER_USERNAME"]
+            and password == st.secrets["MANAGER_PASSWORD"]
+        ):
             st.session_state.authenticated = True
             st.session_state.role = "manager"
             st.rerun()
 
-        elif username == st.secrets["STAFF_USERNAME"] and password == st.secrets["STAFF_PASSWORD"]:
+        elif (
+            username == st.secrets["STAFF_USERNAME"]
+            and password == st.secrets["STAFF_PASSWORD"]
+        ):
             st.session_state.authenticated = True
             st.session_state.role = "staff"
             st.rerun()
 
         else:
-            st.error("Invalid credentials")
+            st.error("Invalid username or password")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# MAIN APP
+# MAIN DASHBOARD
 # =========================================================
 else:
 
-    # ================= HERO (UNCHANGED LOGIC) =================
+    col1, col2 = st.columns([9,1])
+
+    with col2:
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.role = None
+            st.session_state.chat = []
+            st.rerun()
+
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
         <h2>Coffee • French Toast • Fresh Bites</h2>
-        <p>Jeddah • bart.sa</p>
+        <p>
+        A modern café experience built for speed,
+        quality, and taste.
+        📍 Jeddah • bart.sa
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # ================= DASHBOARD BUTTONS =================
+    st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
     col1, col2 = st.columns(2)
 
-    with col1:
-        if st.button("Staff Dashboard"):
-            st.switch_page("pages/staff_dashboard.py")
-
     with col2:
-        if st.button("Management Dashboard"):
+        if st.button("📦  Management Dashboard"):
             st.switch_page("pages/management_dashboard.py")
 
-    # =====================================================
-    # CHAT BACKEND (UNCHANGED LOGIC)
-    # =====================================================
-    user_input = st.text_input("Ask BART")
+    with col1:
+        if st.button("👨‍💼 Staff Dashboard"):
+            st.switch_page("pages/staff_dashboard.py")
 
-    if user_input:
-        response = run_ai(user_input, {})
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # =====================================================
+    # SAFE DATA
+    # =====================================================
+    if "all_data" not in st.session_state:
+        st.session_state.all_data = []
+
+    if "branches" not in st.session_state:
+        st.session_state.branches = []
+
+    if "DAILY_ITEMS" not in st.session_state:
+        st.session_state.DAILY_ITEMS = {}
+
+    if "WEEKLY_ITEMS" not in st.session_state:
+        st.session_state.WEEKLY_ITEMS = {}
+
+    # =====================================================
+    # CHAT INPUT
+    # =====================================================
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input("", placeholder="🤖 Ask something...")
+        send = st.form_submit_button("Send")
+
+    if send and user_input:
+
+        all_items = (
+            list(st.session_state.DAILY_ITEMS.keys()) +
+            list(st.session_state.WEEKLY_ITEMS.keys())
+        )
+
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": all_items
+        }
+
+        response = run_ai(user_input, context)
 
         st.session_state.chat.append(("You", user_input))
         st.session_state.chat.append(("AI", response))
 
-    # =====================================================
-    # FLOATING CHAT OVERLAY (ONLY CHANGE IN YOUR APP)
-    # =====================================================
+    # =========================================================
+    # FLOATING CHAT (FIXED OVERLAY WORKING)
+    # =========================================================
 
     chat_html = """
-    <div id="bart-chat">
-
-    <style>
-    #bart-chat {
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        width: 340px;
-        height: 520px;
-        z-index: 999999;
-        font-family: Arial;
-    }
-
-    #box {
-        width: 100%;
-        height: 100%;
-        background: rgba(255,255,255,0.96);
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    #header {
-        background: #C0392B;
-        color: white;
-        padding: 10px;
-        font-weight: bold;
-        cursor: move;
-    }
-
-    #body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 10px;
-    }
-
-    .msg {
-        padding: 8px;
-        margin-bottom: 6px;
-        border-radius: 10px;
-        font-size: 13px;
-    }
-
-    .user {background:#eee; text-align:right;}
-    .ai {background:#fff3f3; color:#C0392B;}
-
-    #input {
-        display:flex;
-        border-top:1px solid #ddd;
-    }
-
-    #input input {
-        flex:1;
-        padding:8px;
-        border:none;
-    }
-
-    #input button {
-        background:#C0392B;
-        color:white;
-        border:none;
-        padding:8px 10px;
-    }
-
-    </style>
-
-    <div id="box">
-
-        <div id="header">💬 BART AI</div>
-
-        <div id="body">
+    <div class="chat-overlay">
+        <div class="chat-overlay-header">💬 BART AI</div>
+        <div class="chat-overlay-body">
     """
 
-    # SHOW CHAT (NEWEST FIRST)
     for sender, msg in reversed(st.session_state.chat[-20:]):
 
         if sender == "You":
-            chat_html += f'<div class="msg user"><b>You:</b> {msg}</div>'
+            chat_html += f"""
+            <div class="chat-overlay-msg chat-overlay-user">
+                <b>You:</b> {msg}
+            </div>
+            """
         else:
-            chat_html += f'<div class="msg ai"><b>BART:</b> {msg}</div>'
+            chat_html += f"""
+            <div class="chat-overlay-msg chat-overlay-ai">
+                <b>BART:</b> {msg}
+            </div>
+            """
 
     chat_html += """
         </div>
-
-        <div id="input">
-            <input placeholder="Type..." />
-            <button onclick="alert('Use Streamlit input above')">Send</button>
-        </div>
-
     </div>
-    </div>
-
-    <script>
-
-    let box = document.getElementById("box");
-    let header = document.getElementById("header");
-
-    let drag = false;
-    let ox, oy;
-
-    header.addEventListener("mousedown", e => {
-        drag = true;
-        ox = box.offsetLeft - e.clientX;
-        oy = box.offsetTop - e.clientY;
-    });
-
-    document.addEventListener("mouseup", () => drag = false);
-
-    document.addEventListener("mousemove", e => {
-        if (!drag) return;
-        box.style.left = (e.clientX + ox) + "px";
-        box.style.top = (e.clientY + oy) + "px";
-        box.style.right = "auto";
-    });
-
-    </script>
     """
 
-    components.html(chat_html, height=550)
+    st.markdown(chat_html, unsafe_allow_html=True)
 
     # =====================================================
-    # INFO SECTION (UNCHANGED)
+    # INFO SECTION
     # =====================================================
     st.markdown("""
     <div class="section">
-        <h2>Visit Us</h2>
-        <p>Jeddah branches • bart.sa</p>
+    <h2>Our Experience</h2>
+    <p>
+    Relax in a cozy café environment with
+    fast service and premium coffee experience.
+    </p>
+    </div>
+
+    <div class="section">
+    <h2>Visit Us</h2>
+    <p>
+    Find us in Jeddah branches or visit bart.sa
+    for more information.
+    </p>
     </div>
     """, unsafe_allow_html=True)
