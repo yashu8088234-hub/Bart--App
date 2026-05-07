@@ -5,7 +5,7 @@ from ai_core import run_ai
 # PAGE CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="BART Control Center",
+    page_title="BART",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -28,11 +28,15 @@ if "chat" not in st.session_state:
 st.markdown("""
 <style>
 
-#MainMenu {visibility:hidden;}
-footer {visibility:hidden;}
-header {visibility:hidden;}
+#MainMenu, footer, header {
+    visibility: hidden;
+}
 
 [data-testid="stToolbar"] {
+    display:none;
+}
+
+[data-testid="stSidebar"] {
     display:none;
 }
 
@@ -48,7 +52,7 @@ header {visibility:hidden;}
 .login-container {
     max-width: 460px;
     margin: 80px auto;
-    background: rgba(255,255,255,0.85);
+    background: rgba(255,255,255,0.88);
     backdrop-filter: blur(12px);
     border-radius: 28px;
     padding: 45px 35px;
@@ -114,7 +118,7 @@ div.stButton > button:hover {
 }
 
 /* ===================================================== */
-/* MAIN DASHBOARD */
+/* MAIN PAGE */
 /* ===================================================== */
 
 .block-container {
@@ -154,6 +158,13 @@ div.stButton > button:hover {
     line-height: 1.6;
 }
 
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
 .section {
     background: rgba(255,255,255,0.9);
     padding: 30px 20px;
@@ -190,17 +201,11 @@ div.stButton > button:hover {
     font-weight:700;
 }
 
-.logout-btn {
-    position:absolute;
-    right:30px;
-    top:25px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN PAGE
+# LOGIN SCREEN
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -290,14 +295,47 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
+    # ---------------- DASHBOARD BUTTONS ----------------
+    st.markdown('<div class="login-row">', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("📦 Stock Management"):
+            st.switch_page("pages/management_dashboard.py")
+
+    with col2:
+        if st.button("👨‍💼 Staff Dashboard"):
+            st.switch_page("pages/staff_dashboard.py")
+
+    with col3:
+        st.button("🤖 BART AI")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
     # =====================================================
-    # AI CHAT
+    # SAFE DATA LOADING
+    # =====================================================
+    if "all_data" not in st.session_state:
+        st.session_state.all_data = []
+
+    if "branches" not in st.session_state:
+        st.session_state.branches = []
+
+    if "DAILY_ITEMS" not in st.session_state:
+        st.session_state.DAILY_ITEMS = {}
+
+    if "WEEKLY_ITEMS" not in st.session_state:
+        st.session_state.WEEKLY_ITEMS = {}
+
+    # =====================================================
+    # CHAT INPUT
     # =====================================================
     with st.form("chat_form", clear_on_submit=True):
 
         user_input = st.text_input(
             "",
-            placeholder="🤖 Ask stock questions..."
+            placeholder="🤖 Ask: CRC Crunchy Cake yesterday Al Safa"
         )
 
         send = st.form_submit_button("Send")
@@ -307,17 +345,18 @@ else:
     # =====================================================
     if send and user_input:
 
-        # SAFE LOADS
-        all_data = st.session_state.get("all_data", [])
-        branches = st.session_state.get("branches", [])
-        daily_items = st.session_state.get("DAILY_ITEMS", {})
-        weekly_items = st.session_state.get("WEEKLY_ITEMS", {})
-
-        all_items = list(daily_items.keys()) + list(weekly_items.keys())
+        all_items = (
+            list(st.session_state.DAILY_ITEMS.keys())
+            +
+            list(st.session_state.WEEKLY_ITEMS.keys())
+        )
 
         context = {
-            "cache_data": all_data,
-            "branch_list": [b["BranchName"] for b in branches],
+            "cache_data": st.session_state.all_data,
+            "branch_list": [
+                b["BranchName"]
+                for b in st.session_state.branches
+            ],
             "master_items": all_items
         }
 
@@ -350,7 +389,7 @@ else:
             """, unsafe_allow_html=True)
 
     # =====================================================
-    # INFO
+    # INFO SECTION
     # =====================================================
     st.markdown("""
     <div class="section">
