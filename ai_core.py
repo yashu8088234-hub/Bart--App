@@ -1,10 +1,11 @@
 # =========================
-# 🧠 BART AI STOCK ENGINE
+# 🧠 BART AI CORE ENGINE
 # =========================
 
 import re
 from datetime import datetime, timedelta
 from difflib import get_close_matches
+
 
 # ---------------- NORMALIZER ----------------
 def normalize(text):
@@ -36,12 +37,12 @@ def match_item(user_text, items):
 
     items_map = {normalize(i): i for i in items}
 
-    # exact / contains match
+    # direct match / contains
     for k, v in items_map.items():
         if k in user_text_n:
             return v
 
-    # fuzzy match fallback
+    # fuzzy match
     matches = get_close_matches(user_text_n, items_map.keys(), n=1, cutoff=0.6)
 
     if matches:
@@ -55,12 +56,10 @@ def match_branch(user_text, branches):
 
     text = normalize(user_text)
 
-    # direct contains match first
     for b in branches:
         if normalize(b) in text:
             return b
 
-    # fuzzy fallback
     matches = get_close_matches(
         text,
         [normalize(b) for b in branches],
@@ -76,42 +75,32 @@ def match_branch(user_text, branches):
     return None
 
 
-# ---------------- CORE AI ENGINE ----------------
+# ---------------- MAIN STOCK ENGINE ----------------
 def query_stock(user_query, cache_data, master_items, branch_list):
 
-    """
-    cache_data format:
-    [
-        ("Branch A", raw_sheet),
-        ("Branch B", raw_sheet)
-    ]
-    """
-
-    # ---------------- EXTRACT ITEM ----------------
+    # -------- ITEM --------
     item = match_item(user_query, master_items)
-
     if not item:
-        return "❌ Item not found in system."
+        return "❌ Item not found."
 
-    # ---------------- EXTRACT DATE ----------------
+    # -------- DATE --------
     date = resolve_date(user_query)
-
     if not date:
-        return "❌ Please specify date (today/yesterday)."
+        return "❌ Please mention date (today/yesterday)."
 
-    # ---------------- EXTRACT BRANCH (optional) ----------------
+    # -------- BRANCH (optional) --------
     branch = match_branch(user_query, branch_list)
 
     total = 0
     breakdown = {}
 
-    # ---------------- SCAN CACHE ----------------
+    # -------- CACHE SCAN --------
     for branch_name, raw in cache_data:
 
         if not raw or len(raw) < 2:
             continue
 
-        # if user specified branch → filter only that
+        # filter branch if specified
         if branch and normalize(branch_name) != normalize(branch):
             continue
 
@@ -154,10 +143,16 @@ def format_response(result):
     text += f"📅 Date: {result['date']}\n"
     text += f"🏢 Branch: {result['branch']}\n\n"
 
-    text += f"🔢 Total Stock: {result['total']}\n\n"
+    text += f"🔢 Total: {result['total']}\n\n"
     text += "📍 Breakdown:\n"
 
-    for branch, qty in result["breakdown"].items():
-        text += f"- {branch}: {qty}\n"
+    for b, q in result["breakdown"].items():
+        text += f"- {b}: {q}\n"
 
     return text
+
+
+# ---------------- WRAPPER (THIS FIXES YOUR IMPORT ERROR) ----------------
+def run_ai(user_query, cache_data, master_items, branch_list):
+    result = query_stock(user_query, cache_data, master_items, branch_list)
+    return format_response(result)
