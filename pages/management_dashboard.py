@@ -121,6 +121,12 @@ try:
 finally:
     st.session_state.is_fetching = False
 
+# =========================================================
+# 🔥 IMPORTANT FIX (CONNECT TO AI SYSTEM)
+# =========================================================
+st.session_state.all_data = all_data
+st.session_state.branches = branches
+
 # ---------------- PROCESS DATA ----------------
 for branch_name, raw in all_data:
 
@@ -180,6 +186,10 @@ for branch_name, raw in all_data:
 
             weekly_items[item][branch_name] = qty
 
+# ---------------- SAVE ITEMS FOR AI ----------------
+st.session_state.DAILY_ITEMS = daily_items
+st.session_state.WEEKLY_ITEMS = weekly_items
+
 # ---------------- DAILY DF ----------------
 daily_rows = []
 
@@ -221,18 +231,18 @@ search = st.text_input("🔎 Search Item")
 if search:
 
     if not daily_df.empty:
-        filtered_daily = daily_df[
-            daily_df["Item Name"].str.contains(search, case=False, na=False)
-        ]
         st.subheader("📦 Daily Search Results")
-        st.dataframe(filtered_daily, use_container_width=True)
+        st.dataframe(
+            daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)],
+            use_container_width=True
+        )
 
     if not weekly_df.empty:
-        filtered_weekly = weekly_df[
-            weekly_df["Item Name"].str.contains(search, case=False, na=False)
-        ]
         st.subheader("📦 Weekly Search Results")
-        st.dataframe(filtered_weekly, use_container_width=True)
+        st.dataframe(
+            weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)],
+            use_container_width=True
+        )
 
 # ---------------- DOWNLOADS ----------------
 if not daily_df.empty:
@@ -251,7 +261,7 @@ if not weekly_df.empty:
         "text/csv"
     )
 
-# ---------------- FULL EXPORT (NEW BUTTON) ----------------
+# ---------------- FULL EXPORT ----------------
 if not daily_df.empty or not weekly_df.empty:
 
     full_df = pd.concat(
