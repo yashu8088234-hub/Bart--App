@@ -1,20 +1,9 @@
 import datetime
 import re
 
-# ---------------- SYSTEM PROMPT ----------------
-SYSTEM_PROMPT = """
-You are BART AI Stock Assistant.
-
-You MUST:
-- Extract item name
-- Detect branch name
-- Detect date (today / yesterday / specific)
-- Use stock cache data
-- Return clean, simple answers
-- NEVER show technical errors
-"""
-
-# ---------------- DATE PARSER ----------------
+# =========================================================
+# 🧠 DATE DETECTION
+# =========================================================
 def get_target_date(text):
     text = text.lower()
 
@@ -33,7 +22,10 @@ def get_target_date(text):
 
     return today.strftime("%Y-%m-%d")
 
-# ---------------- BRANCH FINDER ----------------
+
+# =========================================================
+# 🏢 BRANCH DETECTION
+# =========================================================
 def find_branch(text, branch_list):
     text = text.lower()
 
@@ -43,33 +35,69 @@ def find_branch(text, branch_list):
 
     return None
 
-# ---------------- ITEM FINDER ----------------
-def find_item(text, items):
-    text = text.lower()
+
+# =========================================================
+# 🧠 SMART FUZZY ITEM MATCHING (IMPORTANT UPGRADE)
+# =========================================================
+def fuzzy_match(text, items):
+    text = text.lower().strip()
+
+    best_match = None
+    best_score = 0
+
+    words = text.split()
 
     for item in items:
-        if item.lower() in text:
-            return item
 
-    return None
+        item_low = item.lower()
 
-# ---------------- MAIN AI FUNCTION ----------------
+        score = 0
+
+        # word overlap scoring
+        for w in words:
+            if w in item_low:
+                score += 1
+
+        # boost if direct substring exists
+        if text in item_low:
+            score += 2
+
+        # stronger boost if key words match heavily
+        item_words = item_low.split()
+        common = set(words) & set(item_words)
+        score += len(common)
+
+        if score > best_score:
+            best_score = score
+            best_match = item
+
+    return best_match
+
+
+# =========================================================
+# 🧠 MAIN AI FUNCTION
+# =========================================================
 def run_ai(user_input, context):
 
     cache_data = context.get("cache_data", [])
     branch_list = context.get("branch_list", [])
     master_items = context.get("master_items", {})
 
+    # ---------------- extract info ----------------
     date = get_target_date(user_input)
     branch = find_branch(user_input, branch_list)
-    item = find_item(user_input, master_items.keys())
+
+    item = fuzzy_match(user_input, master_items.keys())
 
     if not item:
-        return "❌ I couldn't find that item in stock list."
+        return "❌ I couldn't find a matching item. Try rephrasing."
 
     total = 0
-    details = []
+    breakdown = []
 
+    # =========================================================
+    # 🔍 SEARCH IN CACHE
+    # =========================================================
     for b_name, raw in cache_data:
 
         if branch and branch.lower() != b_name.lower():
@@ -83,49 +111,43 @@ def run_ai(user_input, context):
         if date not in headers:
             continue
 
-        idx = headers.index(date)
-
-        current_section = None
+        date_index = headers.index(date)
 
         for row in raw:
-
-            row_text = " ".join(row).lower()
-
-            if "daily item" in row_text:
-                current_section = "daily"
-                continue
-
-            if "weekly item" in row_text:
-                current_section = "weekly"
-                continue
 
             if not row or not row[0]:
                 continue
 
+            # match item loosely (not strict)
             if item.lower() not in row[0].lower():
                 continue
 
             qty = 0
 
-            if len(row) > idx:
+            if len(row) > date_index:
                 try:
-                    qty = float(row[idx] or 0)
+                    qty = float(row[date_index] or 0)
                 except:
                     qty = 0
 
             total += qty
+            breakdown.append(f"{b_name}: {qty}")
 
-            details.append(f"{b_name}: {qty}")
+    # =========================================================
+    # ❌ NO DATA FOUND
+    # =========================================================
+    if not breakdown:
+        return f"❌ No stock found for '{item}' on {date}"
 
-    if not details:
-        return f"❌ No data found for {item} on {date}"
-
+    # =========================================================
+    # ✅ FINAL RESPONSE
+    # =========================================================
     return f"""
 📦 Item: {item}
 📅 Date: {date}
-🏢 Branch: {branch if branch else 'All Branches'}
+🏢 Branch: {branch if branch else "All Branches"}
 
-📊 Total: {total}
+📊 Total Quantity: {total}
 
 📍 Breakdown:
-- """ + "\n- ".join(details)
+- """ + "\n- ".join(breakdown)
