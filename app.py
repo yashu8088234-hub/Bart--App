@@ -45,9 +45,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* ===================================================== */
 /* LOGIN PAGE */
-/* ===================================================== */
 
 .login-container {
     max-width: 460px;
@@ -117,9 +115,7 @@ div.stButton > button:hover {
     opacity:0.92;
 }
 
-/* ===================================================== */
 /* MAIN PAGE */
-/* ===================================================== */
 
 .block-container {
     padding: 1.2rem 2rem !important;
@@ -186,9 +182,7 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# =========================================================
 # LOGIN SCREEN
-# =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
@@ -233,9 +227,7 @@ if not st.session_state.authenticated:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# =========================================================
 # MAIN DASHBOARD
-# =========================================================
 else:
 
     col1, col2 = st.columns([9,1])
@@ -273,9 +265,6 @@ else:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # =====================================================
-    # SAFE DATA
-    # =====================================================
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
 
@@ -288,11 +277,7 @@ else:
     if "WEEKLY_ITEMS" not in st.session_state:
         st.session_state.WEEKLY_ITEMS = {}
 
-    # =====================================================
-    
     # CHAT INPUT
-    # =====================================================
-     
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("", placeholder="🤖 Ask something...")
         send = st.form_submit_button("Send")
@@ -315,14 +300,12 @@ else:
         st.session_state.chat.append(("You", user_input))
         st.session_state.chat.append(("AI", response))
 
-    # =====================================================
-    # CHAT DISPLAY (NOW NORMAL SECTION, NOT FLOATING)
-    # =====================================================
     st.markdown("## 💬 BART AI Chat")
-    
-     
 
-    for sender, msg in st.session_state.chat[-20:]:
+    # =====================================================
+    # FIXED: REVERSED CHAT DISPLAY (NEWEST FIRST)
+    # =====================================================
+    for sender, msg in reversed(st.session_state.chat[-20:]):
 
         if sender == "You":
             st.markdown(
@@ -355,11 +338,6 @@ else:
                 unsafe_allow_html=True
             )
 
-     
-
-    # =====================================================
-    # INFO SECTION
-    # =====================================================
     st.markdown("""
     <div class="section">
     <h2>Our Experience</h2>
@@ -377,6 +355,3 @@ else:
     </p>
     </div>
     """, unsafe_allow_html=True)
-
-
- 
