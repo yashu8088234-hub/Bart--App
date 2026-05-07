@@ -1,171 +1,172 @@
-import streamlit as st
-from ai_core import run_ai
+# =========================
+# 🧠 BART AI CORE (APP.PY SAFE VERSION)
+# =========================
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="BART",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+import re
+from datetime import datetime, timedelta
+from difflib import get_close_matches
 
-# ---------------- GLOBAL STYLES ----------------
-st.markdown("""
-<style>
-#MainMenu, footer, header {visibility: hidden;}
-[data-testid="stToolbar"] {display:none;}
-[data-testid="stSidebar"] {display:none;}
 
-.stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
-    font-family: 'Segoe UI', sans-serif;
-}
+# ---------------- NORMALIZER ----------------
+def normalize(text):
+    return re.sub(r'\s+', ' ', text.lower().strip())
 
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
 
-/* HERO */
-.hero {
-    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
-    padding: 60px 30px;
-    border-radius: 28px;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    margin-bottom: 25px;
-}
+# ---------------- DATE RESOLVER ----------------
+def resolve_date(text):
 
-.hero h1 {
-    font-size: 70px;
-    font-weight: 900;
-    letter-spacing: 8px;
-    color: #C0392B;
-    margin: 0;
-}
+    text = text.lower()
+    today = datetime.today().date()
 
-.hero h2 {
-    font-size: 22px;
-    color: #2C2A28;
-    margin-top: 10px;
-}
+    if "today" in text:
+        return today.strftime("%Y-%m-%d")
 
-.hero p {
-    font-size: 15px;
-    color: #555;
-    max-width: 750px;
-    margin: 10px auto 0;
-    line-height: 1.6;
-}
+    if "yesterday" in text:
+        return (today - timedelta(days=1)).strftime("%Y-%m-%d")
 
-/* LOGIN */
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
+    if "tomorrow" in text:
+        return (today + timedelta(days=1)).strftime("%Y-%m-%d")
 
-div.stButton > button {
-    height: 50px;
-    width: 200px;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    background: #2C2A28;
-    color: white;
-    border: none;
-}
+    return None
 
-div.stButton > button:hover {
-    background: #C0392B;
-}
 
-/* SECTION */
-.section {
-    background: rgba(255,255,255,0.9);
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
+# ---------------- ITEM MATCHER ----------------
+def match_item(user_text, items):
 
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
+    user_text_n = normalize(user_text)
 
-.section p {
-    color: #555;
-    text-align: center;
-}
-</style>
-""", unsafe_allow_html=True)
+    items_map = {normalize(i): i for i in items}
 
-# ---------------- HERO ----------------
-st.markdown("""
-<div class="hero">
-    <h1>BART</h1>
-    <h2>Coffee • French Toast • Fresh Bites</h2>
-    <p>A modern café experience built for speed, quality, and taste. 📍 Jeddah • bart.sa</p>
-</div>
-""", unsafe_allow_html=True)
+    for k, v in items_map.items():
+        if k in user_text_n:
+            return v
 
-# ---------------- LOGIN ----------------
-st.markdown('<div class="login-row">', unsafe_allow_html=True)
+    matches = get_close_matches(user_text_n, items_map.keys(), n=1, cutoff=0.6)
 
-col1, col2 = st.columns(2)
+    if matches:
+        return items_map[matches[0]]
 
-with col1:
-    if st.button("Staff Login"):
-        st.switch_page("pages/staff_dashboard.py")
+    return None
 
-with col2:
-    if st.button("Management Login"):
-        st.switch_page("pages/management_dashboard.py")
 
-st.markdown('</div>', unsafe_allow_html=True)
+# ---------------- BRANCH MATCHER ----------------
+def match_branch(user_text, branches):
 
-# ---------------- CHAT INIT ----------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+    text = normalize(user_text)
 
-# ---------------- CHAT INPUT (FIXED SAFE VERSION) ----------------
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input(
-        "",
-        placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
+    for b in branches:
+        if normalize(b) in text:
+            return b
+
+    matches = get_close_matches(
+        text,
+        [normalize(b) for b in branches],
+        n=1,
+        cutoff=0.5
     )
-    send = st.form_submit_button("Send")
 
-if send and user_input:
-    context = {
-        "revenue": 0,
-        "items": 0,
-        "sales": st.session_state.get("pending_sales", [])
+    if matches:
+        for b in branches:
+            if normalize(b) == matches[0]:
+                return b
+
+    return None
+
+
+# ---------------- CORE ENGINE ----------------
+def query_stock(user_query, cache_data, master_items, branch_list):
+
+    item = match_item(user_query, master_items)
+    if not item:
+        return "❌ Item not found."
+
+    date = resolve_date(user_query)
+    if not date:
+        return "❌ Please mention date (today/yesterday)."
+
+    branch = match_branch(user_query, branch_list)
+
+    total = 0
+    breakdown = {}
+
+    for branch_name, raw in cache_data:
+
+        if not raw or len(raw) < 2:
+            continue
+
+        if branch and normalize(branch_name) != normalize(branch):
+            continue
+
+        headers = raw[0]
+
+        if date not in headers:
+            continue
+
+        date_index = headers.index(date)
+
+        for row in raw:
+
+            if not row or row[0] != item:
+                continue
+
+            try:
+                qty = float(row[date_index] or 0)
+            except:
+                qty = 0
+
+            breakdown[branch_name] = qty
+            total += qty
+
+    return {
+        "item": item,
+        "date": date,
+        "branch": branch if branch else "ALL BRANCHES",
+        "total": total,
+        "breakdown": breakdown
     }
 
-    response = run_ai(user_input, context)
 
-    st.session_state.chat.append(("You", user_input))
-    st.session_state.chat.append(("AI", response))
+# ---------------- FORMAT RESPONSE ----------------
+def format_response(result):
 
-# ---------------- CHAT DISPLAY ----------------
-for sender, msg in st.session_state.chat[-10:]:
-    if sender == "You":
-        st.markdown(f"**You:** {msg}")
-    else:
-        st.markdown(f"**AI:** {msg}")
+    if isinstance(result, str):
+        return result
 
-# ---------------- INFO ----------------
-st.markdown("""
-<div class="section">
-<h2>Our Experience</h2>
-<p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
-</div>
+    text = f"📦 Item: {result['item']}\n"
+    text += f"📅 Date: {result['date']}\n"
+    text += f"🏢 Branch: {result['branch']}\n\n"
 
-<div class="section">
-<h2>Visit Us</h2>
-<p>Find us in Jeddah branches or visit bart.sa for more information.</p>
-</div>
-""", unsafe_allow_html=True)
+    text += f"🔢 Total: {result['total']}\n\n"
+    text += "📍 Breakdown:\n"
+
+    for b, q in result["breakdown"].items():
+        text += f"- {b}: {q}\n"
+
+    return text
+
+
+# ---------------- 🔥 MAIN WRAPPER (FIX FOR YOUR APP.PY) ----------------
+def run_ai(user_input, context):
+
+    """
+    THIS IS THE KEY FIX:
+    app.py sends only (user_input, context)
+    so we extract everything safely here
+    """
+
+    cache_data = context.get("cache_data", [])
+    master_items = context.get("master_items", [])
+    branch_list = context.get("branch_list", [])
+
+    # fallback safety (prevents crashes)
+    if not cache_data or not master_items or not branch_list:
+        return "⚠️ System data not loaded properly."
+
+    result = query_stock(
+        user_input,
+        cache_data,
+        master_items,
+        branch_list
+    )
+
+    return format_response(result)
