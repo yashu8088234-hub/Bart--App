@@ -37,6 +37,7 @@ if "page" not in st.session_state:
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
+st.session_state.setdefault("show_success", False)
 
 # -----------------------------
 # TITLE
@@ -229,49 +230,88 @@ if st.session_state.review_mode:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             # -----------------------------
-            # BIG SUBMITTED SCREEN
+            # SHOW SUCCESS OVERLAY
             # -----------------------------
-            st.markdown("""
-            <div style="
-                height: 260px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-direction: column;
-                background: linear-gradient(135deg, #00c853, #64dd17);
-                border-radius: 20px;
-                margin: 30px 0;
-                box-shadow: 0px 10px 30px rgba(0,0,0,0.25);
-            ">
-                <div style="font-size: 90px;">✔</div>
-                <div style="
-                    font-size: 42px;
-                    font-weight: 900;
-                    color: white;
-                    letter-spacing: 3px;
-                ">
-                    SUBMITTED
-                </div>
-                <div style="
-                    font-size: 18px;
-                    color: white;
-                    margin-top: 10px;
-                ">
-                    Stock saved successfully in system
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.toast("✔ Stock Submitted Successfully", icon="✔")
-
-            time.sleep(1.2)
-
-            st.session_state.page = "mode_select"
-            st.session_state.mode = None
-            st.session_state.review_mode = False
-            st.session_state.draft_data = {}
-
+            st.session_state.show_success = True
             st.rerun()
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+# -----------------------------
+# SUCCESS OVERLAY (BIG IMPACT)
+# -----------------------------
+if st.session_state.show_success:
+
+    st.markdown("""
+    <style>
+    .overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        background: rgba(0,0,0,0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .card {
+        background: white;
+        padding: 50px 40px;
+        border-radius: 20px;
+        text-align: center;
+        width: 600px;
+        max-width: 90%;
+        box-shadow: 0px 15px 40px rgba(0,0,0,0.3);
+        animation: pop 0.25s ease-out;
+    }
+
+    @keyframes pop {
+        from {transform: scale(0.6); opacity: 0;}
+        to {transform: scale(1); opacity: 1;}
+    }
+
+    .check {
+        font-size: 100px;
+        color: #00c853;
+    }
+
+    .title {
+        font-size: 42px;
+        font-weight: 900;
+        color: #1b5e20;
+        margin-top: 10px;
+        letter-spacing: 2px;
+    }
+
+    .sub {
+        font-size: 18px;
+        color: #555;
+        margin-top: 10px;
+    }
+    </style>
+
+    <div class="overlay">
+        <div class="card">
+            <div class="check">✔</div>
+            <div class="title">SUBMITTED</div>
+            <div class="sub">Stock saved successfully in system</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.toast("Stock Submitted Successfully ✔", icon="✔")
+
+    time.sleep(1.5)
+
+    # RESET
+    st.session_state.page = "mode_select"
+    st.session_state.mode = None
+    st.session_state.review_mode = False
+    st.session_state.draft_data = {}
+    st.session_state.show_success = False
+
+    st.rerun()
