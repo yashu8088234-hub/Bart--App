@@ -8,9 +8,9 @@ from groq import Groq
 
 # ---------------- PAGE ----------------
 st.set_page_config(layout="wide", page_title="Stock AI System")
-st.title("📦 BART - Stock Management + AI")
+st.title("📦 BART Stock Management + AI")
 
-# ---------------- GROQ ----------------
+# ---------------- GROQ AI ----------------
 api_key = st.secrets.get("GROQ_API_KEY")
 
 if not api_key:
@@ -48,7 +48,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =====================================================
-# 📊 MANAGEMENT DATA (cached for speed)
+# 📊 MANAGEMENT DATA (CACHED)
 # =====================================================
 
 @st.cache_data(ttl=300)
@@ -129,7 +129,7 @@ st.subheader("📦 Weekly Stock")
 st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
 
 # =====================================================
-# 🤖 AI FRESH DATA LOADER (NO CACHE)
+# 🤖 AI FRESH DATA (NO CACHE)
 # =====================================================
 
 def get_ai_stock():
@@ -194,14 +194,13 @@ def get_ai_stock():
 
             target[item][branch] = qty
 
-    daily_df = pd.DataFrame([{"Item Name": k, **v} for k, v in daily.items()])
-    weekly_df = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly.items()])
+    daily_df_ai = pd.DataFrame([{"Item Name": k, **v} for k, v in daily.items()])
+    weekly_df_ai = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly.items()])
 
-    return daily_df, weekly_df
-
+    return daily_df_ai, weekly_df_ai
 
 # =====================================================
-# 🤖 FIXED AI ENGINE (IMPORTANT PART)
+# 🤖 AI ENGINE (FIXED FUNCTION SIGNATURE)
 # =====================================================
 
 def run_ai(user_input):
@@ -213,30 +212,19 @@ def run_ai(user_input):
         "weekly": weekly_ai.fillna(0).to_dict(orient="records") if not weekly_ai.empty else []
     }
 
-    # 🔥 FIXED SYSTEM PROMPT (NO CHAT BEHAVIOR)
     system_prompt = """
-You are a STRICT STOCK LOOKUP ENGINE.
-
-YOU ARE NOT A CHATBOT.
+You are a STRICT STOCK ENGINE.
 
 RULES:
-- NEVER ask questions back
-- NEVER request clarification
-- NEVER have conversation
-- ALWAYS try to find stock value
-- If user is unclear, guess best match from data
+- NEVER ask questions
+- NEVER behave like chatbot
+- ALWAYS find stock value
+- If unclear, try best match
 - If multiple matches, sum values
-- If not found, respond EXACTLY: "Item not found in stock"
+- If not found, say: "Item not found in stock"
 
-OUTPUT FORMAT:
+OUTPUT:
 Item Name = quantity units
-
-EXAMPLES:
-User: CRC Crunchy Cake count of Al Safa
-Answer: CRC Crunchy Cake (Al Safa) = 18 units
-
-User: milk stock
-Answer: Milk = 120 units
 """
 
     try:
@@ -258,27 +246,24 @@ Question:
         return response.choices[0].message.content.strip()
 
     except:
-        return "AI error. Try again later."
-
+        return "AI error. Try again."
 
 # =====================================================
-# 🤖 AI UI
+# 🤖 AI UI (FIXED CALL)
 # =====================================================
 
 st.divider()
-st.subheader("🤖 AI Stock Assistant (Fixed Behavior)")
+st.subheader("🤖 AI Stock Assistant")
 
 question = st.text_input("Ask anything about stock")
 
 if st.button("Ask AI") or question:
 
     if question:
-
-        with st.spinner("Checking live stock data..."):
+        with st.spinner("Checking live stock..."):
             answer = run_ai(question)
 
         st.success(answer)
-
 
 # =====================================================
 # 🔎 SEARCH
