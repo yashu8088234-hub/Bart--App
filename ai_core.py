@@ -1,152 +1,80 @@
 import re
-import datetime
-import streamlit as st
-from groq import Groq
+        if not stock_results:
 
-# =========================================================
-# 🔐 SAFE GROQ CLIENT (STREAMLIT SECRETS)
-# =========================================================
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+            if matched_branch:
+                return (
+                    f"📦 No stock data found for '{matched_item}' at '{matched_branch}' on {target_date}."
+                )
 
+            return (
+                f"📦 No stock data found for '{matched_item}' on {target_date}."
+            )
 
-# =========================================================
-# 🧠 DATE PARSER (ROBUST)
-# =========================================================
-def parse_date(text):
+        # --------------------------------------
+        # totals
+        # --------------------------------------
+        total_stock = sum(x["qty"] for x in stock_results)
 
-    today = datetime.date.today()
-    yesterday = today - datetime.timedelta(days=1)
+        # --------------------------------------
+        # build structured payload for GROQ
+        # --------------------------------------
+        payload = {
+            "user_query": user_input,
+            "resolved_item": matched_item,
+            "resolved_branch": matched_branch,
+            "resolved_date": target_date,
+            "total_stock": total_stock,
+            "results": stock_results,
+        }
 
-    text = text.lower()
+        # --------------------------------------
+        # GROQ PROMPT
+        # --------------------------------------
+        prompt = f"""
+You are BART AI.
 
-    # ---- keywords ----
-    if "yesterday" in text:
-        return yesterday.strftime("%Y-%m-%d")
+You are a smart inventory assistant for a cafe chain.
 
-    if "today" in text:
-        return today.strftime("%Y-%m-%d")
+The Python system already fetched the REAL stock data.
 
-    # ---- ISO date ----
-    match = re.search(r"\d{4}-\d{2}-\d{2}", text)
-    if match:
-        return match.group()
+IMPORTANT:
+- NEVER invent stock
+- NEVER change quantities
+- NEVER add fake branches
+- ONLY use provided JSON data
 
-    # ---- "06 may" format ----
-    month_map = {
-        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
-        "may": 5, "jun": 6, "jul": 7, "aug": 8,
-        "sep": 9, "oct": 10, "nov": 11, "dec": 12
-    }
+JSON DATA:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
 
-    match = re.search(
-        r"(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
-        text
-    )
-
-    if match:
-        day = int(match.group(1))
-        month = month_map[match.group(2)]
-        year = today.year
-
-        try:
-            return datetime.date(year, month, day).strftime("%Y-%m-%d")
-        except:
-            return today.strftime("%Y-%m-%d")
-
-    # fallback safe
-    return today.strftime("%Y-%m-%d")
-
-
-# =========================================================
-# 🤖 MAIN AI FUNCTION
-# =========================================================
-def run_ai(user_input, context):
-
-    all_data = context.get("cache_data", [])
-    branches = context.get("branch_list", [])
-
-    # ---------------- parse date ----------------
-    date = parse_date(user_input)
-
-    result_data = []
-
-    # =====================================================
-    # 📦 PYTHON DATA ENGINE (TRUTH LAYER)
-    # =====================================================
-    for branch_name, raw in all_data:
-
-        if not raw or len(raw) < 2:
-            continue
-
-        headers = raw[0]
-
-        if date not in headers:
-            continue
-
-        date_index = headers.index(date)
-
-        for row in raw:
-
-            if not row or len(row) == 0:
-                continue
-
-            item_name = str(row[0]).strip()
-
-            qty = 0
-            try:
-                if len(row) > date_index:
-                    qty = float(row[date_index] or 0)
-            except:
-                qty = 0
-
-            # skip empty stock
-            if qty == 0:
-                continue
-
-            result_data.append({
-                "branch": branch_name,
-                "item": item_name,
-                "qty": qty,
-                "date": date
-            })
-
-    # =====================================================
-    # 🤖 GROQ CHATGPT-STYLE RESPONSE
-    # =====================================================
-    prompt = f"""
-You are BART AI, a smart inventory assistant.
-
-User query:
-{user_input}
-
-Resolved date:
-{date}
-
-Stock data (DO NOT INVENT ANYTHING):
-{result_data}
-
-Rules:
-- Be natural like ChatGPT
-- Summarize clearly
-- Show totals + breakdown
-- If empty data, say "No stock found"
-- Never hallucinate or guess data
+Response Rules:
+- Sound natural like ChatGPT
+- Be concise
+- Mention resolved item clearly
+- Mention resolved branch clearly if available
+- Mention resolved date clearly
+- If one branch requested, DO NOT show all branches
+- If no branch requested, summarize all branches
+- Use professional formatting
+- Keep response readable
 """
 
-    try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful inventory assistant for a cafe chain. Always use provided data only."
+                    "content": (
+                        "You are BART AI, a smart inventory assistant. "
+                        "You must ONLY use provided stock data."
+                    ),
                 },
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            temperature=0.6
+            temperature=0.4,
+            max_tokens=500,
         )
 
         return response.choices[0].message.content.strip()
 
-    except Exception:
-        return "⚠️ AI service temporarily unavailable. Please try again."
+    except Exception as e:
+        return f"⚠️ AI Error: {str(e)}"
