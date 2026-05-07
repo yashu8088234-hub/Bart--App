@@ -184,26 +184,26 @@ div.stButton > button:hover {
 }
 
 /* ===================================================== */
-/* FLOATING CHAT WIDGET (NEW) */
+/* FIXED FLOATING CHAT (REAL OVERLAY FIX) */
 /* ===================================================== */
 
-.floating-chat {
-    position: fixed;
+.chat-overlay {
+    position: fixed !important;
     top: 90px;
     right: 20px;
     width: 360px;
     height: 520px;
-    background: rgba(255,255,255,0.95);
-    backdrop-filter: blur(10px);
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(12px);
     border-radius: 18px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    z-index: 9999;
+    box-shadow: 0 12px 45px rgba(0,0,0,0.18);
+    z-index: 999999 !important;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
-.chat-header {
+.chat-overlay-header {
     padding: 12px;
     background: linear-gradient(135deg,#2C2A28,#C0392B);
     color: white;
@@ -211,25 +211,25 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-.chat-body {
+.chat-overlay-body {
     flex: 1;
     overflow-y: auto;
     padding: 10px;
 }
 
-.chat-msg {
+.chat-overlay-msg {
     padding: 10px;
     margin-bottom: 8px;
     border-radius: 12px;
     font-size: 14px;
 }
 
-.chat-user {
+.chat-overlay-user {
     background: #f1f1f1;
     text-align: right;
 }
 
-.chat-ai {
+.chat-overlay-ai {
     background: #fff3f3;
     color: #C0392B;
 }
@@ -365,34 +365,39 @@ else:
         st.session_state.chat.append(("AI", response))
 
     # =========================================================
-    # FLOATING CHAT (NEW UI ONLY)
+    # FLOATING CHAT (FIXED OVERLAY WORKING)
     # =========================================================
 
-    st.markdown("<div class='floating-chat'>", unsafe_allow_html=True)
-
-    st.markdown("<div class='chat-header'>💬 BART AI</div>", unsafe_allow_html=True)
-    st.markdown("<div class='chat-body'>", unsafe_allow_html=True)
+    chat_html = """
+    <div class="chat-overlay">
+        <div class="chat-overlay-header">💬 BART AI</div>
+        <div class="chat-overlay-body">
+    """
 
     for sender, msg in reversed(st.session_state.chat[-20:]):
 
         if sender == "You":
-            st.markdown(f"""
-            <div class="chat-msg chat-user">
+            chat_html += f"""
+            <div class="chat-overlay-msg chat-overlay-user">
                 <b>You:</b> {msg}
             </div>
-            """, unsafe_allow_html=True)
+            """
         else:
-            st.markdown(f"""
-            <div class="chat-msg chat-ai">
+            chat_html += f"""
+            <div class="chat-overlay-msg chat-overlay-ai">
                 <b>BART:</b> {msg}
             </div>
-            """, unsafe_allow_html=True)
+            """
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    chat_html += """
+        </div>
+    </div>
+    """
+
+    st.markdown(chat_html, unsafe_allow_html=True)
 
     # =====================================================
-    # INFO SECTION (UNCHANGED)
+    # INFO SECTION
     # =====================================================
     st.markdown("""
     <div class="section">
