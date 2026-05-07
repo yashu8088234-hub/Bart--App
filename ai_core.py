@@ -24,20 +24,53 @@ def get_target_date(text):
 
 
 # =========================================================
-# 🏢 BRANCH DETECTION
+# 🏢 SMART BRANCH MATCHING (FUZZY + SUGGESTIONS)
 # =========================================================
 def find_branch(text, branch_list):
-    text = text.lower()
+    text = text.lower().strip()
+    text_words = text.split()
 
-    for b in branch_list:
-        if b.lower() in text:
-            return b
+    best_match = None
+    best_score = 0
+    suggestions = []
 
-    return None
+    for branch in branch_list:
+
+        b = branch.lower()
+
+        score = 0
+
+        # word overlap scoring
+        for w in text_words:
+            if w in b:
+                score += 2
+
+        # substring match boost
+        if text in b:
+            score += 3
+
+        # reverse match
+        for w in b.split():
+            if w in text:
+                score += 1
+
+        if score > 0:
+            suggestions.append((branch, score))
+
+        if score > best_score:
+            best_score = score
+            best_match = branch
+
+    if best_score == 0:
+        return None, []
+
+    suggestions.sort(key=lambda x: x[1], reverse=True)
+
+    return best_match, suggestions[:3]
 
 
 # =========================================================
-# 🧠 SMART FUZZY ITEM MATCHING (IMPORTANT UPGRADE)
+# 🧠 SMART ITEM MATCHING (FUZZY)
 # =========================================================
 def fuzzy_match(text, items):
     text = text.lower().strip()
@@ -53,16 +86,16 @@ def fuzzy_match(text, items):
 
         score = 0
 
-        # word overlap scoring
+        # word overlap
         for w in words:
             if w in item_low:
                 score += 1
 
-        # boost if direct substring exists
+        # substring boost
         if text in item_low:
             score += 2
 
-        # stronger boost if key words match heavily
+        # shared words boost
         item_words = item_low.split()
         common = set(words) & set(item_words)
         score += len(common)
@@ -75,7 +108,7 @@ def fuzzy_match(text, items):
 
 
 # =========================================================
-# 🧠 MAIN AI FUNCTION
+# 🧠 MAIN AI ENGINE
 # =========================================================
 def run_ai(user_input, context):
 
@@ -83,21 +116,44 @@ def run_ai(user_input, context):
     branch_list = context.get("branch_list", [])
     master_items = context.get("master_items", {})
 
-    # ---------------- extract info ----------------
+    # ---------------- extract intent ----------------
     date = get_target_date(user_input)
-    branch = find_branch(user_input, branch_list)
+
+    branch, branch_suggestions = find_branch(user_input, branch_list)
 
     item = fuzzy_match(user_input, master_items.keys())
 
+    # =====================================================
+    # ❌ NO ITEM FOUND
+    # =====================================================
     if not item:
-        return "❌ I couldn't find a matching item. Try rephrasing."
+        return "❌ I couldn't find that item. Try rephrasing."
 
+    # =====================================================
+    # ❌ NO BRANCH FOUND (SMART HELP)
+    # =====================================================
+    if branch is None and "branch" in user_input.lower():
+
+        if branch_suggestions:
+            options = ", ".join([b[0] for b in branch_suggestions])
+
+            return f"""
+❌ I couldn't find that branch.
+
+👉 Did you mean:
+{options}
+
+Please try again with correct branch name.
+"""
+
+        return "❌ No matching branch found. Please check branch name."
+
+    # =====================================================
+    # 🔍 SEARCH STOCK DATA
+    # =====================================================
     total = 0
     breakdown = []
 
-    # =========================================================
-    # 🔍 SEARCH IN CACHE
-    # =========================================================
     for b_name, raw in cache_data:
 
         if branch and branch.lower() != b_name.lower():
@@ -111,37 +167,37 @@ def run_ai(user_input, context):
         if date not in headers:
             continue
 
-        date_index = headers.index(date)
+        idx = headers.index(date)
 
         for row in raw:
 
             if not row or not row[0]:
                 continue
 
-            # match item loosely (not strict)
+            # item match (loose)
             if item.lower() not in row[0].lower():
                 continue
 
             qty = 0
 
-            if len(row) > date_index:
+            if len(row) > idx:
                 try:
-                    qty = float(row[date_index] or 0)
+                    qty = float(row[idx] or 0)
                 except:
                     qty = 0
 
             total += qty
             breakdown.append(f"{b_name}: {qty}")
 
-    # =========================================================
+    # =====================================================
     # ❌ NO DATA FOUND
-    # =========================================================
+    # =====================================================
     if not breakdown:
         return f"❌ No stock found for '{item}' on {date}"
 
-    # =========================================================
+    # =====================================================
     # ✅ FINAL RESPONSE
-    # =========================================================
+    # =====================================================
     return f"""
 📦 Item: {item}
 📅 Date: {date}
