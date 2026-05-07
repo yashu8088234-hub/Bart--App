@@ -183,22 +183,55 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-.chat-box {
-    background:white;
-    padding:18px;
-    border-radius:16px;
-    margin-bottom:10px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.05);
+/* ===================================================== */
+/* FLOATING CHAT WIDGET (NEW) */
+/* ===================================================== */
+
+.floating-chat {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    width: 360px;
+    height: 520px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 18px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-.user-msg {
-    color:#2C2A28;
-    font-weight:700;
+.chat-header {
+    padding: 12px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    color: white;
+    font-weight: bold;
+    text-align: center;
 }
 
-.ai-msg {
-    color:#C0392B;
-    font-weight:700;
+.chat-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.chat-msg {
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.chat-user {
+    background: #f1f1f1;
+    text-align: right;
+}
+
+.chat-ai {
+    background: #fff3f3;
+    color: #C0392B;
 }
 
 </style>
@@ -223,39 +256,25 @@ if not st.session_state.authenticated:
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input(
-        "Username",
-        placeholder="Enter username"
-    )
-
-    password = st.text_input(
-        "Password",
-        type="password",
-        placeholder="Enter password"
-    )
+    username = st.text_input("Username", placeholder="Enter username")
+    password = st.text_input("Password", type="password", placeholder="Enter password")
 
     login = st.button("Login")
 
     if login:
 
-        # MANAGEMENT
         if (
             username == st.secrets["MANAGER_USERNAME"]
-            and
-            password == st.secrets["MANAGER_PASSWORD"]
+            and password == st.secrets["MANAGER_PASSWORD"]
         ):
-
             st.session_state.authenticated = True
             st.session_state.role = "manager"
             st.rerun()
 
-        # STAFF
         elif (
             username == st.secrets["STAFF_USERNAME"]
-            and
-            password == st.secrets["STAFF_PASSWORD"]
+            and password == st.secrets["STAFF_PASSWORD"]
         ):
-
             st.session_state.authenticated = True
             st.session_state.role = "staff"
             st.rerun()
@@ -270,19 +289,15 @@ if not st.session_state.authenticated:
 # =========================================================
 else:
 
-    # ---------------- LOGOUT ----------------
     col1, col2 = st.columns([9,1])
 
     with col2:
         if st.button("Logout"):
-
             st.session_state.authenticated = False
             st.session_state.role = None
             st.session_state.chat = []
-
             st.rerun()
 
-    # ---------------- HERO ----------------
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
@@ -295,7 +310,6 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # ---------------- DASHBOARD BUTTONS ----------------
     st.markdown('<div class="login-row">', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -308,12 +322,10 @@ else:
         if st.button("👨‍💼 Staff Dashboard"):
             st.switch_page("pages/staff_dashboard.py")
 
-    
-
     st.markdown('</div>', unsafe_allow_html=True)
 
     # =====================================================
-    # SAFE DATA LOADING
+    # SAFE DATA
     # =====================================================
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
@@ -331,31 +343,19 @@ else:
     # CHAT INPUT
     # =====================================================
     with st.form("chat_form", clear_on_submit=True):
-
-        user_input = st.text_input(
-            "",
-            placeholder="🤖 Ask: CRC Crunchy Cake yesterday Al Safa"
-        )
-
+        user_input = st.text_input("", placeholder="🤖 Ask something...")
         send = st.form_submit_button("Send")
 
-    # =====================================================
-    # AI CALL
-    # =====================================================
     if send and user_input:
 
         all_items = (
-            list(st.session_state.DAILY_ITEMS.keys())
-            +
+            list(st.session_state.DAILY_ITEMS.keys()) +
             list(st.session_state.WEEKLY_ITEMS.keys())
         )
 
         context = {
             "cache_data": st.session_state.all_data,
-            "branch_list": [
-                b["BranchName"]
-                for b in st.session_state.branches
-            ],
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
             "master_items": all_items
         }
 
@@ -364,31 +364,35 @@ else:
         st.session_state.chat.append(("You", user_input))
         st.session_state.chat.append(("AI", response))
 
-    # =====================================================
-    # CHAT DISPLAY
-    # =====================================================
-    for sender, msg in st.session_state.chat[-10:]:
+    # =========================================================
+    # FLOATING CHAT (NEW UI ONLY)
+    # =========================================================
+
+    st.markdown("<div class='floating-chat'>", unsafe_allow_html=True)
+
+    st.markdown("<div class='chat-header'>💬 BART AI</div>", unsafe_allow_html=True)
+    st.markdown("<div class='chat-body'>", unsafe_allow_html=True)
+
+    for sender, msg in reversed(st.session_state.chat[-20:]):
 
         if sender == "You":
-
             st.markdown(f"""
-            <div class="chat-box">
-                <div class="user-msg">You</div>
-                <div>{msg}</div>
+            <div class="chat-msg chat-user">
+                <b>You:</b> {msg}
             </div>
             """, unsafe_allow_html=True)
-
         else:
-
             st.markdown(f"""
-            <div class="chat-box">
-                <div class="ai-msg">BART AI</div>
-                <div>{msg}</div>
+            <div class="chat-msg chat-ai">
+                <b>BART:</b> {msg}
             </div>
             """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================================
-    # INFO SECTION
+    # INFO SECTION (UNCHANGED)
     # =====================================================
     st.markdown("""
     <div class="section">
