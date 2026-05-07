@@ -30,7 +30,7 @@ def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
 
-    # 🔥 FIX: remove empty rows (THIS WAS YOUR CRASH)
+    # 🔥 FIX: remove empty rows
     cleaned = [
         b for b in data
         if b.get("SheetID") and b.get("BranchName")
@@ -84,7 +84,7 @@ def get_sheets(branches):
 
         try:
             cache[sheet_id] = client.open_by_key(sheet_id)
-        except Exception as e:
+        except Exception:
             st.warning(f"⚠️ Failed loading {b.get('BranchName')}")
 
     return cache
@@ -101,6 +101,7 @@ def fetch_branch(branch):
 
         file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
+
         return branch["BranchName"], ws.get_all_values()
 
     except Exception:
@@ -123,33 +124,72 @@ for branch_name, raw in all_data:
         continue
 
     headers = raw[0]
-    rows = raw[1:]
 
+    # ---------------- CHECK DATE COLUMN ----------------
     if selected_date_str not in headers:
         continue
 
-    item_col = headers[0]
-    chosen_col = selected_date_str
+    date_index = headers.index(selected_date_str)
 
-    df = pd.DataFrame(rows, columns=headers)
+    # ---------------- SECTION TRACKER ----------------
+    current_section = None
 
-    for _, row in df.iterrows():
-        item = str(row[item_col]).strip()
-        qty = row.get(chosen_col, "")
+    # ---------------- LOOP ROWS ----------------
+    for row in raw:
 
-        if item not in all_items:
-            all_items[item] = {bn: 0 for bn in branch_names}
+        row_text = " ".join(row).strip().lower()
+
+        # ---------------- DETECT DAILY ----------------
+        if "daily item" in row_text:
+            current_section = "daily"
+            continue
+
+        # ---------------- DETECT WEEKLY ----------------
+        if "weekly item" in row_text:
+            current_section = "weekly"
+            continue
+
+        # ---------------- SKIP BEFORE SECTION ----------------
+        if current_section is None:
+            continue
+
+        # ---------------- SKIP EMPTY ROWS ----------------
+        if not row or not row[0]:
+            continue
+
+        item = str(row[0]).strip()
+
+        # ---------------- SAFE VALUE EXTRACTION ----------------
+        qty = ""
+
+        if len(row) > date_index:
+            qty = row[date_index]
 
         try:
-            all_items[item][branch_name] = float(qty) if qty != "" else 0
+            qty = float(qty) if qty != "" else 0
         except:
-            all_items[item][branch_name] = 0
+            qty = 0
+
+        # ---------------- STORE STRUCTURE ----------------
+        if item not in all_items:
+            all_items[item] = {
+                bn: 0 for bn in branch_names
+            }
+
+        all_items[item][branch_name] = qty
 
 # ---------------- FINAL DATAFRAME ----------------
 rows = []
+
 for i, (item, values) in enumerate(all_items.items(), start=1):
-    row = {"Sl No": i, "Item Name": item}
+
+    row = {
+        "Sl No": i,
+        "Item Name": item
+    }
+
     row.update(values)
+
     rows.append(row)
 
 df = pd.DataFrame(rows)
@@ -166,7 +206,10 @@ else:
 search = st.text_input("🔎 Search Item")
 
 if search and not df.empty:
-    filtered = df[df["Item Name"].str.contains(search, case=False, na=False)]
+    filtered = df[
+        df["Item Name"].str.contains(search, case=False, na=False)
+    ]
+
     st.dataframe(filtered, use_container_width=True)
 
 # ---------------- DOWNLOAD ----------------
