@@ -10,3 +10,8 @@ pdfminer.six
 openai
 streamlit
 groq
+streamlit
+pandas
+gspread
+oauth2client
+groq
