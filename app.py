@@ -58,7 +58,6 @@ st.markdown("""
     line-height: 1.6;
 }
 
-/* LOGIN */
 .login-row {
     display: flex;
     justify-content: center;
@@ -81,22 +80,12 @@ div.stButton > button:hover {
     background: #C0392B;
 }
 
-/* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
     padding: 30px 20px;
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
-
-.section p {
-    color: #555;
     text-align: center;
 }
 </style>
@@ -126,29 +115,62 @@ with col2:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- CHAT INIT ----------------
+# ---------------- INIT CHAT ----------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ---------------- CHAT INPUT (FIXED SAFE VERSION) ----------------
+# =========================================================
+# 🧠 IMPORTANT: AI DATA PREPARATION (THIS WAS MISSING)
+# =========================================================
+
+# These must already exist in your project
+# (from your Google Sheets logic)
+
+# all_data → list of (branch_name, raw_sheet)
+# branches → master branch sheet list
+# DAILY_ITEMS + WEEKLY_ITEMS → your item lists
+
+if "all_data" not in st.session_state:
+    st.error("❌ all_data not loaded")
+    st.stop()
+
+if "branches" not in st.session_state:
+    st.error("❌ branches not loaded")
+    st.stop()
+
+if "DAILY_ITEMS" not in st.session_state:
+    st.error("❌ DAILY_ITEMS not loaded")
+    st.stop()
+
+if "WEEKLY_ITEMS" not in st.session_state:
+    st.error("❌ WEEKLY_ITEMS not loaded")
+    st.stop()
+
+
+# ---------------- CHAT INPUT ----------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input(
         "",
-        placeholder="🤖 Hi, I am BART AI Assistant — how can I help you?"
+        placeholder="🤖 Ask: CRC Crunchy Cake yesterday Al Safa"
     )
     send = st.form_submit_button("Send")
 
+
+# ---------------- AI CALL (FIXED CORE PART) ----------------
 if send and user_input:
+
+    # 🔥 THIS IS THE FIX YOU NEEDED
     context = {
-        "revenue": 0,
-        "items": 0,
-        "sales": st.session_state.get("pending_sales", [])
+        "cache_data": st.session_state.all_data,
+        "master_items": st.session_state.DAILY_ITEMS + st.session_state.WEEKLY_ITEMS,
+        "branch_list": [b["BranchName"] for b in st.session_state.branches]
     }
 
     response = run_ai(user_input, context)
 
     st.session_state.chat.append(("You", user_input))
     st.session_state.chat.append(("AI", response))
+
 
 # ---------------- CHAT DISPLAY ----------------
 for sender, msg in st.session_state.chat[-10:]:
@@ -157,7 +179,8 @@ for sender, msg in st.session_state.chat[-10:]:
     else:
         st.markdown(f"**AI:** {msg}")
 
-# ---------------- INFO ----------------
+
+# ---------------- INFO SECTION ----------------
 st.markdown("""
 <div class="section">
 <h2>Our Experience</h2>
