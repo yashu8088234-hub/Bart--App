@@ -289,6 +289,8 @@ else:
         st.session_state.WEEKLY_ITEMS = {}
 
     # =====================================================
+
+     st.markdown("## 💬 BART AI Chat")
     # CHAT INPUT
     # =====================================================
     with st.form("chat_form", clear_on_submit=True):
@@ -316,7 +318,7 @@ else:
     # =====================================================
     # CHAT DISPLAY (NOW NORMAL SECTION, NOT FLOATING)
     # =====================================================
-    st.markdown("## 💬 BART AI Chat")
+    
 
     for sender, msg in st.session_state.chat[-20:]:
 
