@@ -4,9 +4,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 from pathlib import Path
 import pandas as pd
+import time   # 🔴 ADDED
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
+
+# 🔴 ADDED: SESSION TIMEOUT (2 minutes)
+SESSION_TIMEOUT = 2 * 60
 
 # ---------------- CLEAN UI STYLE ----------------
 st.markdown("""
@@ -66,12 +70,33 @@ defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
-    "selected_branch": "-- Select Branch --"
+    "selected_branch": "-- Select Branch --",
+    # 🔴 ADDED
+    "last_activity": None
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# 🔴 ADDED: ACTIVITY REFRESH FUNCTION
+def refresh_activity():
+    st.session_state.last_activity = time.time()
+
+# 🔴 ADDED: AUTO LOGOUT CHECK
+def check_timeout():
+    if st.session_state.get("authenticated"):
+        last = st.session_state.get("last_activity")
+
+        if last is not None:
+            if time.time() - last > SESSION_TIMEOUT:
+                st.session_state.authenticated = False
+                st.session_state.auth_branch = None
+                st.session_state.last_activity = None
+                st.warning("⏱️ Logged out due to 2 minutes of inactivity.")
+                st.rerun()
+
+check_timeout()
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -111,6 +136,10 @@ else:
 
     if st.button("🔄 Change Branch"):
         st.session_state.selected_branch = "-- Select Branch --"
+        # 🔴 ADDED RESET
+        st.session_state.authenticated = False
+        st.session_state.auth_branch = None
+        st.session_state.last_activity = None
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -163,7 +192,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if passwords.get(st.session_state.selected_branch, "") == password:
                     st.session_state.authenticated = True
 
-                    # 🔥 FIX ADDED HERE (CRITICAL)
+                    # 🔴 ADDED
+                    st.session_state.last_activity = time.time()
+
                     st.session_state.sheet_id = branch_info["SheetID"]
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
@@ -176,6 +207,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # ---------------- RESET PASSWORD ----------------
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -198,13 +230,19 @@ if st.session_state.selected_branch != "-- Select Branch --":
         col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
+            # 🔴 ADDED
+            refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
         if col2.button("🆕 New Stock Record"):
+            # 🔴 ADDED
+            refresh_activity()
             st.switch_page("pages/new_stock.py")
 
         # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
+            # 🔴 ADDED
+            refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
             ws = sheet.worksheet("Stocks")
