@@ -19,7 +19,10 @@ footer {visibility:hidden;}
 header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; max-width:100% !important;}
-.stApp {background: linear-gradient(135deg,#eef2f7,#d6e4ff);}
+
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
 
 div.stButton > button{
     height:55px;
@@ -38,6 +41,7 @@ if "page" not in st.session_state:
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
+st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
 
@@ -67,7 +71,7 @@ if not sheet_id or not tab_name:
                 break
 
 if not sheet_id or not tab_name:
-    st.error("Session expired. Please login again from Staff Dashboard.")
+    st.error("Session expired. Please login again.")
     st.stop()
 
 # -----------------------------
@@ -107,7 +111,7 @@ daily_start = find_index(items_list, "DAILY ITEM")
 weekly_start = find_index(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
-    st.error("❌ DAILY ITEM or WEEKLY ITEM not found in Column A")
+    st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
     st.stop()
 
 # -----------------------------
@@ -115,7 +119,7 @@ if daily_start is None or weekly_start is None:
 # -----------------------------
 if st.session_state.page == "mode_select":
 
-    st.session_state.submitted = False  # reset lock
+    st.session_state.show_success = False
 
     st.markdown("## Select Option")
 
@@ -130,11 +134,6 @@ if st.session_state.page == "mode_select":
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
         st.rerun()
-
-    st.markdown("---")
-
-    if st.button("⬅ Back to Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
 
@@ -188,20 +187,10 @@ for i in range(0, len(filtered_items), 4):
 # -----------------------------
 if st.button("🔍 Review Stock"):
 
-    if st.session_state.submitted:
-        st.warning("Already submitted. Please go back.")
-        st.stop()
-
     missing = [k for k, v in inputs.items() if v is None]
 
     if missing:
         st.error("Missing inputs")
-        st.stop()
-
-    # numeric validation
-    invalid = [k for k, v in inputs.items() if v and not v.isdigit()]
-    if invalid:
-        st.error(f"Invalid numbers: {', '.join(invalid)}")
         st.stop()
 
     st.session_state.draft_data = inputs
@@ -229,9 +218,10 @@ if st.session_state.review_mode:
                 sheet_data = sheet.get_all_values()
                 headers = sheet_data[0]
 
-                # UNIQUE TRANSACTION ID
-                tx_id = str(uuid.uuid4())[:8]
-                st.session_state.tx_id = tx_id
+                if not st.session_state.tx_id:
+                    st.session_state.tx_id = str(uuid.uuid4())[:8]
+
+                tx_id = st.session_state.tx_id
 
                 if date_str in headers:
                     col_index = headers.index(date_str) + 1
@@ -254,17 +244,63 @@ if st.session_state.review_mode:
                     sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
                 st.session_state.submitted = True
+                st.session_state.show_success = True
                 st.session_state.review_mode = False
-
-            st.success(f"✔ Submitted Successfully | TX: {tx_id}")
-
-            time.sleep(1)
-
-            st.session_state.page = "mode_select"
-            st.session_state.mode = None
-            st.session_state.draft_data = {}
 
             st.rerun()
 
         except Exception as e:
             st.error(f"Error: {e}")
+
+# -----------------------------
+# SUCCESS SCREEN (4 SEC + REDIRECT)
+# -----------------------------
+if st.session_state.show_success:
+
+    st.markdown("""
+    <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    ">
+        <div style="
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            text-align: center;
+            width: 500px;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.3);
+        ">
+            <div style="font-size: 90px; color: #00c853;">✔</div>
+            <div style="font-size: 36px; font-weight: 900;">SUBMITTED</div>
+            <div style="margin-top:10px; color: gray;">
+                Stock saved successfully
+            </div>
+            <div style="margin-top:15px; font-size:14px; color:#999;">
+                Redirecting to dashboard in 4 seconds...
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
+
+    time.sleep(4)
+
+    # RESET EVERYTHING
+    st.session_state.page = "mode_select"
+    st.session_state.mode = None
+    st.session_state.review_mode = False
+    st.session_state.draft_data = {}
+    st.session_state.show_success = False
+    st.session_state.submitted = False
+    st.session_state.tx_id = None
+
+    st.switch_page("pages/staff_dashboard.py")
