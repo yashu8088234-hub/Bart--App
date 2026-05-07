@@ -6,11 +6,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from groq import Groq
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(layout="wide", page_title="Stock Overview")
-st.title("📦 BART - Stock Management System")
+# ---------------- PAGE ----------------
+st.set_page_config(layout="wide", page_title="Stock AI System")
+st.title("📦 BART - Stock Management + AI")
 
-# ---------------- GROQ AI ----------------
+# ---------------- GROQ ----------------
 api_key = st.secrets.get("GROQ_API_KEY")
 
 if not api_key:
@@ -27,47 +27,47 @@ scope = [
 ]
 
 @st.cache_resource
-def get_gs_client():
+def get_gs():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-gs_client = get_gs_client()
+gs = get_gs()
 
-# ---------------- MASTER BRANCH LIST (CACHED) ----------------
+# ---------------- BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
-    sheet = gs_client.open("MASTERBRANCHSHEET").sheet1
+    sheet = gs.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
-
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ---------------- DATE ----------------
-selected_date = st.date_input("📅 Select Stock Date")
+selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# =========================================================
-# 📊 MANAGEMENT DATA LOADER (CACHED FOR SPEED)
-# =========================================================
+# =====================================================
+# 📊 MANAGEMENT DATA (cached for speed)
+# =====================================================
 
 @st.cache_data(ttl=300)
-def load_management_data():
-    daily_items = {}
-    weekly_items = {}
+def load_management():
 
-    def fetch_branch(branch):
+    daily = {}
+    weekly = {}
+
+    def fetch(b):
         try:
-            sheet = gs_client.open_by_key(branch["SheetID"])
+            sheet = gs.open_by_key(b["SheetID"])
             ws = sheet.worksheet("Stocks")
-            return branch["BranchName"], ws.get_all_values()
+            return b["BranchName"], ws.get_all_values()
         except:
-            return branch["BranchName"], None
+            return b["BranchName"], None
 
-    all_data = list(ThreadPoolExecutor(max_workers=5).map(fetch_branch, branches))
+    data = list(ThreadPoolExecutor(max_workers=5).map(fetch, branches))
 
-    for branch_name, raw in all_data:
+    for branch, raw in data:
 
         if not raw or len(raw) < 2:
             continue
@@ -77,124 +77,50 @@ def load_management_data():
         if selected_date_str not in headers:
             continue
 
-        date_index = headers.index(selected_date_str)
-        current_section = None
+        idx = headers.index(selected_date_str)
+        section = None
 
         for row in raw:
 
-            row_text = " ".join(row).lower()
+            txt = " ".join(row).lower()
 
-            if "daily item" in row_text:
-                current_section = "daily"
+            if "daily item" in txt:
+                section = "daily"
                 continue
 
-            if "weekly item" in row_text:
-                current_section = "weekly"
+            if "weekly item" in txt:
+                section = "weekly"
                 continue
 
-            if current_section is None:
+            if section is None:
                 continue
 
             if not row or not row[0]:
                 continue
 
             item = str(row[0]).strip()
-            qty = row[date_index] if len(row) > date_index else 0
+
+            qty = row[idx] if len(row) > idx else 0
 
             try:
                 qty = float(qty) if qty != "" else 0
             except:
                 qty = 0
 
-            target = daily_items if current_section == "daily" else weekly_items
+            target = daily if section == "daily" else weekly
 
             if item not in target:
                 target[item] = {bn: 0 for bn in branch_names}
 
-            target[item][branch_name] = qty
+            target[item][branch] = qty
 
-    daily_df = pd.DataFrame([{"Item Name": k, **v} for k, v in daily_items.items()])
-    weekly_df = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly_items.items()])
-
-    return daily_df, weekly_df
-
-
-# =========================================================
-# 🤖 AI DATA LOADER (ALWAYS FRESH - NO CACHE)
-# =========================================================
-
-def get_ai_fresh_stock():
-
-    daily_items = {}
-    weekly_items = {}
-
-    def fetch_branch(branch):
-        try:
-            sheet = gs_client.open_by_key(branch["SheetID"])
-            ws = sheet.worksheet("Stocks")
-            return branch["BranchName"], ws.get_all_values()
-        except:
-            return branch["BranchName"], None
-
-    all_data = list(ThreadPoolExecutor(max_workers=5).map(fetch_branch, branches))
-
-    for branch_name, raw in all_data:
-
-        if not raw or len(raw) < 2:
-            continue
-
-        headers = raw[0]
-
-        if selected_date_str not in headers:
-            continue
-
-        date_index = headers.index(selected_date_str)
-        current_section = None
-
-        for row in raw:
-
-            row_text = " ".join(row).lower()
-
-            if "daily item" in row_text:
-                current_section = "daily"
-                continue
-
-            if "weekly item" in row_text:
-                current_section = "weekly"
-                continue
-
-            if current_section is None:
-                continue
-
-            if not row or not row[0]:
-                continue
-
-            item = str(row[0]).strip()
-            qty = row[date_index] if len(row) > date_index else 0
-
-            try:
-                qty = float(qty) if qty != "" else 0
-            except:
-                qty = 0
-
-            target = daily_items if current_section == "daily" else weekly_items
-
-            if item not in target:
-                target[item] = {}
-
-            target[item][branch_name] = qty
-
-    daily_df = pd.DataFrame([{"Item Name": k, **v} for k, v in daily_items.items()])
-    weekly_df = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly_items.items()])
+    daily_df = pd.DataFrame([{"Item Name": k, **v} for k, v in daily.items()])
+    weekly_df = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly.items()])
 
     return daily_df, weekly_df
 
 
-# =========================================================
-# 📊 MANAGEMENT UI
-# =========================================================
-
-daily_df, weekly_df = load_management_data()
+daily_df, weekly_df = load_management()
 
 st.subheader("📦 Daily Stock")
 st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
@@ -202,30 +128,115 @@ st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=
 st.subheader("📦 Weekly Stock")
 st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
 
+# =====================================================
+# 🤖 AI FRESH DATA LOADER (NO CACHE)
+# =====================================================
 
-# =========================================================
-# 🤖 AI FUNCTION (LIVE DATA ONLY)
-# =========================================================
+def get_ai_stock():
+
+    daily = {}
+    weekly = {}
+
+    def fetch(b):
+        try:
+            sheet = gs.open_by_key(b["SheetID"])
+            ws = sheet.worksheet("Stocks")
+            return b["BranchName"], ws.get_all_values()
+        except:
+            return b["BranchName"], None
+
+    data = list(ThreadPoolExecutor(max_workers=5).map(fetch, branches))
+
+    for branch, raw in data:
+
+        if not raw or len(raw) < 2:
+            continue
+
+        headers = raw[0]
+
+        if selected_date_str not in headers:
+            continue
+
+        idx = headers.index(selected_date_str)
+        section = None
+
+        for row in raw:
+
+            txt = " ".join(row).lower()
+
+            if "daily item" in txt:
+                section = "daily"
+                continue
+
+            if "weekly item" in txt:
+                section = "weekly"
+                continue
+
+            if section is None:
+                continue
+
+            if not row or not row[0]:
+                continue
+
+            item = str(row[0]).strip()
+
+            qty = row[idx] if len(row) > idx else 0
+
+            try:
+                qty = float(qty) if qty != "" else 0
+            except:
+                qty = 0
+
+            target = daily if section == "daily" else weekly
+
+            if item not in target:
+                target[item] = {}
+
+            target[item][branch] = qty
+
+    daily_df = pd.DataFrame([{"Item Name": k, **v} for k, v in daily.items()])
+    weekly_df = pd.DataFrame([{"Item Name": k, **v} for k, v in weekly.items()])
+
+    return daily_df, weekly_df
+
+
+# =====================================================
+# 🤖 FIXED AI ENGINE (IMPORTANT PART)
+# =====================================================
 
 def run_ai(user_input):
 
-    daily_df_ai, weekly_df_ai = get_ai_fresh_stock()
+    daily_ai, weekly_ai = get_ai_stock()
 
     stock_data = {
-        "daily": daily_df_ai.fillna(0).to_dict(orient="records") if not daily_df_ai.empty else [],
-        "weekly": weekly_df_ai.fillna(0).to_dict(orient="records") if not weekly_df_ai.empty else []
+        "daily": daily_ai.fillna(0).to_dict(orient="records") if not daily_ai.empty else [],
+        "weekly": weekly_ai.fillna(0).to_dict(orient="records") if not weekly_ai.empty else []
     }
 
+    # 🔥 FIXED SYSTEM PROMPT (NO CHAT BEHAVIOR)
     system_prompt = """
-You are BART AI Stock Assistant.
+You are a STRICT STOCK LOOKUP ENGINE.
 
-Rules:
-- Always use live stock data
-- Understand messy human questions
-- Match similar item names even with typos
-- Sum quantities across branches if needed
-- If not found: say "Item not found in stock"
-- Never guess missing values
+YOU ARE NOT A CHATBOT.
+
+RULES:
+- NEVER ask questions back
+- NEVER request clarification
+- NEVER have conversation
+- ALWAYS try to find stock value
+- If user is unclear, guess best match from data
+- If multiple matches, sum values
+- If not found, respond EXACTLY: "Item not found in stock"
+
+OUTPUT FORMAT:
+Item Name = quantity units
+
+EXAMPLES:
+User: CRC Crunchy Cake count of Al Safa
+Answer: CRC Crunchy Cake (Al Safa) = 18 units
+
+User: milk stock
+Answer: Milk = 120 units
 """
 
     try:
@@ -233,38 +244,45 @@ Rules:
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Stock Data:\n{stock_data}\n\nQuestion:\n{user_input}"}
+                {"role": "user", "content": f"""
+Stock Data:
+{stock_data}
+
+Question:
+{user_input}
+"""}
             ],
-            temperature=0.3
+            temperature=0.1
         )
 
         return response.choices[0].message.content.strip()
 
     except:
-        return "AI error. Try again."
+        return "AI error. Try again later."
 
 
-# =========================================================
+# =====================================================
 # 🤖 AI UI
-# =========================================================
+# =====================================================
 
 st.divider()
-st.subheader("🤖 AI Stock Assistant (Live Data)")
+st.subheader("🤖 AI Stock Assistant (Fixed Behavior)")
 
 question = st.text_input("Ask anything about stock")
 
 if st.button("Ask AI") or question:
 
     if question:
-        with st.spinner("Fetching live stock data..."):
+
+        with st.spinner("Checking live stock data..."):
             answer = run_ai(question)
 
         st.success(answer)
 
 
-# =========================================================
-# 🔎 SEARCH (MANUAL)
-# =========================================================
+# =====================================================
+# 🔎 SEARCH
+# =====================================================
 
 search = st.text_input("🔎 Search Item")
 
@@ -277,14 +295,3 @@ if search:
     if not weekly_df.empty:
         st.subheader("Weekly Search")
         st.dataframe(weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)])
-
-
-# =========================================================
-# 📥 DOWNLOADS
-# =========================================================
-
-if not daily_df.empty:
-    st.download_button("📥 Download Daily", daily_df.to_csv(index=False), "daily.csv")
-
-if not weekly_df.empty:
-    st.download_button("📥 Download Weekly", weekly_df.to_csv(index=False), "weekly.csv")
