@@ -11,25 +11,30 @@ st.set_page_config(
 )
 
 # =========================================================
-# GLOBAL UI HIDING
+# GLOBAL STYLES (YOUR ORIGINAL - SAFE)
 # =========================================================
 st.markdown("""
 <style>
 
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
+#MainMenu, footer, header {
+    visibility: hidden;
+}
 
-[data-testid="stToolbar"] {display: none;}
-[data-testid="stStatusWidget"] {display: none;}
-[data-testid="stDeployButton"] {display: none;}
+[data-testid="stToolbar"] {
+    display:none;
+}
+
+[data-testid="stSidebar"] {
+    display:none;
+}
 
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* LOGIN */
+/* LOGIN PAGE */
+
 .login-container {
     max-width: 460px;
     margin: 80px auto;
@@ -38,9 +43,74 @@ footer {visibility: hidden;}
     border-radius: 28px;
     padding: 45px 35px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    border: 1px solid rgba(255,255,255,0.4);
 }
 
-/* HERO */
+.login-logo {
+    text-align:center;
+}
+
+.login-logo h1 {
+    font-size:70px;
+    font-weight:900;
+    letter-spacing:8px;
+    color:#C0392B;
+    margin-bottom:5px;
+}
+
+.login-logo p {
+    color:#666;
+    margin-top:0;
+    font-size:15px;
+}
+
+.login-title {
+    text-align:center;
+    margin-top:25px;
+    margin-bottom:30px;
+}
+
+.login-title h2 {
+    color:#2C2A28;
+    margin-bottom:6px;
+}
+
+.login-title span {
+    color:#777;
+    font-size:14px;
+}
+
+div[data-baseweb="input"] input {
+    border-radius:14px;
+    height:52px;
+    border:1px solid #E4E4E4;
+    background:white;
+    font-size:15px;
+}
+
+div.stButton > button {
+    width:100%;
+    height:52px;
+    border:none;
+    border-radius:14px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    color:white;
+    font-size:16px;
+    font-weight:700;
+}
+
+div.stButton > button:hover {
+    opacity:0.92;
+}
+
+/* MAIN PAGE */
+
+.block-container {
+    padding: 1.2rem 2rem !important;
+    max-width: 1100px;
+    margin: auto;
+}
+
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 60px 30px;
@@ -61,9 +131,24 @@ footer {visibility: hidden;}
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
+    margin-top: 10px;
 }
 
-/* SECTION */
+.hero p {
+    font-size: 15px;
+    color: #555;
+    max-width: 750px;
+    margin: 10px auto 0;
+    line-height: 1.6;
+}
+
+.login-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0 35px;
+}
+
 .section {
     background: rgba(255,255,255,0.9);
     padding: 30px 20px;
@@ -72,104 +157,21 @@ footer {visibility: hidden;}
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
 
-/* ===============================
-   DRAGGABLE AI CHAT BOX
-================================= */
-
-#ai-chat-box {
-    position: fixed;
-    right: 30px;
-    bottom: 30px;
-    width: 340px;
-    height: 420px;
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-#ai-header {
-    background: linear-gradient(135deg, #C0392B, #2C2A28);
-    color: white;
-    padding: 10px;
-    cursor: move;
-    font-weight: bold;
+.section h2 {
+    color: #C0392B;
     text-align: center;
 }
 
-#ai-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-    font-size: 14px;
-}
-
-.ai-msg {
-    background: #fff3f3;
-    color: #C0392B;
-    padding: 6px;
-    border-radius: 10px;
-    margin-bottom: 5px;
-}
-
-.user-msg {
-    background: #f1f1f1;
-    padding: 6px;
-    border-radius: 10px;
-    margin-bottom: 5px;
-    text-align: right;
-}
-
-#ai-input {
-    display: flex;
-    padding: 8px;
-    border-top: 1px solid #eee;
+.section p {
+    color: #555;
+    text-align: center;
 }
 
 </style>
-
-<script>
-// Simple drag system (safe for Streamlit)
-let box = null;
-let isDown = false;
-let offset = [0,0];
-
-window.onload = function() {
-    box = document.getElementById("ai-chat-box");
-
-    if (!box) return;
-
-    let header = document.getElementById("ai-header");
-
-    header.addEventListener("mousedown", function(e) {
-        isDown = true;
-        offset = [
-            box.offsetLeft - e.clientX,
-            box.offsetTop - e.clientY
-        ];
-    });
-
-    document.addEventListener("mouseup", function() {
-        isDown = false;
-    });
-
-    document.addEventListener("mousemove", function(e) {
-        if (isDown) {
-            box.style.left = (e.clientX + offset[0]) + "px";
-            box.style.top = (e.clientY + offset[1]) + "px";
-            box.style.right = "auto";
-            box.style.bottom = "auto";
-        }
-    });
-};
-</script>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SESSION
+# SESSION STATE
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -180,16 +182,34 @@ if "role" not in st.session_state:
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+if "all_data" not in st.session_state:
+    st.session_state.all_data = []
+
+if "branches" not in st.session_state:
+    st.session_state.branches = []
+
+if "DAILY_ITEMS" not in st.session_state:
+    st.session_state.DAILY_ITEMS = {}
+
+if "WEEKLY_ITEMS" not in st.session_state:
+    st.session_state.WEEKLY_ITEMS = {}
+
 # =========================================================
-# LOGIN
+# LOGIN SCREEN
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-        <h1 style="text-align:center;color:#C0392B;">BART</h1>
-        <p style="text-align:center;">Coffee • French Toast • Fresh Bites</p>
-        <h3 style="text-align:center;">Control Center</h3>
+        <div class="login-logo">
+            <h1>BART</h1>
+            <p>Coffee • French Toast • Fresh Bites</p>
+        </div>
+
+        <div class="login-title">
+            <h2>Control Center</h2>
+            <span>Secure Internal Access</span>
+        </div>
     """, unsafe_allow_html=True)
 
     username = st.text_input("Username")
@@ -214,7 +234,7 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid credentials")
+            st.error("Invalid username or password")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -232,14 +252,20 @@ else:
             st.session_state.chat = []
             st.rerun()
 
+    # HERO
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
         <h2>Coffee • French Toast • Fresh Bites</h2>
-        <p>📍 Jeddah • bart.sa</p>
+        <p>
+        A modern café experience built for speed,
+        quality, and taste.
+        📍 Jeddah • bart.sa
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
+    # BUTTONS
     col1, col2 = st.columns(2)
 
     with col1:
@@ -251,48 +277,40 @@ else:
             st.switch_page("pages/management_dashboard.py")
 
     # =====================================================
-    # DRAGGABLE AI CHAT (MAIN PAGE FLOATING)
+    # CLEAN AI SIDEBAR (STABLE + NO DESIGN BREAK)
     # =====================================================
-    st.markdown("""
-    <div id="ai-chat-box">
+    with st.sidebar:
+        st.markdown("## 🤖 BART AI Assistant")
 
-        <div id="ai-header">
-            🤖 BART AI Assistant (Drag me)
-        </div>
+        for sender, msg in st.session_state.chat[-20:]:
+            if sender == "You":
+                st.markdown(f"**🧑 You:** {msg}")
+            else:
+                st.markdown(f"**🤖 AI:** {msg}")
 
-        <div id="ai-body">
-    """, unsafe_allow_html=True)
+        st.divider()
 
-    for sender, msg in st.session_state.chat[-20:]:
-        if sender == "You":
-            st.markdown(f'<div class="user-msg"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="ai-msg"><b>AI:</b> {msg}</div>', unsafe_allow_html=True)
+        with st.form("ai_chat_form", clear_on_submit=True):
+            user_input = st.text_input("Ask something...")
+            send = st.form_submit_button("Send")
 
-    st.markdown("""
-        </div>
-    """, unsafe_allow_html=True)
+        if send and user_input:
 
-    with st.form("ai_form", clear_on_submit=True):
-        user_input = st.text_input("Ask AI...")
-        send = st.form_submit_button("Send")
+            context = {
+                "cache_data": st.session_state.all_data,
+                "branch_list": [b["BranchName"] for b in st.session_state.branches],
+                "master_items": (
+                    list(st.session_state.DAILY_ITEMS.keys()) +
+                    list(st.session_state.WEEKLY_ITEMS.keys())
+                )
+            }
 
-    if send and user_input:
+            response = run_ai(user_input, context)
 
-        context = {
-            "cache_data": st.session_state.get("all_data", []),
-            "branch_list": [],
-            "master_items": []
-        }
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
 
-        response = run_ai(user_input, context)
-
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
-
-        st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.rerun()
 
     # =====================================================
     # FOOTER
@@ -300,11 +318,11 @@ else:
     st.markdown("""
     <div class="section">
         <h2>Our Experience</h2>
-        <p>Premium café experience with fast service.</p>
+        <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
     </div>
 
     <div class="section">
         <h2>Visit Us</h2>
-        <p>Jeddah • bart.sa</p>
+        <p>Find us in Jeddah branches or visit bart.sa</p>
     </div>
     """, unsafe_allow_html=True)
