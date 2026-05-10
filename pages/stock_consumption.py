@@ -62,24 +62,15 @@ sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
 if not sheet_id or not tab_name:
-    with st.spinner("Loading branch..."):
-        for _ in range(10):
-            time.sleep(0.2)
-            sheet_id = st.session_state.get("sheet_id")
-            tab_name = st.session_state.get("tab_name")
-            if sheet_id and tab_name:
-                break
-
-if not sheet_id or not tab_name:
-
     st.error("Session expired.")
 
     if st.button("⬅ Back to Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
+
 # -----------------------------
-# GOOGLE SHEETS AUTH (CACHED)
+# GOOGLE SHEETS AUTH
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
@@ -102,9 +93,8 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A (CACHED)
+# LOAD COLUMN A (FIXED - NO CACHE ERROR)
 # -----------------------------
-@st.cache_data(ttl=60)
 def load_column_a(ws):
     data = ws.get_all_values()
     return [row[0].strip() for row in data if row and row[0].strip()]
@@ -173,7 +163,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUT FORM (FIXED - NO REFRESH)
+# INPUT FORM (NO REFRESH WHILE TYPING)
 # -----------------------------
 st.markdown("## Enter Stock")
 
@@ -233,8 +223,6 @@ if st.session_state.review_mode:
 
                 if not st.session_state.tx_id:
                     st.session_state.tx_id = str(uuid.uuid4())[:8]
-
-                tx_id = st.session_state.tx_id
 
                 if date_str in headers:
                     col_index = headers.index(date_str) + 1
@@ -307,7 +295,7 @@ if st.session_state.show_success:
 
     time.sleep(4)
 
-    # RESET EVERYTHING
+    # RESET
     st.session_state.page = "mode_select"
     st.session_state.mode = None
     st.session_state.review_mode = False
