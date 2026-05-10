@@ -19,9 +19,6 @@ if "authenticated" not in st.session_state:
 if "role" not in st.session_state:
     st.session_state.role = None
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
 # =========================================================
 # GLOBAL STYLES
 # =========================================================
@@ -201,25 +198,15 @@ if not st.session_state.authenticated:
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input(
-        "Username",
-        placeholder="Enter username"
-    )
-
-    password = st.text_input(
-        "Password",
-        type="password",
-        placeholder="Enter password"
-    )
+    username = st.text_input("Username", placeholder="Enter username")
+    password = st.text_input("Password", type="password", placeholder="Enter password")
 
     login = st.button("Login")
 
     if login:
 
-        # Clean username input
         clean_username = username.strip().lower()
 
-        # Manager Login
         if (
             clean_username == st.secrets["MANAGER_USERNAME"].lower()
             and password == st.secrets["MANAGER_PASSWORD"]
@@ -228,7 +215,6 @@ if not st.session_state.authenticated:
             st.session_state.role = "manager"
             st.rerun()
 
-        # Staff Login
         elif (
             clean_username == st.secrets["STAFF_USERNAME"].lower()
             and password == st.secrets["STAFF_PASSWORD"]
@@ -253,7 +239,6 @@ else:
         if st.button("Logout"):
             st.session_state.authenticated = False
             st.session_state.role = None
-            st.session_state.chat = []
             st.rerun()
 
     st.markdown("""
@@ -283,7 +268,7 @@ else:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # =====================================================
-    # SESSION STORAGE
+    # SESSION STORAGE (kept as-is except chat removed)
     # =====================================================
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
@@ -296,80 +281,6 @@ else:
 
     if "WEEKLY_ITEMS" not in st.session_state:
         st.session_state.WEEKLY_ITEMS = {}
-
-    # =====================================================
-    # CHAT INPUT
-    # =====================================================
-    with st.form("chat_form", clear_on_submit=True):
-
-        user_input = st.text_input(
-            "",
-            placeholder="🤖 Ask something..."
-        )
-
-        send = st.form_submit_button("Send")
-
-    if send and user_input:
-
-        all_items = (
-            list(st.session_state.DAILY_ITEMS.keys()) +
-            list(st.session_state.WEEKLY_ITEMS.keys())
-        )
-
-        context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": [
-                b["BranchName"]
-                for b in st.session_state.branches
-            ],
-            "master_items": all_items
-        }
-
-        response = run_ai(user_input, context)
-
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
-
-    st.markdown("## 💬 BART AI Chat")
-
-    # =====================================================
-    # CHAT DISPLAY
-    # =====================================================
-    for sender, msg in reversed(st.session_state.chat[-20:]):
-
-        if sender == "You":
-
-            st.markdown(
-                f"""
-                <div style="
-                    background:#f1f1f1;
-                    padding:10px;
-                    border-radius:12px;
-                    margin-bottom:8px;
-                    text-align:right;
-                ">
-                    <b>You:</b> {msg}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-        else:
-
-            st.markdown(
-                f"""
-                <div style="
-                    background:#fff3f3;
-                    color:#C0392B;
-                    padding:10px;
-                    border-radius:12px;
-                    margin-bottom:8px;
-                ">
-                    <b>BART:</b> {msg}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
 
     # =====================================================
     # FOOTER SECTIONS
@@ -391,7 +302,3 @@ else:
     </p>
     </div>
     """, unsafe_allow_html=True)
-
-
-
-
