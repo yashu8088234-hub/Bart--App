@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE
+# SESSION STATE (UNCHANGED LOGIC)
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -39,7 +39,7 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# STYLE (UNCHANGED - YOUR DESIGN SAFE)
+# STYLE (YOUR ORIGINAL SAFE)
 # =========================================================
 st.markdown("""
 <style>
@@ -61,6 +61,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
+/* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 60px 30px;
@@ -73,18 +74,9 @@ st.markdown("""
     font-size: 70px;
     font-weight: 900;
     color: #C0392B;
-    margin: 0;
 }
 
-.section {
-    background: rgba(255,255,255,0.9);
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-    text-align: center;
-}
-
+/* BUTTON */
 div.stButton > button {
     width:100%;
     height:52px;
@@ -94,11 +86,20 @@ div.stButton > button {
     font-weight:700;
 }
 
+.section {
+    background: rgba(255,255,255,0.9);
+    padding: 25px;
+    margin-top: 15px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    text-align:center;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (kept simple)
+# LOGIN (simple)
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -114,7 +115,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# HERO
+# HERO (UNCHANGED)
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -125,21 +126,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS
+# MAIN BUTTONS (FIXED NAVIGATION ONLY)
 # =========================================================
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("👨‍💼 Staff Dashboard", key="staff_btn"):
+    if st.button("👨‍💼 Staff Dashboard"):
         st.switch_page("staff_dashboard")
 
 with col2:
-    # ✅ FIXED MANAGEMENT BUTTON
-    if st.button("📦 Management Dashboard", key="mgmt_btn"):
+    if st.button("📦 Management Dashboard"):
         st.switch_page("management_dashboard")
 
 # =========================================================
-# AI TOGGLE BUTTON (UNCHANGED BEHAVIOR)
+# AI BUTTON (UNCHANGED LOGIC)
 # =========================================================
 st.markdown("---")
 
@@ -150,7 +150,7 @@ with col_ai:
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# AI INLINE CHAT (NO DESIGN BREAK)
+# INLINE AI CHAT (UNCHANGED LOGIC)
 # =========================================================
 if st.session_state.ai_open:
 
