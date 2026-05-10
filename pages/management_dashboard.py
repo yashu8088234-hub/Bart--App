@@ -218,6 +218,12 @@ if st.session_state.ai_open:
             user_input = st.text_input("Ask about stock...")
             submitted = st.form_submit_button("Send")
 
+        # ---------------- CLEAR CHAT BUTTON ----------------
+
+    if st.button("🧹 Clear Chat"):
+        st.session_state.chat = []
+        st.rerun()
+
         if submitted and user_input.strip():
 
             matched = find_best_item(user_input, combined)
