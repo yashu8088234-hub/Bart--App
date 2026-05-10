@@ -3,7 +3,7 @@ import hashlib
 from ai_core import run_ai
 
 # =========================================================
-# CONFIG
+# PAGE CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -21,7 +21,7 @@ def check_password(input_password: str, stored_password: str) -> bool:
     return hash_text(input_password) == hash_text(stored_password)
 
 # =========================================================
-# STYLES (UNCHANGED BUT SAFE)
+# STYLES
 # =========================================================
 st.markdown("""
 <style>
@@ -63,6 +63,7 @@ div.stButton > button {
     font-weight:700;
 }
 
+/* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 60px 30px;
@@ -78,11 +79,17 @@ div.stButton > button {
     margin: 0;
 }
 
+.ai-button {
+    display:flex;
+    justify-content:center;
+    margin-top:20px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SESSION STATE INIT
+# SESSION STATE
 # =========================================================
 defaults = {
     "authenticated": False,
@@ -92,16 +99,14 @@ defaults = {
     "branches": [],
     "DAILY_ITEMS": {},
     "WEEKLY_ITEMS": {},
-    "login_attempts": 0
+    "login_attempts": 0,
+    "ai_open": False   # ⭐ AI SIDEBAR TOGGLE
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# =========================================================
-# LIMITS
-# =========================================================
 MAX_CHAT = 50
 
 # =========================================================
@@ -120,7 +125,7 @@ if not st.session_state.authenticated:
     password = st.text_input("Password", type="password")
 
     if st.session_state.login_attempts >= 5:
-        st.error("Too many failed attempts. Please restart app.")
+        st.error("Too many attempts. Restart app.")
         st.stop()
 
     if st.button("Login"):
@@ -154,7 +159,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# MAIN APP
+# MAIN DASHBOARD
 # =========================================================
 top1, top2 = st.columns([9, 1])
 
@@ -174,7 +179,20 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# NAVIGATION
+# =========================================================
+# 🤖 AI BUTTON (OPEN SIDEBAR)
+# =========================================================
+st.markdown('<div class="ai-button">', unsafe_allow_html=True)
+
+if st.button("🤖 Open AI Assistant"):
+    st.session_state.ai_open = True
+    st.rerun()
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================================================
+# NAVIGATION BUTTONS
+# =========================================================
 c1, c2 = st.columns(2)
 
 with c1:
@@ -186,46 +204,55 @@ with c2:
         st.switch_page("pages/management_dashboard.py")
 
 # =========================================================
-# SIDEBAR AI
+# 🧠 AI SIDEBAR (TOGGLE SYSTEM)
 # =========================================================
-with st.sidebar:
-    st.markdown("## 🤖 BART AI")
+if st.session_state.ai_open:
 
-    # show chat (last 20 only)
-    for sender, msg in st.session_state.chat[-20:]:
-        icon = "🧑" if sender == "You" else "🤖"
-        st.markdown(f"**{icon} {sender}:** {msg}")
+    with st.sidebar:
+        st.markdown("## 🤖 BART AI Assistant")
 
-    st.divider()
+        # CLOSE BUTTON
+        if st.button("❌ Close AI"):
+            st.session_state.ai_open = False
+            st.rerun()
 
-    with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("Ask something...")
-        send = st.form_submit_button("Send")
+        st.divider()
 
-    if send and user_input:
+        # CHAT HISTORY
+        for sender, msg in st.session_state.chat[-20:]:
+            icon = "🧑" if sender == "You" else "🤖"
+            st.markdown(f"**{icon} {sender}:** {msg}")
 
-        # trim chat memory
-        st.session_state.chat = st.session_state.chat[-MAX_CHAT:]
+        st.divider()
 
-        context = {
-            "cache_data": st.session_state.all_data[-100:],  # safe limit
-            "branch_list": [b["BranchName"] for b in st.session_state.branches],
-            "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
-                            list(st.session_state.WEEKLY_ITEMS.keys())
-        }
+        # CHAT INPUT
+        with st.form("ai_chat_form", clear_on_submit=True):
+            user_input = st.text_input("Ask something...")
+            send = st.form_submit_button("Send")
 
-        try:
-            response = run_ai(user_input, context)
-        except Exception as e:
-            response = f"AI error: {str(e)}"
+        if send and user_input:
 
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
+            context = {
+                "cache_data": st.session_state.all_data[-100:],
+                "branch_list": [b["BranchName"] for b in st.session_state.branches],
+                "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
+                                list(st.session_state.WEEKLY_ITEMS.keys())
+            }
 
-        st.rerun()
+            try:
+                response = run_ai(user_input, context)
+            except Exception as e:
+                response = f"AI error: {str(e)}"
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.session_state.chat = st.session_state.chat[-MAX_CHAT:]
+
+            st.rerun()
 
 # =========================================================
-# FOOTER SECTIONS
+# FOOTER
 # =========================================================
 st.markdown("""
 <div style="
