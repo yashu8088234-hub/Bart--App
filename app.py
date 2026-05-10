@@ -34,6 +34,7 @@ if "WEEKLY_ITEMS" not in st.session_state:
 if "show_mgmt_password" not in st.session_state:
     st.session_state.show_mgmt_password = False
 
+
 # =========================================================
 # DATA CHECK
 # =========================================================
@@ -45,8 +46,9 @@ def data_missing():
         and not st.session_state.WEEKLY_ITEMS
     )
 
+
 # =========================================================
-# STYLE (UNCHANGED)
+# STYLE (UPDATED - SIDEBAR FORCED VISIBLE)
 # =========================================================
 st.markdown("""
 <style>
@@ -55,11 +57,20 @@ st.markdown("""
     visibility: hidden;
 }
 
+/* App background */
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
+/* FORCE SIDEBAR VISIBLE */
+[data-testid="stSidebar"] {
+    visibility: visible !important;
+    display: block !important;
+    width: 320px !important;
+}
+
+/* Hero */
 .hero {
     background: white;
     padding: 60px;
@@ -79,6 +90,7 @@ st.markdown("""
     color: #2C2A28;
 }
 
+/* Buttons */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -93,6 +105,7 @@ div.stButton > button:hover {
     opacity: 0.9;
 }
 
+/* Sections */
 .section {
     background: white;
     padding: 25px;
@@ -104,6 +117,7 @@ div.stButton > button:hover {
 
 </style>
 """, unsafe_allow_html=True)
+
 
 # =========================================================
 # LOGIN
@@ -127,6 +141,7 @@ if not st.session_state.authenticated:
 
     st.stop()
 
+
 # =========================================================
 # HERO
 # =========================================================
@@ -138,8 +153,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+
 # =========================================================
-# MAIN BUTTONS (CLEAN + PASSWORD GATE)
+# MAIN BUTTONS
 # =========================================================
 col1, col3, col2 = st.columns(3, gap="large")
 
@@ -154,8 +170,9 @@ with col2:
 with col3:
     st.empty()
 
+
 # =========================================================
-# MANAGEMENT PASSWORD POPUP LOGIC
+# MANAGEMENT PASSWORD
 # =========================================================
 if st.session_state.show_mgmt_password:
 
@@ -166,12 +183,11 @@ if st.session_state.show_mgmt_password:
     if st.button("Validate & Continue"):
 
         if password_input == st.secrets["MANAGER_PASSWORD"]:
-
             st.session_state.show_mgmt_password = False
             st.switch_page("pages/management_dashboard.py")
-
         else:
             st.error("❌ Incorrect password")
+
 
 # =========================================================
 # SIDE BAR AI
@@ -207,8 +223,9 @@ with st.sidebar:
 
         st.rerun()
 
+
 # =========================================================
-# FOOTER (UNCHANGED EXACTLY)
+# FOOTER
 # =========================================================
 st.markdown("""
 <div class="section">
