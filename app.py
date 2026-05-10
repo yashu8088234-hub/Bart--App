@@ -1,9 +1,8 @@
 import streamlit as st
-import hashlib
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -14,24 +13,29 @@ st.set_page_config(
 # =========================================================
 # SESSION STATE
 # =========================================================
-defaults = {
-    "authenticated": False,
-    "role": None,
-    "view": "home",   # ⭐ INTERNAL ROUTING SYSTEM
-    "chat": [],
-    "all_data": [],
-    "branches": [],
-    "DAILY_ITEMS": {},
-    "WEEKLY_ITEMS": {},
-    "ai_open": False
-}
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+if "all_data" not in st.session_state:
+    st.session_state.all_data = []
+
+if "branches" not in st.session_state:
+    st.session_state.branches = []
+
+if "DAILY_ITEMS" not in st.session_state:
+    st.session_state.DAILY_ITEMS = {}
+
+if "WEEKLY_ITEMS" not in st.session_state:
+    st.session_state.WEEKLY_ITEMS = {}
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
 
 # =========================================================
-# STYLE (YOUR ORIGINAL DESIGN KEPT)
+# STYLE (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -90,13 +94,12 @@ if not st.session_state.authenticated:
 
     if st.button("Login"):
         st.session_state.authenticated = True
-        st.session_state.view = "home"
         st.rerun()
 
     st.stop()
 
 # =========================================================
-# HEADER
+# HERO
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -107,96 +110,69 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# NAVIGATION (NO switch_page → ZERO ERRORS)
+# NAVIGATION BUTTONS (FIXED VERSION)
 # =========================================================
 col1, col2 = st.columns(2)
 
 with col1:
     if st.button("👨‍💼 Staff Dashboard"):
-        st.session_state.view = "staff"
+        st.switch_page("pages/staff_dashboard.py")
 
 with col2:
     if st.button("📦 Management Dashboard"):
-        st.session_state.view = "management"
+        st.switch_page("pages/management_dashboard.py")
 
 # =========================================================
-# RENDER VIEWS
+# AI TOGGLE BUTTON
 # =========================================================
+st.markdown("---")
 
-# -------------------------
-# STAFF PAGE
-# -------------------------
-if st.session_state.view == "staff":
-    st.subheader("👨‍💼 Staff Dashboard")
+col_ai = st.columns([1,2,1])[1]
 
-    st.markdown("""
-    <div class="section">
-        Staff dashboard content goes here.
-    </div>
-    """, unsafe_allow_html=True)
+with col_ai:
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = not st.session_state.ai_open
 
-# -------------------------
-# MANAGEMENT PAGE
-# -------------------------
-elif st.session_state.view == "management":
-    st.subheader("📦 Management Dashboard")
+# =========================================================
+# AI CHAT
+# =========================================================
+if st.session_state.ai_open:
 
-    st.markdown("""
-    <div class="section">
-        Management dashboard content goes here.
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("## 🤖 BART AI Assistant")
 
-# -------------------------
-# HOME PAGE
-# -------------------------
-else:
+    for sender, msg in st.session_state.chat[-20:]:
+        icon = "🧑" if sender == "You" else "🤖"
+        st.markdown(f"**{icon} {sender}:** {msg}")
 
-    # AI BUTTON (UNCHANGED LOGIC)
-    st.markdown("---")
+    user_input = st.text_input("Ask something...", key="ai_input")
 
-    col_ai = st.columns([1,2,1])[1]
+    if st.button("Send AI") and user_input:
 
-    with col_ai:
-        if st.button("🤖 AI Assistant"):
-            st.session_state.ai_open = not st.session_state.ai_open
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
+                            list(st.session_state.WEEKLY_ITEMS.keys())
+        }
 
-    # AI CHAT INLINE
-    if st.session_state.ai_open:
+        response = run_ai(user_input, context)
 
-        st.markdown("## 🤖 BART AI Assistant")
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
 
-        for sender, msg in st.session_state.chat[-20:]:
-            icon = "🧑" if sender == "You" else "🤖"
-            st.markdown(f"**{icon} {sender}:** {msg}")
+        st.rerun()
 
-        user_input = st.text_input("Ask something...", key="ai_input")
+# =========================================================
+# FOOTER
+# =========================================================
+st.markdown("""
+<div class="section">
+    <h3>Our Experience</h3>
+    <p>Premium café experience in Jeddah.</p>
+</div>
 
-        if st.button("Send AI") and user_input:
-
-            context = {
-                "cache_data": st.session_state.all_data,
-                "branch_list": [b["BranchName"] for b in st.session_state.branches],
-                "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
-                                list(st.session_state.WEEKLY_ITEMS.keys())
-            }
-
-            response = run_ai(user_input, context)
-
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
-
-            st.rerun()
-
-    # FOOTER
-    st.markdown("""
-    <div class="section">
-        <h3>Our Experience</h3>
-        <p>Premium café experience in Jeddah.</p>
-    </div>
-
-    <div class="section">
-        <h3>Visit Us</h3>
-        <p>bart.sa • Jeddah Branches</p>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="section">
+    <h3>Visit Us</h3>
+    <p>bart.sa • Jeddah Branches</p>
+</div>
+""", unsafe_allow_html=True)
