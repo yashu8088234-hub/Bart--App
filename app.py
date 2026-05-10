@@ -13,8 +13,8 @@ st.set_page_config(
 # =========================================================
 # SESSION STATE
 # =========================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+# ALWAYS AUTHENTICATED (LOGIN DISABLED)
+st.session_state.authenticated = True
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
@@ -48,7 +48,7 @@ def data_missing():
 
 
 # =========================================================
-# STYLE (UPDATED - SIDEBAR FORCED VISIBLE)
+# STYLE
 # =========================================================
 st.markdown("""
 <style>
@@ -63,7 +63,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* FORCE SIDEBAR VISIBLE */
+/* Sidebar */
 [data-testid="stSidebar"] {
     visibility: visible !important;
     display: block !important;
@@ -117,29 +117,6 @@ div.stButton > button:hover {
 
 </style>
 """, unsafe_allow_html=True)
-
-
-# =========================================================
-# LOGIN
-# =========================================================
-if not st.session_state.authenticated:
-
-    st.markdown("""
-    <div style="text-align:center; padding:50px;">
-        <h1 style="color:#C0392B; font-size:60px;">BART</h1>
-        <p>Coffee • French Toast • Fresh Bites</p>
-        <h3>Secure Login</h3>
-    </div>
-    """, unsafe_allow_html=True)
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        st.session_state.authenticated = True
-        st.rerun()
-
-    st.stop()
 
 
 # =========================================================
