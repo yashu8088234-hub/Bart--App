@@ -51,14 +51,6 @@ st.markdown("""
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
 }
 
-.login-logo h1 {
-    font-size:70px;
-    font-weight:900;
-    letter-spacing:8px;
-    color:#C0392B;
-    text-align:center;
-}
-
 /* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
@@ -68,7 +60,10 @@ st.markdown("""
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
 }
 
-/* CHAT */
+/* =====================================================
+   AI CHAT BOX FIX (MAIN FIX)
+===================================================== */
+
 .ai-wrapper {
     background: rgba(255,255,255,0.92);
     border-radius: 22px;
@@ -77,12 +72,16 @@ st.markdown("""
     box-shadow: 0 10px 30px rgba(0,0,0,0.06);
 }
 
+/* FIXED CHAT AREA */
 .chat-container {
-    max-height: 420px;
+    height: 450px;
     overflow-y: auto;
     padding: 10px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.6);
 }
 
+/* USER / AI MESSAGES */
 .user-msg {
     background:#f4f4f4;
     padding:12px;
@@ -99,19 +98,38 @@ st.markdown("""
     border-left:4px solid #C0392B;
 }
 
+/* MOBILE FIX */
+@media only screen and (max-width: 768px) {
+
+    .chat-container {
+        height: 55vh;
+    }
+
+    .hero h1 {
+        font-size: 42px !important;
+    }
+
+    .hero h2 {
+        font-size: 16px !important;
+    }
+
+    .login-container {
+        margin: 20px auto;
+        padding: 25px;
+    }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# LOGIN SCREEN
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-        <div class="login-logo">
-            <h1>BART</h1>
-        </div>
+        <h1 style="text-align:center;color:#C0392B;">BART</h1>
     """, unsafe_allow_html=True)
 
     username = st.text_input("Username")
@@ -145,24 +163,18 @@ if not st.session_state.authenticated:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# MAIN APP
+# MAIN PAGE
 # =========================================================
 else:
 
-    # AUTO LOAD DATA ONCE
+    # AUTO LOAD DATA (SAME PAGE FIX)
     if not st.session_state.data_loaded:
 
         st.session_state.all_data = []
         st.session_state.branches = [{"BranchName": "Jeddah Main"}]
 
-        st.session_state.DAILY_ITEMS = {
-            "Latte": {},
-            "Espresso": {}
-        }
-
-        st.session_state.WEEKLY_ITEMS = {
-            "Croissant": {}
-        }
+        st.session_state.DAILY_ITEMS = {"Latte": {}, "Espresso": {}}
+        st.session_state.WEEKLY_ITEMS = {"Croissant": {}}
 
         st.session_state.data_loaded = True
 
@@ -170,12 +182,12 @@ else:
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
-        <h3>Coffee • French Toast • Fresh Bites</h3>
+        <h2>Coffee • French Toast • Fresh Bites</h2>
     </div>
     """, unsafe_allow_html=True)
 
     # =====================================================
-    # AI SECTION (FIXED ORDER)
+    # AI CHAT SECTION (FIXED)
     # =====================================================
 
     st.markdown("""
@@ -183,30 +195,22 @@ else:
         <h3 style="color:#C0392B;">💬 BART AI Assistant</h3>
     """, unsafe_allow_html=True)
 
-    # =========================
-    # CHAT DISPLAY (TOP)
-    # =========================
+    # CHAT DISPLAY (FIXED CONTAINER)
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-    for chat in st.session_state.chat[-20:]:
+    for chat in st.session_state.chat:
 
         st.markdown(f"""
-        <div class="user-msg">
-            <b>You:</b><br>{chat['user']}
-        </div>
+        <div class="user-msg"><b>You:</b><br>{chat['user']}</div>
         """, unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div class="ai-msg">
-            <b>BART:</b><br>{chat['ai']}
-        </div>
+        <div class="ai-msg"><b>BART:</b><br>{chat['ai']}</div>
         """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # =========================
-    # INPUT (BOTTOM)
-    # =========================
+    # INPUT
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("", placeholder="Ask something...")
         send = st.form_submit_button("Send")
@@ -229,14 +233,3 @@ else:
         })
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-    # =====================================================
-    # BUTTONS (UNCHANGED)
-    # =====================================================
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.button("👨‍💼 Staff Dashboard")
-
-    with col2:
-        st.button("📦 Management Dashboard")
