@@ -145,7 +145,7 @@ with col3:
     if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
         st.switch_page("pages/staff_dashboard.py")
 
-with col1x:
+with col1:
     if st.button("📦 Management Dashboard", use_container_width=True):
         st.switch_page("pages/management_dashboard.py")
 
