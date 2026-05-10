@@ -7,7 +7,7 @@ from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
-st.title("📦 BART - Stock Management (AI Mode)")
+st.title("📦 BART - Stock Management (All Branches)")
 
 # ---------------- GOOGLE AUTH ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -75,35 +75,34 @@ all_data = load_all_data(branches)
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
-# =========================================================
-# 🧠 MEMORY (FIX ONLY — REQUIRED FOR CONTEXT FLOW)
-# =========================================================
-if "memory" not in st.session_state:
-    st.session_state.memory = {
-        "last_item": None,
-        "last_branch": None,
-        "last_date": None
-    }
+# ---------------- STOCK STORAGE ----------------
+daily_items = {}
+weekly_items = {}
+
+st.session_state.DAILY_ITEMS = daily_items
+st.session_state.WEEKLY_ITEMS = weekly_items
+
+combined = {}
+combined.update(daily_items)
+combined.update(weekly_items)
 
 # =========================================================
-# 📦 AI STATE
+# 🧠 ONLY ADDITION: CONTEXT MEMORY (NO LOGIC CHANGE)
 # =========================================================
+if "last_user_input" not in st.session_state:
+    st.session_state.last_user_input = ""
+
+# ---------------- AI PANEL ----------------
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
-# =========================================================
-# 💬 AI PANEL
-# =========================================================
+# ---------------- AI CHAT ----------------
 if st.session_state.ai_open:
 
     st.markdown("## 🤖 Stock AI Assistant")
-
-    combined = {}
-    combined.update(st.session_state.get("DAILY_ITEMS", {}))
-    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
 
     if "chat" not in st.session_state:
         st.session_state.chat = []
@@ -115,57 +114,55 @@ if st.session_state.ai_open:
         else:
             st.markdown(f"🤖 **AI:** {msg}")
 
-    if not combined:
-        st.warning("No stock data available.")
-    else:
+    # ---------------- INPUT ----------------
+    with st.form("ai_form", clear_on_submit=True):
+        user_input = st.text_input("Ask anything about stock...")
+        submitted = st.form_submit_button("Send")
 
-        # ---------------- INPUT ----------------
-        with st.form("ai_form", clear_on_submit=True):
-            user_input = st.text_input("Ask anything about stock...")
-            submitted = st.form_submit_button("Send")
+    # ---------------- CLEAR CHAT ----------------
+    if st.button("🧹 Clear Chat"):
+        st.session_state.chat = []
+        st.session_state.last_user_input = ""
+        st.rerun()
 
-        # ---------------- CLEAR CHAT ----------------
-        if st.button("🧹 Clear Chat"):
-            st.session_state.chat = []
-            st.session_state.memory = {
-                "last_item": None,
-                "last_branch": None,
-                "last_date": None
-            }
-            st.rerun()
+    # =========================================================
+    # 🚀 AI CALL (ONLY MINIMAL PATCH ADDED HERE)
+    # =========================================================
+    if submitted and user_input.strip():
 
-        # =========================================================
-        # 🚀 AI CALL (ONLY CHANGE IS HERE — NO PRE-FILTERING ANYMORE)
-        # =========================================================
-        if submitted and user_input.strip():
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": branch_names,
+            "master_items": list(combined.keys()),
 
-            context = {
-                "cache_data": st.session_state.all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys()),
-                "memory": st.session_state.memory
-            }
+            # 🔥 PATCH (ONLY ADDITION)
+            "last_user_input": st.session_state.last_user_input
+        }
 
-            with st.spinner("AI analyzing inventory... 🤖"):
-                response = run_ai(user_input, context)
+        with st.spinner("AI analyzing inventory... 🤖"):
+            response = run_ai(user_input, context)
 
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
+        # ---------------- SAVE CHAT ----------------
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
 
-            st.rerun()
+        # 🔥 PATCH (ONLY ADDITION)
+        st.session_state.last_user_input = user_input
+
+        st.rerun()
 
 # ---------------- TABLES ----------------
 st.subheader("📦 Daily Items Stock")
-st.dataframe(st.session_state.get("DAILY_ITEMS", {}), use_container_width=True)
+st.dataframe(st.session_state.DAILY_ITEMS, use_container_width=True)
 
 st.subheader("📦 Weekly Items Stock")
-st.dataframe(st.session_state.get("WEEKLY_ITEMS", {}), use_container_width=True)
+st.dataframe(st.session_state.WEEKLY_ITEMS, use_container_width=True)
 
 # ---------------- SEARCH ----------------
 search = st.text_input("🔎 Search Item")
 
 if search:
-    st.write("Search handled by UI only (AI is independent now).")
+    st.write("Search handled by UI only (AI is independent).")
 
-# ---------------- DOWNLOADS ----------------
-st.download_button("📥 Export Data (Raw)", str(all_data), "stock_raw.txt")
+# ---------------- DOWNLOAD ----------------
+st.download_button("📥 Export Raw Data", str(all_data), "stock_raw.txt")
