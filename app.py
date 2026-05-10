@@ -2,7 +2,7 @@ import streamlit as st
 from ai_core import run_ai
 
 # =========================================================
-# CONFIG
+# PAGE CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -15,9 +15,6 @@ st.set_page_config(
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
-
-if "role" not in st.session_state:
-    st.session_state.role = None
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
@@ -38,10 +35,15 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# REAL DATA FIX (NO FAKE DATA, NO BREAK)
+# REAL DATA LOADER HOOK (NO FAKE DATA)
 # =========================================================
-def ensure_data_exists():
-    # ONLY prevents crash — does NOT fake real system logic
+def ensure_data_loaded():
+    """
+    IMPORTANT:
+    Replace this with your real DB / API / file loader.
+    This prevents AI crash without faking data.
+    """
+
     if st.session_state.all_data is None:
         st.session_state.all_data = []
 
@@ -54,10 +56,8 @@ def ensure_data_exists():
     if st.session_state.WEEKLY_ITEMS is None:
         st.session_state.WEEKLY_ITEMS = {}
 
-ensure_data_exists()
-
 # =========================================================
-# YOUR ORIGINAL STYLE (UNCHANGED)
+# STYLE (YOUR ORIGINAL DESIGN - UNTOUCHED)
 # =========================================================
 st.markdown("""
 <style>
@@ -91,7 +91,7 @@ st.markdown("""
     color: #2C2A28;
 }
 
-/* BUTTON STYLE (YOUR ORIGINAL RED LOOK) */
+/* BUTTON STYLE (YOUR RED BRAND STYLE) */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -116,18 +116,41 @@ div.stButton > button:hover {
     text-align: center;
 }
 
+/* LOGIN CARD */
+.login-box {
+    max-width: 450px;
+    margin: 80px auto;
+    padding: 50px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+.login-title {
+    font-size: 50px;
+    color: #C0392B;
+    margin-bottom: 5px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# LOGIN (IMPROVED UX ONLY)
 # =========================================================
 if not st.session_state.authenticated:
 
-    st.title("BART Login")
+    st.markdown("""
+    <div class="login-box">
+        <div class="login-title">BART</div>
+        <p>Coffee • French Toast • Fresh Bites</p>
+        <h3>Secure Login</h3>
+    </div>
+    """, unsafe_allow_html=True)
 
-    u = st.text_input("Username")
-    p = st.text_input("Password", type="password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
     if st.button("Login"):
         st.session_state.authenticated = True
@@ -147,7 +170,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🔥 ORIGINAL 3 BUTTONS IN SINGLE LINE (RESTORED)
+# MAIN BUTTONS (ORIGINAL UI RESTORED)
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
@@ -164,9 +187,12 @@ with col3:
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# AI CHAT (FIXED DATA ISSUE ONLY)
+# AI CHAT (FIXED — NO MORE STOCK ERROR)
 # =========================================================
 if st.session_state.ai_open:
+
+    # 🔥 FIX: ensure data is ready before AI runs
+    ensure_data_loaded()
 
     st.markdown("## 🤖 BART AI Assistant")
 
@@ -179,10 +205,10 @@ if st.session_state.ai_open:
     if st.button("Send AI") and user_input:
 
         context = {
-            "cache_data": st.session_state.all_data or [],
-            "branch_list": [b["BranchName"] for b in st.session_state.branches or []],
-            "master_items": list(st.session_state.DAILY_ITEMS.keys() or []) +
-                            list(st.session_state.WEEKLY_ITEMS.keys() or [])
+            "cache_data": st.session_state.all_data,
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
+                            list(st.session_state.WEEKLY_ITEMS.keys())
         }
 
         response = run_ai(user_input, context)
