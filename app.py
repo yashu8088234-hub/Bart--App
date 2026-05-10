@@ -182,7 +182,9 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
+# =========================================================
 # LOGIN SCREEN
+# =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
@@ -199,38 +201,55 @@ if not st.session_state.authenticated:
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input("Username", placeholder="Enter username")
-    password = st.text_input("Password", type="password", placeholder="Enter password")
+    username = st.text_input(
+        "Username",
+        placeholder="Enter username"
+    )
+
+    password = st.text_input(
+        "Password",
+        type="password",
+        placeholder="Enter password"
+    )
 
     login = st.button("Login")
 
     if login:
 
-        iif (
-    username.strip().lower() == st.secrets["MANAGER_USERNAME"].lower()
-    and password == st.secrets["MANAGER_PASSWORD"]):
-    st.session_state.authenticated = True
-    st.session_state.role = "manager"
-    st.rerun()
+        # Clean username input
+        clean_username = username.strip().lower()
 
-elif (
-    username.strip().lower() == st.secrets["STAFF_USERNAME"].lower()
-    and password == st.secrets["STAFF_PASSWORD"]):
-    st.session_state.authenticated = True
-    st.session_state.role = "staff"
-    st.rerun()
+        # Manager Login
+        if (
+            clean_username == st.secrets["MANAGER_USERNAME"].lower()
+            and password == st.secrets["MANAGER_PASSWORD"]
+        ):
+            st.session_state.authenticated = True
+            st.session_state.role = "manager"
+            st.rerun()
 
-else:
-    st.error("Invalid username or password")
+        # Staff Login
+        elif (
+            clean_username == st.secrets["STAFF_USERNAME"].lower()
+            and password == st.secrets["STAFF_PASSWORD"]
+        ):
+            st.session_state.authenticated = True
+            st.session_state.role = "staff"
+            st.rerun()
+
+        else:
+            st.error("Invalid username or password")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+# =========================================================
 # MAIN DASHBOARD
+# =========================================================
 else:
 
-    col1, col2 = st.columns([9,1])
+    top1, top2 = st.columns([9,1])
 
-    with col2:
+    with top2:
         if st.button("Logout"):
             st.session_state.authenticated = False
             st.session_state.role = None
@@ -254,7 +273,7 @@ else:
     col1, col2 = st.columns(2)
 
     with col2:
-        if st.button("📦  Management Dashboard"):
+        if st.button("📦 Management Dashboard"):
             st.switch_page("pages/management_dashboard.py")
 
     with col1:
@@ -263,6 +282,9 @@ else:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # =====================================================
+    # SESSION STORAGE
+    # =====================================================
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
 
@@ -275,9 +297,16 @@ else:
     if "WEEKLY_ITEMS" not in st.session_state:
         st.session_state.WEEKLY_ITEMS = {}
 
+    # =====================================================
     # CHAT INPUT
+    # =====================================================
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_input("", placeholder="🤖 Ask something...")
+
+        user_input = st.text_input(
+            "",
+            placeholder="🤖 Ask something..."
+        )
+
         send = st.form_submit_button("Send")
 
     if send and user_input:
@@ -289,7 +318,10 @@ else:
 
         context = {
             "cache_data": st.session_state.all_data,
-            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "branch_list": [
+                b["BranchName"]
+                for b in st.session_state.branches
+            ],
             "master_items": all_items
         }
 
@@ -301,11 +333,12 @@ else:
     st.markdown("## 💬 BART AI Chat")
 
     # =====================================================
-    # FIXED: REVERSED CHAT DISPLAY (NEWEST FIRST)
+    # CHAT DISPLAY
     # =====================================================
     for sender, msg in reversed(st.session_state.chat[-20:]):
 
         if sender == "You":
+
             st.markdown(
                 f"""
                 <div style="
@@ -320,7 +353,9 @@ else:
                 """,
                 unsafe_allow_html=True
             )
+
         else:
+
             st.markdown(
                 f"""
                 <div style="
@@ -336,6 +371,9 @@ else:
                 unsafe_allow_html=True
             )
 
+    # =====================================================
+    # FOOTER SECTIONS
+    # =====================================================
     st.markdown("""
     <div class="section">
     <h2>Our Experience</h2>
