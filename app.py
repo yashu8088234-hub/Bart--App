@@ -22,6 +22,9 @@ if "role" not in st.session_state:
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
+if "data_loaded" not in st.session_state:
+    st.session_state.data_loaded = False
+
 # =========================================================
 # GLOBAL STYLES
 # =========================================================
@@ -260,7 +263,10 @@ if not st.session_state.authenticated:
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input("Username", placeholder="Enter username")
+    username = st.text_input(
+        "Username",
+        placeholder="Enter username"
+    )
 
     password = st.text_input(
         "Password",
@@ -281,6 +287,7 @@ if not st.session_state.authenticated:
         ):
             st.session_state.authenticated = True
             st.session_state.role = "manager"
+            st.session_state.data_loaded = False
             st.rerun()
 
         # STAFF LOGIN
@@ -290,6 +297,7 @@ if not st.session_state.authenticated:
         ):
             st.session_state.authenticated = True
             st.session_state.role = "staff"
+            st.session_state.data_loaded = False
             st.rerun()
 
         else:
@@ -302,6 +310,42 @@ if not st.session_state.authenticated:
 # =========================================================
 else:
 
+    # =====================================================
+    # AUTO LOAD DATA
+    # =====================================================
+
+    if not st.session_state.data_loaded:
+
+        # =================================================
+        # PASTE YOUR MANAGEMENT DATA LOADING LOGIC HERE
+        # =================================================
+
+        # EXAMPLE PLACEHOLDERS
+        # Replace with your real loading logic
+
+        st.session_state.all_data = []
+
+        st.session_state.branches = [
+            {"BranchName": "Jeddah Main"}
+        ]
+
+        st.session_state.DAILY_ITEMS = {
+            "Latte": {},
+            "Espresso": {},
+            "French Toast": {}
+        }
+
+        st.session_state.WEEKLY_ITEMS = {
+            "Croissant": {},
+            "Cold Brew": {}
+        }
+
+        st.session_state.data_loaded = True
+
+    # =====================================================
+    # TOP BAR
+    # =====================================================
+
     col1, col2 = st.columns([9,1])
 
     with col2:
@@ -309,7 +353,12 @@ else:
             st.session_state.authenticated = False
             st.session_state.role = None
             st.session_state.chat = []
+            st.session_state.data_loaded = False
             st.rerun()
+
+    # =====================================================
+    # HERO SECTION
+    # =====================================================
 
     st.markdown("""
     <div class="hero">
@@ -323,12 +372,16 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
+    # =====================================================
+    # DASHBOARD BUTTONS
+    # =====================================================
+
     st.markdown('<div class="login-row">', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
     with col2:
-        if st.button("📦  Management Dashboard"):
+        if st.button("📦 Management Dashboard"):
             st.switch_page("pages/management_dashboard.py")
 
     with col1:
@@ -336,18 +389,6 @@ else:
             st.switch_page("pages/staff_dashboard.py")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-    if "all_data" not in st.session_state:
-        st.session_state.all_data = []
-
-    if "branches" not in st.session_state:
-        st.session_state.branches = []
-
-    if "DAILY_ITEMS" not in st.session_state:
-        st.session_state.DAILY_ITEMS = {}
-
-    if "WEEKLY_ITEMS" not in st.session_state:
-        st.session_state.WEEKLY_ITEMS = {}
 
     # =====================================================
     # AI CHAT SECTION
@@ -368,7 +409,10 @@ else:
 
         send = st.form_submit_button("Send")
 
-    # PROCESS AI
+    # =====================================================
+    # AI RESPONSE
+    # =====================================================
+
     if send and user_input:
 
         all_items = (
@@ -386,6 +430,7 @@ else:
         }
 
         with st.spinner("BART is thinking..."):
+
             response = run_ai(user_input, context)
 
         st.session_state.chat.append({
@@ -393,8 +438,14 @@ else:
             "ai": response
         })
 
+    # =====================================================
     # CHAT DISPLAY
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    # =====================================================
+
+    st.markdown(
+        '<div class="chat-container">',
+        unsafe_allow_html=True
+    )
 
     for chat in st.session_state.chat[-20:]:
 
@@ -418,7 +469,10 @@ else:
             unsafe_allow_html=True
         )
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "</div></div>",
+        unsafe_allow_html=True
+    )
 
     # =====================================================
     # FOOTER SECTIONS
