@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# GLOBAL STYLES
+# GLOBAL STYLES (YOUR ORIGINAL ONLY — SAFE)
 # =========================================================
 st.markdown("""
 <style>
@@ -38,6 +38,25 @@ st.markdown("""
     border-radius: 28px;
     padding: 45px 35px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    border: 1px solid rgba(255,255,255,0.4);
+}
+
+.login-logo {
+    text-align:center;
+}
+
+.login-logo h1 {
+    font-size:70px;
+    font-weight:900;
+    letter-spacing:8px;
+    color:#C0392B;
+    margin-bottom:5px;
+}
+
+.login-logo p {
+    color:#666;
+    margin-top:0;
+    font-size:15px;
 }
 
 /* HERO */
@@ -53,6 +72,7 @@ st.markdown("""
 .hero h1 {
     font-size: 70px;
     font-weight: 900;
+    letter-spacing: 8px;
     color: #C0392B;
     margin: 0;
 }
@@ -62,45 +82,20 @@ st.markdown("""
     color: #2C2A28;
 }
 
-/* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
     padding: 30px 20px;
     margin-top: 20px;
     border-radius: 16px;
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-/* CHAT BOX (ON PAGE) */
-.chat-container {
-    background: white;
-    border-radius: 16px;
-    padding: 15px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    margin-top: 25px;
-}
-
-.user-msg {
-    background: #f1f1f1;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
-    text-align: right;
-}
-
-.ai-msg {
-    background: #fff3f3;
-    color: #C0392B;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 6px;
+    text-align: center;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SESSION
+# SESSION STATE
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -124,14 +119,16 @@ if "WEEKLY_ITEMS" not in st.session_state:
     st.session_state.WEEKLY_ITEMS = {}
 
 # =========================================================
-# LOGIN
+# LOGIN PAGE
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-        <h1 style="text-align:center;color:#C0392B;">BART</h1>
-        <p style="text-align:center;">Coffee • French Toast • Fresh Bites</p>
+        <div class="login-logo">
+            <h1>BART</h1>
+            <p>Coffee • French Toast • Fresh Bites</p>
+        </div>
         <h3 style="text-align:center;">Control Center</h3>
     """, unsafe_allow_html=True)
 
@@ -157,7 +154,7 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid credentials")
+            st.error("Invalid username or password")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -166,6 +163,7 @@ if not st.session_state.authenticated:
 # =========================================================
 else:
 
+    # Logout
     top1, top2 = st.columns([9,1])
 
     with top2:
@@ -196,20 +194,20 @@ else:
             st.switch_page("pages/management_dashboard.py")
 
     # =====================================================
-    # 🔥 AI CHAT (NOW INSIDE PAGE - CLEAN VERSION)
+    # 🤖 AI CHAT (CLEAN + ON PAGE)
     # =====================================================
     st.markdown("## 🤖 BART AI Assistant")
 
-    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-
+    # Chat display
     for sender, msg in st.session_state.chat[-20:]:
         if sender == "You":
-            st.markdown(f'<div class="user-msg"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
+            st.markdown(f"**🧑 You:** {msg}")
         else:
-            st.markdown(f'<div class="ai-msg"><b>AI:</b> {msg}</div>', unsafe_allow_html=True)
+            st.markdown(f"**🤖 AI:** {msg}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.divider()
 
+    # Input
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("Ask something...")
         send = st.form_submit_button("Send")
