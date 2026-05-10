@@ -4,12 +4,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 from pathlib import Path
 import pandas as pd
-import time   # 🔴 ADDED
+import time
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
-# 🔴 ADDED: SESSION TIMEOUT (2 minutes)
 SESSION_TIMEOUT = 2 * 60
 
 # ---------------- CLEAN UI STYLE ----------------
@@ -51,7 +50,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- ADMIN PASSWORD FILE ----------------
+# ---------------- PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -71,7 +70,6 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    # 🔴 ADDED
     "last_activity": None
 }
 
@@ -79,24 +77,29 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# 🔴 ADDED: ACTIVITY REFRESH FUNCTION
+# ---------------- ACTIVITY ----------------
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
-# 🔴 ADDED: AUTO LOGOUT CHECK
+# ---------------- TIMEOUT ----------------
 def check_timeout():
-    if st.session_state.get("authenticated"):
-        last = st.session_state.get("last_activity")
-
-        if last is not None:
-            if time.time() - last > SESSION_TIMEOUT:
-                st.session_state.authenticated = False
-                st.session_state.auth_branch = None
-                st.session_state.last_activity = None
-                st.warning("⏱️ Logged out due to 2 minutes of inactivity.")
-                st.rerun()
+    if st.session_state.authenticated and st.session_state.last_activity:
+        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
+            st.session_state.authenticated = False
+            st.session_state.auth_branch = None
+            st.session_state.last_activity = None
+            st.warning("⏱️ Logged out due to inactivity.")
+            st.rerun()
 
 check_timeout()
+
+# ---------------- FORCE LOGOUT IF BRANCH CHANGES ----------------
+if st.session_state.authenticated:
+    if st.session_state.auth_branch != st.session_state.selected_branch:
+        st.session_state.authenticated = False
+        st.session_state.auth_branch = None
+        st.session_state.last_activity = None
+        st.rerun()
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -136,7 +139,6 @@ else:
 
     if st.button("🔄 REFRESH OR CHANGE BRANCH"):
         st.session_state.selected_branch = "-- Select Branch --"
-        # 🔴 ADDED RESET
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
@@ -190,9 +192,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
         with col1:
             if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
-                    st.session_state.authenticated = True
 
-                    # 🔴 ADDED
+                    # ✅ ONLY HERE LOGIN IS ALLOWED
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.last_activity = time.time()
 
                     st.session_state.sheet_id = branch_info["SheetID"]
@@ -227,17 +230,13 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1,col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
-            # 🔴 ADDED
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
-        
-        # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
-            # 🔴 ADDED
             refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
