@@ -7,7 +7,7 @@ from ai_core import run_ai
 st.set_page_config(
     page_title="BART",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # =========================================================
@@ -32,7 +32,7 @@ if "WEEKLY_ITEMS" not in st.session_state:
     st.session_state.WEEKLY_ITEMS = {}
 
 if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
+    st.session_state.ai_open = True  # sidebar default open feel
 
 # =========================================================
 # DATA CHECK
@@ -60,6 +60,7 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
+/* HERO */
 .hero {
     background: white;
     padding: 60px;
@@ -140,9 +141,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (UNCHANGED)
+# MAIN BUTTONS (AI REMOVED FROM HERE)
 # =========================================================
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     if st.button("👨‍💼 Staff Dashboard"):
@@ -152,30 +153,18 @@ with col2:
     if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
 
-with col3:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = not st.session_state.ai_open
-
 # =========================================================
-# AI SECTION (UPDATED - NO INNER BUTTON)
+# SIDE BAR AI (NEW LOCATION)
 # =========================================================
-if st.session_state.ai_open:
+with st.sidebar:
 
     st.markdown("## 🤖 BART AI Assistant")
 
-    # ---------------------------
-    # DATA NOT LOADED STATE
-    # ---------------------------
     if data_missing():
-
         st.warning("⚠ Stock not loaded")
-        st.info("📦 Please open Management Dashboard to load data")
-
+        st.info("Go to Management Dashboard to load data")
         st.stop()
 
-    # ---------------------------
-    # CHAT HISTORY
-    # ---------------------------
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
