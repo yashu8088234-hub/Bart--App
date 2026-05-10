@@ -177,6 +177,38 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
+# ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
+st.markdown("""
+<style>
+/* Column 1 */
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
+
+/* Column 2 */
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+/* Column 3 */
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -193,7 +225,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
 
-                    # ✅ ONLY HERE LOGIN IS ALLOWED
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.last_activity = time.time()
@@ -273,7 +304,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 item = row[0].strip()
 
                 values = row[1:]
-                values = values + [""] * (len(date_columns) - len(values))
+                values += [""] * (len(date_columns) - len(values))
 
                 cleaned = []
                 total = 0
