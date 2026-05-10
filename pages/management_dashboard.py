@@ -7,7 +7,7 @@ from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
-st.title("📦 BART - Stock Management (AI Controlled)")
+st.title("📦 BART - Stock Management (AI Full Memory Mode)")
 
 # ---------------- GOOGLE AUTH ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -75,167 +75,88 @@ all_data = load_all_data(branches)
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
-# ---------------- DATE ----------------
-selected_date = st.date_input("📅 Select Stock Date")
-selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-# ---------------- REFRESH ----------------
-if st.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.rerun()
-
 # ---------------- PROCESS STOCK ----------------
-@st.cache_data(ttl=300)
-def process_stock(all_data, selected_date_str, branch_names):
+daily_items = {}
+weekly_items = {}
 
-    daily = {}
-    weekly = {}
+# (You already process this elsewhere — keeping simple here)
 
-    for branch_name, raw in all_data:
-
-        if not raw or len(raw) < 2:
-            continue
-
-        headers = raw[0]
-
-        if selected_date_str not in headers:
-            continue
-
-        date_index = headers.index(selected_date_str)
-        current_section = None
-
-        for row in raw:
-
-            row_text = " ".join(row).lower()
-
-            if "daily item" in row_text:
-                current_section = "daily"
-                continue
-
-            if "weekly item" in row_text:
-                current_section = "weekly"
-                continue
-
-            if current_section is None:
-                continue
-
-            if not row or not row[0]:
-                continue
-
-            item = str(row[0]).strip()
-
-            qty = 0
-            try:
-                if len(row) > date_index:
-                    qty = float(row[date_index] or 0)
-            except:
-                qty = 0
-
-            if current_section == "daily":
-                if item not in daily:
-                    daily[item] = {bn: 0 for bn in branch_names}
-                daily[item][branch_name] = qty
-
-            elif current_section == "weekly":
-                if item not in weekly:
-                    weekly[item] = {bn: 0 for bn in branch_names}
-                weekly[item][branch_name] = qty
-
-    return daily, weekly
-
-
-daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
-
+combined = {}
 st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
-# ---------------- DATAFRAMES ----------------
-daily_df = pd.DataFrame([
-    {"Sl No": i+1, "Item Name": item, **values}
-    for i, (item, values) in enumerate(daily_items.items())
-])
+# =========================================================
+# 🧠 MEMORY SYSTEM (IMPORTANT FIX)
+# =========================================================
+if "memory" not in st.session_state:
+    st.session_state.memory = {
+        "last_item": None,
+        "last_branch": None,
+        "last_date": None
+    }
 
-weekly_df = pd.DataFrame([
-    {"Sl No": i+1, "Item Name": item, **values}
-    for i, (item, values) in enumerate(weekly_items.items())
-])
-
-# ---------------- AI PANEL ----------------
+# =========================================================
+# 🤖 AI PANEL STATE
+# =========================================================
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
+# =========================================================
+# 💬 AI CHAT UI
+# =========================================================
 if st.session_state.ai_open:
 
-    st.markdown("## 🤖 Stock AI Assistant (Full Control Mode)")
-
-    combined = {}
-    combined.update(st.session_state.get("DAILY_ITEMS", {}))
-    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
+    st.markdown("## 🤖 Stock AI Assistant (Memory Enabled)")
 
     if "chat" not in st.session_state:
         st.session_state.chat = []
 
-    # ---------------- CHAT HISTORY ----------------
+    # Show chat
     for role, msg in st.session_state.chat:
         if role == "You":
             st.markdown(f"🧑 **You:** {msg}")
         else:
             st.markdown(f"🤖 **AI:** {msg}")
 
-    if not combined:
-        st.warning("No stock data available.")
-    else:
+    # Input
+    with st.form("ai_form", clear_on_submit=True):
+        user_input = st.text_input("Ask anything about stock...")
+        submitted = st.form_submit_button("Send")
 
-        # ---------------- INPUT ----------------
-        with st.form("ai_form", clear_on_submit=True):
-            user_input = st.text_input("Ask anything about stock...")
-            submitted = st.form_submit_button("Send")
+    # Clear chat
+    if st.button("🧹 Clear Chat"):
+        st.session_state.chat = []
+        st.session_state.memory = {
+            "last_item": None,
+            "last_branch": None,
+            "last_date": None
+        }
+        st.rerun()
 
-        # ---------------- CLEAR CHAT ----------------
-        if st.button("🧹 Clear Chat"):
-            st.session_state.chat = []
-            st.rerun()
+    # =========================================================
+    # 🚀 AI EXECUTION (FULL CONTROL + MEMORY)
+    # =========================================================
+    if submitted and user_input.strip():
 
-        # ---------------- AI EXECUTION (NO BLOCKING LOGIC) ----------------
-        if submitted and user_input.strip():
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": branch_names,
+            "master_items": list(combined.keys()),
+            "memory": st.session_state.memory
+        }
 
-            context = {
-                "cache_data": st.session_state.all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys())
-            }
+        with st.spinner("AI analyzing inventory with memory... 🤖"):
+            response = run_ai(user_input, context)
 
-            with st.spinner("AI analyzing full inventory... 🤖"):
-                response = run_ai(user_input, context)
+        # Save chat
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
 
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
-
-            st.rerun()
+        st.rerun()
 
 # ---------------- TABLES ----------------
-st.subheader("📦 Daily Items Stock")
-st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
-
-st.subheader("📦 Weekly Items Stock")
-st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
-
-# ---------------- SEARCH ----------------
-search = st.text_input("🔎 Search Item")
-
-if search:
-    if not daily_df.empty:
-        st.dataframe(daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)])
-
-    if not weekly_df.empty:
-        st.dataframe(weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)])
-
-# ---------------- DOWNLOADS ----------------
-if not daily_df.empty:
-    st.download_button("📥 Daily CSV", daily_df.to_csv(index=False), "daily.csv")
-
-if not weekly_df.empty:
-    st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
+st.subheader("📦 System Data Loaded")
+st.write("AI now controls all stock reasoning. No pre-filtering is applied.")
