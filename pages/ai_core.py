@@ -5,88 +5,73 @@ from groq import Groq
 # =========================================================
 # 🔐 GROQ CLIENT
 # =========================================================
-client = Groq(
-    api_key=st.secrets["GROQ_API_KEY"]
-)
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # =========================================================
-# 📦 RAW DATA TOOL
-# AI HANDLES CONTEXT ITSELF
+# 📦 TOOL: GET RAW DATA (AI-OWNED CONTEXT)
 # =========================================================
 def get_raw_data():
 
     return {
-
-        # FULL RAW CACHE
-        "cache_data": st.session_state.get(
-            "all_data",
-            []
-        ),
-
-        # BRANCHES
-        "branches": st.session_state.get(
-            "branches",
-            []
-        ),
-
-        # DAILY ITEMS
-        "daily_items": st.session_state.get(
-            "DAILY_ITEMS",
-            {}
-        ),
-
-        # WEEKLY ITEMS
-        "weekly_items": st.session_state.get(
-            "WEEKLY_ITEMS",
-            {}
-        )
+        "cache_data": st.session_state.get("all_data", []),
+        "branches": st.session_state.get("branches", []),
+        "daily_items": st.session_state.get("DAILY_ITEMS", {}),
+        "weekly_items": st.session_state.get("WEEKLY_ITEMS", {})
     }
 
 # =========================================================
-# 🧠 AI AGENT
+# 🧼 SAFE JSON EXTRACTOR (FIXES YOUR ERROR)
+# =========================================================
+def extract_json(text):
+
+    try:
+        text = text.replace("```json", "").replace("```", "").strip()
+
+        start = text.find("{")
+        end = text.rfind("}") + 1
+
+        if start == -1 or end == -1:
+            return None
+
+        return json.loads(text[start:end])
+
+    except:
+        return None
+
+# =========================================================
+# 🧠 AI CORE ENGINE
 # =========================================================
 def run_ai(user_input):
 
     system_prompt = """
 You are STOCK AI, an autonomous inventory intelligence system.
 
-You fully control reasoning and analysis.
+You control all reasoning.
 
-You may request tools ONLY using valid JSON.
-
-AVAILABLE TOOLS:
+TOOLS AVAILABLE:
 1. get_raw_data
 
 RULES:
-- You decide when data is needed
-- You do all filtering and calculations yourself
-- Never ask Python to analyze stock
-- Always return a final answer
-- Never stop after tool calls
+- Decide when to use tools
+- Do all analysis yourself
+- Never ask Python for calculations
+- Always return final structured answer
 
-STRICT TOOL FORMAT:
+TOOL FORMAT (STRICT):
 {"tool":"get_raw_data"}
 
-FINAL RESPONSE FORMAT:
-# Summary
-# Stock Status
-# Branch Breakdown
-# Insights
-# Action Plan
-# Risk Level
+FINAL FORMAT:
+- Summary
+- Stock Status
+- Branch Breakdown
+- Insights
+- Action Plan
+- Risk Level
 """
 
     messages = [
-
-        {
-            "role": "system",
-            "content": system_prompt
-        },
-
-        {
-            "role": "user",
-            "content": user_input
-        }
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_input}
     ]
 
     try:
@@ -97,63 +82,37 @@ FINAL RESPONSE FORMAT:
         for _ in range(5):
 
             response = client.chat.completions.create(
-
                 model="llama-3.3-70b-versatile",
-
                 messages=messages,
-
                 temperature=0.2,
-
                 max_tokens=1200
             )
 
-            reply = (
-                response
-                .choices[0]
-                .message.content
-                .strip()
-            )
+            reply = response.choices[0].message.content.strip()
+
+            tool_request = extract_json(reply)
 
             # =================================================
-            # TOOL CALL CHECK
+            # TOOL CALL DETECTED
             # =================================================
-            try:
+            if (
+                isinstance(tool_request, dict)
+                and tool_request.get("tool") == "get_raw_data"
+            ):
 
-                tool_request = json.loads(reply)
+                tool_data = get_raw_data()
 
-                # ---------------------------------------------
-                # GET RAW DATA TOOL
-                # ---------------------------------------------
-                if (
-                    isinstance(tool_request, dict)
-                    and tool_request.get("tool")
-                    == "get_raw_data"
-                ):
+                messages.append({
+                    "role": "assistant",
+                    "content": reply
+                })
 
-                    tool_data = get_raw_data()
+                messages.append({
+                    "role": "user",
+                    "content": f"TOOL_RESULT:\n{json.dumps(tool_data)}"
+                })
 
-                    # SAVE TOOL REQUEST
-                    messages.append({
-
-                        "role": "assistant",
-
-                        "content": reply
-                    })
-
-                    # SEND TOOL RESULT
-                    messages.append({
-
-                        "role": "user",
-
-                        "content":
-                        f"TOOL_RESULT:\n"
-                        f"{json.dumps(tool_data)}"
-                    })
-
-                    continue
-
-            except:
-                pass
+                continue
 
             # =================================================
             # FINAL RESPONSE
@@ -163,7 +122,4 @@ FINAL RESPONSE FORMAT:
         return "⚠️ AI loop limit reached."
 
     except Exception as e:
-
-        return (
-            f"⚠️ System Error:\n{str(e)}"
-        )
+        return f"⚠️ System Error: {str(e)}"
