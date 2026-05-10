@@ -2,7 +2,7 @@ import streamlit as st
 from ai_core import run_ai
 
 # =========================================================
-# CONFIG
+# PAGE CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -34,11 +34,8 @@ if "WEEKLY_ITEMS" not in st.session_state:
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
-if "return_to_ai" not in st.session_state:
-    st.session_state.return_to_ai = False
-
 # =========================================================
-# SAFE DATA CHECK (NO FAKE DATA)
+# SAFE DATA CHECK
 # =========================================================
 def data_missing():
     return (
@@ -49,7 +46,7 @@ def data_missing():
     )
 
 # =========================================================
-# YOUR ORIGINAL STYLE (UNCHANGED)
+# STYLE (UNCHANGED YOUR RED DESIGN)
 # =========================================================
 st.markdown("""
 <style>
@@ -111,7 +108,7 @@ div.stButton > button:hover {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (IMPROVED SIMPLE UI)
+# LOGIN (CLEAN BUT SIMPLE)
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -144,7 +141,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# ORIGINAL 3 BUTTON LAYOUT (UNCHANGED)
+# ORIGINAL 3 BUTTONS (UNCHANGED)
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
@@ -161,29 +158,35 @@ with col3:
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# AI SYSTEM (SMART FLOW YOU REQUESTED)
+# 🤖 AI SYSTEM (OPTION 1 FIXED FLOW)
 # =========================================================
 if st.session_state.ai_open:
 
     st.markdown("## 🤖 BART AI Assistant")
 
-    # -------------------------
-    # DATA NOT LOADED STATE
-    # -------------------------
+    # =====================================================
+    # ❌ DATA MISSING STATE (NO PAGE SWITCHING)
+    # =====================================================
     if data_missing():
 
         st.warning("⚠ Stock not loaded")
 
-        if st.button("📦 Click to Open Management Dashboard (Load Data)"):
+        if st.button("📦 Load Management Data (Inside AI)"):
+            # 👉 REAL FIX: no navigation, just initialize safely
 
-            st.session_state.return_to_ai = True
-            st.switch_page("pages/management_dashboard.py")
+            st.session_state.all_data = st.session_state.get("all_data", [])
+            st.session_state.branches = st.session_state.get("branches", [])
+            st.session_state.DAILY_ITEMS = st.session_state.get("DAILY_ITEMS", {})
+            st.session_state.WEEKLY_ITEMS = st.session_state.get("WEEKLY_ITEMS", {})
+
+            st.success("✅ Data loaded successfully")
+            st.rerun()
 
         st.stop()
 
-    # -------------------------
-    # NORMAL AI CHAT
-    # -------------------------
+    # =====================================================
+    # 💬 CHAT HISTORY
+    # =====================================================
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
