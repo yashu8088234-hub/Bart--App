@@ -75,7 +75,7 @@ if not sheet_id or not tab_name:
     st.stop()
 
 # -----------------------------
-# GOOGLE SHEETS AUTH
+# GOOGLE SHEETS AUTH (CACHED)
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
@@ -84,14 +84,23 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+@st.cache_resource
+def get_client():
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    return gspread.authorize(creds)
 
-sheet = client.open_by_key(sheet_id).worksheet(tab_name)
+client = get_client()
+
+@st.cache_resource
+def get_sheet(sheet_id, tab_name):
+    return client.open_by_key(sheet_id).worksheet(tab_name)
+
+sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A
+# LOAD COLUMN A (CACHED)
 # -----------------------------
+@st.cache_data(ttl=60)
 def load_column_a(ws):
     data = ws.get_all_values()
     return [row[0].strip() for row in data if row and row[0].strip()]
@@ -160,41 +169,41 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUTS
+# INPUT FORM (FIXED - NO REFRESH)
 # -----------------------------
 st.markdown("## Enter Stock")
 
 inputs = {}
 
-for i in range(0, len(filtered_items), 4):
-    cols = st.columns(4)
+with st.form("stock_form", clear_on_submit=False):
 
-    for j, col in enumerate(cols):
-        if i + j < len(filtered_items):
+    for i in range(0, len(filtered_items), 4):
+        cols = st.columns(4)
 
-            item = filtered_items[i + j]
+        for j, col in enumerate(cols):
+            if i + j < len(filtered_items):
 
-            value = col.text_input(
-                item,
-                placeholder="Enter quantity",
-                key=f"{mode}_{item}"
-            )
+                item = filtered_items[i + j]
 
-            inputs[item] = value.strip() if value.strip() else None
+                value = col.text_input(
+                    item,
+                    placeholder="Enter quantity",
+                    key=f"{mode}_{item}"
+                )
 
-# -----------------------------
-# REVIEW
-# -----------------------------
-if st.button("🔍 Review Stock"):
+                inputs[item] = value.strip() if value.strip() else None
 
-    missing = [k for k, v in inputs.items() if v is None]
+    submitted = st.form_submit_button("🔍 Review Stock")
 
-    if missing:
-        st.error("Missing inputs")
-        st.stop()
+    if submitted:
 
-    st.session_state.draft_data = inputs
-    st.session_state.review_mode = True
+        missing = [k for k, v in inputs.items() if v is None]
+
+        if missing:
+            st.error("Missing inputs")
+        else:
+            st.session_state.draft_data = inputs
+            st.session_state.review_mode = True
 
 # -----------------------------
 # REVIEW + SUBMIT
@@ -253,7 +262,7 @@ if st.session_state.review_mode:
             st.error(f"Error: {e}")
 
 # -----------------------------
-# SUCCESS SCREEN (4 SEC + REDIRECT)
+# SUCCESS SCREEN
 # -----------------------------
 if st.session_state.show_success:
 
