@@ -227,7 +227,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1, col3 = st.columns(3)
+        col1,col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
             # 🔴 ADDED
