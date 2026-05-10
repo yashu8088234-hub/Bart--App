@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION
+# SESSION STATE
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -26,7 +26,7 @@ if "data_loaded" not in st.session_state:
     st.session_state.data_loaded = False
 
 # =========================================================
-# GLOBAL STYLES
+# GLOBAL CSS (UNCHANGED DESIGN + FIXES ONLY)
 # =========================================================
 st.markdown("""
 <style>
@@ -58,12 +58,10 @@ st.markdown("""
     border-radius: 28px;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    margin-bottom: 25px;
 }
 
-/* =====================================================
-   AI CHAT BOX FIX (MAIN FIX)
-===================================================== */
-
+/* AI WRAPPER */
 .ai-wrapper {
     background: rgba(255,255,255,0.92);
     border-radius: 22px;
@@ -72,7 +70,7 @@ st.markdown("""
     box-shadow: 0 10px 30px rgba(0,0,0,0.06);
 }
 
-/* FIXED CHAT AREA */
+/* CHAT BOX FIX (IMPORTANT PART) */
 .chat-container {
     height: 450px;
     overflow-y: auto;
@@ -81,7 +79,7 @@ st.markdown("""
     background: rgba(255,255,255,0.6);
 }
 
-/* USER / AI MESSAGES */
+/* MESSAGES */
 .user-msg {
     background:#f4f4f4;
     padding:12px;
@@ -98,7 +96,7 @@ st.markdown("""
     border-left:4px solid #C0392B;
 }
 
-/* MOBILE FIX */
+/* MOBILE RESPONSIVE FIX */
 @media only screen and (max-width: 768px) {
 
     .chat-container {
@@ -123,13 +121,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN SCREEN
+# LOGIN PAGE
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
         <h1 style="text-align:center;color:#C0392B;">BART</h1>
+        <p style="text-align:center;">Secure Login</p>
     """, unsafe_allow_html=True)
 
     username = st.text_input("Username")
@@ -139,6 +138,7 @@ if not st.session_state.authenticated:
 
         clean_username = username.strip().lower()
 
+        # MANAGER LOGIN
         if (
             clean_username == st.secrets["MANAGER_USERNAME"].lower()
             and password == st.secrets["MANAGER_PASSWORD"]
@@ -148,6 +148,7 @@ if not st.session_state.authenticated:
             st.session_state.data_loaded = False
             st.rerun()
 
+        # STAFF LOGIN
         elif (
             clean_username == st.secrets["STAFF_USERNAME"].lower()
             and password == st.secrets["STAFF_PASSWORD"]
@@ -158,63 +159,80 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid login")
+            st.error("Invalid username or password")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# MAIN PAGE
+# MAIN APP
 # =========================================================
 else:
 
+    # =====================================================
     # AUTO LOAD DATA (SAME PAGE FIX)
+    # =====================================================
     if not st.session_state.data_loaded:
 
         st.session_state.all_data = []
         st.session_state.branches = [{"BranchName": "Jeddah Main"}]
 
-        st.session_state.DAILY_ITEMS = {"Latte": {}, "Espresso": {}}
-        st.session_state.WEEKLY_ITEMS = {"Croissant": {}}
+        st.session_state.DAILY_ITEMS = {
+            "Latte": {},
+            "Espresso": {},
+            "French Toast": {}
+        }
+
+        st.session_state.WEEKLY_ITEMS = {
+            "Croissant": {},
+            "Cold Brew": {}
+        }
 
         st.session_state.data_loaded = True
 
-    # HERO
+    # =====================================================
+    # HERO SECTION
+    # =====================================================
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
         <h2>Coffee • French Toast • Fresh Bites</h2>
+        <p>Jeddah • bart.sa</p>
     </div>
     """, unsafe_allow_html=True)
 
     # =====================================================
-    # AI CHAT SECTION (FIXED)
+    # AI CHAT SECTION
     # =====================================================
-
     st.markdown("""
     <div class="ai-wrapper">
         <h3 style="color:#C0392B;">💬 BART AI Assistant</h3>
     """, unsafe_allow_html=True)
 
-    # CHAT DISPLAY (FIXED CONTAINER)
+    # ================= CHAT DISPLAY =================
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
     for chat in st.session_state.chat:
 
         st.markdown(f"""
-        <div class="user-msg"><b>You:</b><br>{chat['user']}</div>
+        <div class="user-msg">
+            <b>You:</b><br>{chat['user']}
+        </div>
         """, unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div class="ai-msg"><b>BART:</b><br>{chat['ai']}</div>
+        <div class="ai-msg">
+            <b>BART:</b><br>{chat['ai']}
+        </div>
         """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # INPUT
+    # ================= INPUT =================
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_input("", placeholder="Ask something...")
         send = st.form_submit_button("Send")
 
+    # ================= AI LOGIC =================
     if send and user_input:
 
         context = {
@@ -224,7 +242,7 @@ else:
                             list(st.session_state.WEEKLY_ITEMS.keys())
         }
 
-        with st.spinner("Thinking..."):
+        with st.spinner("BART is thinking..."):
             response = run_ai(user_input, context)
 
         st.session_state.chat.append({
