@@ -162,29 +162,6 @@ weekly_df = pd.DataFrame([
 ])
 
 # ---------------- DISPLAY ----------------
-st.subheader("📦 Daily Items Stock")
-st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
-
-st.subheader("📦 Weekly Items Stock")
-st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
-
-# ---------------- SEARCH ----------------
-search = st.text_input("🔎 Search Item")
-
-if search:
-    if not daily_df.empty:
-        st.dataframe(daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)])
-
-    if not weekly_df.empty:
-        st.dataframe(weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)])
-
-# ---------------- DOWNLOADS ----------------
-if not daily_df.empty:
-    st.download_button("📥 Daily CSV", daily_df.to_csv(index=False), "daily.csv")
-
-if not weekly_df.empty:
-    st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
-
 # =========================================================
 # 🤖 AI ASSISTANT (FIXED)
 # =========================================================
@@ -261,3 +238,27 @@ if st.session_state.ai_open:
             st.session_state.chat.append(("AI", response))
 
             st.rerun()
+
+st.subheader("📦 Daily Items Stock")
+st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
+
+st.subheader("📦 Weekly Items Stock")
+st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
+
+# ---------------- SEARCH ----------------
+search = st.text_input("🔎 Search Item")
+
+if search:
+    if not daily_df.empty:
+        st.dataframe(daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)])
+
+    if not weekly_df.empty:
+        st.dataframe(weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)])
+
+# ---------------- DOWNLOADS ----------------
+if not daily_df.empty:
+    st.download_button("📥 Daily CSV", daily_df.to_csv(index=False), "daily.csv")
+
+if not weekly_df.empty:
+    st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
+
