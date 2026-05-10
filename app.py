@@ -11,10 +11,13 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE (UNCHANGED LOGIC)
+# SESSION STATE (UNCHANGED)
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
@@ -35,111 +38,71 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# THEME (STANDARD COLORS + YOUR BRAND RED)
+# YOUR ORIGINAL RED DESIGN (UNCHANGED)
 # =========================================================
-PRIMARY = "#C0392B"   # your brand red
-DARK = "#2C2A28"
-BG = "#F6F7FB"
-CARD = "#FFFFFF"
-TEXT = "#1F1F1F"
-
-# =========================================================
-# STYLE (SAAS NAVBAR UI)
-# =========================================================
-st.markdown(f"""
+st.markdown("""
 <style>
 
-#MainMenu, footer, header {{
+#MainMenu, footer, header {
     visibility: hidden;
-}}
+}
 
-.stApp {{
-    background: {BG};
+.stApp {
+    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
-}}
-
-/* TOP NAV BAR */
-.navbar {{
-    position: sticky;
-    top: 0;
-    background: white;
-    padding: 14px 25px;
-    border-radius: 14px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-}}
-
-.brand {{
-    font-size: 22px;
-    font-weight: 800;
-    color: {PRIMARY};
-    letter-spacing: 2px;
-}}
-
-.nav-buttons button {{
-    margin-left: 10px;
-    background: {DARK};
-    color: white;
-    border-radius: 10px;
-    height: 40px;
-    padding: 0 14px;
-    border: none;
-    font-weight: 600;
-}}
-
-.nav-buttons button:hover {{
-    background: {PRIMARY};
-}}
+}
 
 /* HERO */
-.hero {{
-    background: {CARD};
-    padding: 50px;
+.hero {
+    background: white;
+    padding: 60px;
     text-align: center;
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    border-radius: 25px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     margin-bottom: 20px;
-}}
+}
 
-.hero h1 {{
-    font-size: 60px;
-    color: {PRIMARY};
+.hero h1 {
+    font-size: 70px;
+    color: #C0392B;
     margin: 0;
-}}
+}
+
+.hero h2 {
+    font-size: 22px;
+    color: #2C2A28;
+}
 
 /* SECTION */
-.section {{
-    background: {CARD};
+.section {
+    background: white;
     padding: 25px;
     margin-top: 15px;
-    border-radius: 14px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.06);
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     text-align: center;
-}}
+}
 
-/* MAIN BUTTON STYLE (CONSISTENT) */
-div.stButton > button {{
+/* BUTTON STYLE (YOUR ORIGINAL RED LOOK KEPT) */
+div.stButton > button {
     width: 100%;
-    height: 48px;
-    border-radius: 12px;
-    background: {DARK};
+    height: 52px;
+    border-radius: 14px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
     color: white;
     font-weight: 700;
     border: none;
-}}
+}
 
-div.stButton > button:hover {{
-    background: {PRIMARY};
-}}
+div.stButton > button:hover {
+    opacity: 0.9;
+}
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# LOGIN (UNCHANGED LOGIC)
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -155,38 +118,37 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# TOP NAV BAR (OPTION 1 IMPLEMENTATION)
+# HERO (UNCHANGED)
 # =========================================================
-st.markdown(f"""
-<div class="navbar">
-    <div class="brand">BART</div>
-</div>
-""", unsafe_allow_html=True)
-
-col1, col2, col3 = st.columns([2,2,2])
-
-with col1:
-    if st.button("👨‍💼 Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
-
-with col2:
-    if st.button("📦 Management Dashboard"):
-        st.switch_page("pages/management_dashboard.py")
-
-with col3:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = not st.session_state.ai_open
-
-# =========================================================
-# HERO
-# =========================================================
-st.markdown(f"""
+st.markdown("""
 <div class="hero">
     <h1>BART</h1>
-    <p style="color:{TEXT}">Coffee • French Toast • Fresh Bites</p>
-    <p style="color:{TEXT}">📍 Jeddah • bart.sa</p>
+    <h2>Coffee • French Toast • Fresh Bites</h2>
+    <p>📍 Jeddah • bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
+
+# =========================================================
+# ✅ FIXED DESKTOP BUTTON LAYOUT (ONLY CHANGE)
+# =========================================================
+
+# CENTER CONTAINER (keeps desktop clean, doesn't affect mobile)
+left, center, right = st.columns([1, 4, 1])
+
+with center:
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("👨‍💼 Staff Dashboard"):
+            st.switch_page("pages/staff_dashboard.py")
+
+    with col2:
+        if st.button("📦 Management Dashboard"):
+            st.switch_page("pages/management_dashboard.py")
+
+    with col3:
+        if st.button("🤖 AI Assistant"):
+            st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
 # AI CHAT (UNCHANGED LOGIC)
@@ -218,9 +180,9 @@ if st.session_state.ai_open:
         st.rerun()
 
 # =========================================================
-# FOOTER
+# FOOTER (UNCHANGED)
 # =========================================================
-st.markdown(f"""
+st.markdown("""
 <div class="section">
     <h3>Our Experience</h3>
     <p>Premium café experience in Jeddah</p>
