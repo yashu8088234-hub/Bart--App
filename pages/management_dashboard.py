@@ -85,6 +85,9 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
+
+if st.button("⬅ Back"):
+    st.switch_page("app.py")
 # ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
