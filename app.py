@@ -19,6 +19,9 @@ if "authenticated" not in st.session_state:
 if "role" not in st.session_state:
     st.session_state.role = None
 
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
 # =========================================================
 # GLOBAL STYLES
 # =========================================================
@@ -176,6 +179,34 @@ div.stButton > button:hover {
     text-align: center;
 }
 
+/* SIDEBAR CHAT STYLE */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #ffffff, #f7f1ea);
+    padding: 20px;
+}
+
+.chat-box {
+    max-height: 65vh;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.user-msg {
+    background: #f1f1f1;
+    padding: 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    text-align: right;
+}
+
+.ai-msg {
+    background: #fff3f3;
+    color: #C0392B;
+    padding: 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -239,6 +270,7 @@ else:
         if st.button("Logout"):
             st.session_state.authenticated = False
             st.session_state.role = None
+            st.session_state.chat = []
             st.rerun()
 
     st.markdown("""
@@ -268,7 +300,7 @@ else:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # =====================================================
-    # SESSION STORAGE (kept as-is except chat removed)
+    # SESSION STORAGE
     # =====================================================
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
@@ -281,6 +313,49 @@ else:
 
     if "WEEKLY_ITEMS" not in st.session_state:
         st.session_state.WEEKLY_ITEMS = {}
+
+    # =====================================================
+    # MODERN AI SIDEBAR CHAT (NEW)
+    # =====================================================
+    with st.sidebar:
+        st.markdown("## 🤖 BART AI")
+
+        st.markdown('<div class="chat-box">', unsafe_allow_html=True)
+
+        for sender, msg in st.session_state.chat[-20:]:
+            if sender == "You":
+                st.markdown(f'<div class="user-msg"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="ai-msg"><b>BART:</b> {msg}</div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        with st.form("ai_chat_form", clear_on_submit=True):
+            user_input = st.text_input("Ask something...")
+            send = st.form_submit_button("Send")
+
+        if send and user_input:
+
+            all_items = (
+                list(st.session_state.DAILY_ITEMS.keys()) +
+                list(st.session_state.WEEKLY_ITEMS.keys())
+            )
+
+            context = {
+                "cache_data": st.session_state.all_data,
+                "branch_list": [
+                    b["BranchName"]
+                    for b in st.session_state.branches
+                ],
+                "master_items": all_items
+            }
+
+            response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.rerun()
 
     # =====================================================
     # FOOTER SECTIONS
