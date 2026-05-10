@@ -11,35 +11,42 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION
-# =========================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if "role" not in st.session_state:
-    st.session_state.role = None
-
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-# =========================================================
-# GLOBAL STYLES
+# GLOBAL UI HIDING (FULL LOCKDOWN)
 # =========================================================
 st.markdown("""
 <style>
 
-#MainMenu, footer, header {
+#MainMenu {
     visibility: hidden;
 }
 
+header {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+/* Hide Streamlit toolbar + deploy/manage buttons */
 [data-testid="stToolbar"] {
-    display:none;
+    display: none;
 }
 
+[data-testid="stStatusWidget"] {
+    display: none;
+}
+
+[data-testid="stDeployButton"] {
+    display: none;
+}
+
+/* Sidebar styling */
 [data-testid="stSidebar"] {
-    display:none;
+    background: linear-gradient(180deg, #ffffff, #f7f1ea);
 }
 
+/* App background */
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
@@ -115,13 +122,7 @@ div.stButton > button:hover {
     opacity:0.92;
 }
 
-/* MAIN PAGE */
-
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
+/* HERO */
 
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
@@ -154,12 +155,7 @@ div.stButton > button:hover {
     line-height: 1.6;
 }
 
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
+/* SECTION */
 
 .section {
     background: rgba(255,255,255,0.9);
@@ -179,12 +175,7 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-/* SIDEBAR CHAT STYLE */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #ffffff, #f7f1ea);
-    padding: 20px;
-}
-
+/* CHAT UI */
 .chat-box {
     max-height: 65vh;
     overflow-y: auto;
@@ -211,7 +202,19 @@ div.stButton > button:hover {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN SCREEN
+# SESSION
+# =========================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+# =========================================================
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -229,12 +232,10 @@ if not st.session_state.authenticated:
     </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input("Username", placeholder="Enter username")
-    password = st.text_input("Password", type="password", placeholder="Enter password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-    login = st.button("Login")
-
-    if login:
+    if st.button("Login"):
 
         clean_username = username.strip().lower()
 
@@ -260,12 +261,12 @@ if not st.session_state.authenticated:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# MAIN DASHBOARD
+# MAIN APP
 # =========================================================
 else:
 
+    # Logout
     top1, top2 = st.columns([9,1])
-
     with top2:
         if st.button("Logout"):
             st.session_state.authenticated = False
@@ -273,6 +274,7 @@ else:
             st.session_state.chat = []
             st.rerun()
 
+    # HERO
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
@@ -285,23 +287,18 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
+    # BUTTONS
     col1, col2 = st.columns(2)
-
-    with col2:
-        if st.button("📦 Management Dashboard"):
-            st.switch_page("pages/management_dashboard.py")
 
     with col1:
         if st.button("👨‍💼 Staff Dashboard"):
             st.switch_page("pages/staff_dashboard.py")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("📦 Management Dashboard"):
+            st.switch_page("pages/management_dashboard.py")
 
-    # =====================================================
-    # SESSION STORAGE
-    # =====================================================
+    # SESSION DATA
     if "all_data" not in st.session_state:
         st.session_state.all_data = []
 
@@ -315,10 +312,10 @@ else:
         st.session_state.WEEKLY_ITEMS = {}
 
     # =====================================================
-    # MODERN AI SIDEBAR CHAT (NEW)
+    # MODERN AI SIDEBAR CHAT
     # =====================================================
     with st.sidebar:
-        st.markdown("## 🤖 BART AI")
+        st.markdown("## 🤖 BART AI Assistant")
 
         st.markdown('<div class="chat-box">', unsafe_allow_html=True)
 
@@ -330,7 +327,7 @@ else:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-        with st.form("ai_chat_form", clear_on_submit=True):
+        with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_input("Ask something...")
             send = st.form_submit_button("Send")
 
@@ -343,10 +340,7 @@ else:
 
             context = {
                 "cache_data": st.session_state.all_data,
-                "branch_list": [
-                    b["BranchName"]
-                    for b in st.session_state.branches
-                ],
+                "branch_list": [b["BranchName"] for b in st.session_state.branches],
                 "master_items": all_items
             }
 
@@ -357,9 +351,7 @@ else:
 
             st.rerun()
 
-    # =====================================================
-    # FOOTER SECTIONS
-    # =====================================================
+    # FOOTER
     st.markdown("""
     <div class="section">
     <h2>Our Experience</h2>
