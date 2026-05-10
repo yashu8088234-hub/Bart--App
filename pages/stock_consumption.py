@@ -71,9 +71,13 @@ if not sheet_id or not tab_name:
                 break
 
 if not sheet_id or not tab_name:
-    st.error("Session expired. Please login again.")
-    st.stop()
 
+    st.error("Session expired.")
+
+    if st.button("⬅ Back to Staff Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
+
+    st.stop()
 # -----------------------------
 # GOOGLE SHEETS AUTH (CACHED)
 # -----------------------------
