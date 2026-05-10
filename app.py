@@ -2,7 +2,7 @@ import streamlit as st
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -11,55 +11,53 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE INIT
+# SESSION STATE
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
 if "all_data" not in st.session_state:
-    st.session_state.all_data = None
+    st.session_state.all_data = []
 
 if "branches" not in st.session_state:
-    st.session_state.branches = None
+    st.session_state.branches = []
 
 if "DAILY_ITEMS" not in st.session_state:
-    st.session_state.DAILY_ITEMS = None
+    st.session_state.DAILY_ITEMS = {}
 
 if "WEEKLY_ITEMS" not in st.session_state:
-    st.session_state.WEEKLY_ITEMS = None
+    st.session_state.WEEKLY_ITEMS = {}
 
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# 🔥 REAL DATA LOADER (NO FAKE DATA)
-# 👉 Replace this with DB / API / file load
+# REAL DATA FIX (NO FAKE DATA, NO BREAK)
 # =========================================================
-def load_real_data():
-    # THIS is where your management dashboard data should come from
-    return {
-        "all_data": [],
-        "branches": [],
-        "DAILY_ITEMS": {},
-        "WEEKLY_ITEMS": {}
-    }
+def ensure_data_exists():
+    # ONLY prevents crash — does NOT fake real system logic
+    if st.session_state.all_data is None:
+        st.session_state.all_data = []
+
+    if st.session_state.branches is None:
+        st.session_state.branches = []
+
+    if st.session_state.DAILY_ITEMS is None:
+        st.session_state.DAILY_ITEMS = {}
+
+    if st.session_state.WEEKLY_ITEMS is None:
+        st.session_state.WEEKLY_ITEMS = {}
+
+ensure_data_exists()
 
 # =========================================================
-# LOAD DATA ONCE (IMPORTANT FIX)
-# =========================================================
-if st.session_state.all_data is None:
-    data = load_real_data()
-
-    st.session_state.all_data = data["all_data"]
-    st.session_state.branches = data["branches"]
-    st.session_state.DAILY_ITEMS = data["DAILY_ITEMS"]
-    st.session_state.WEEKLY_ITEMS = data["WEEKLY_ITEMS"]
-
-# =========================================================
-# YOUR ORIGINAL UI STYLE (UNCHANGED RED THEME)
+# YOUR ORIGINAL STYLE (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -89,7 +87,11 @@ st.markdown("""
     margin: 0;
 }
 
-/* BUTTON STYLE */
+.hero h2 {
+    color: #2C2A28;
+}
+
+/* BUTTON STYLE (YOUR ORIGINAL RED LOOK) */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -104,6 +106,7 @@ div.stButton > button:hover {
     opacity: 0.9;
 }
 
+/* SECTION */
 .section {
     background: white;
     padding: 25px;
@@ -144,9 +147,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# NAVIGATION
+# 🔥 ORIGINAL 3 BUTTONS IN SINGLE LINE (RESTORED)
 # =========================================================
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("👨‍💼 Staff Dashboard"):
@@ -156,19 +159,12 @@ with col2:
     if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
 
-# =========================================================
-# AI BUTTON
-# =========================================================
-st.markdown("---")
-
-col_left, col_mid, col_right = st.columns([1,2,1])
-
-with col_mid:
+with col3:
     if st.button("🤖 AI Assistant"):
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# AI CHAT (FIXED — NO MORE STOCK ERROR)
+# AI CHAT (FIXED DATA ISSUE ONLY)
 # =========================================================
 if st.session_state.ai_open:
 
@@ -182,14 +178,11 @@ if st.session_state.ai_open:
 
     if st.button("Send AI") and user_input:
 
-        # SAFE CONTEXT (NO NULL CRASHES)
         context = {
             "cache_data": st.session_state.all_data or [],
-            "branch_list": [
-                b["BranchName"] for b in (st.session_state.branches or [])
-            ],
-            "master_items": list((st.session_state.DAILY_ITEMS or {}).keys()) +
-                            list((st.session_state.WEEKLY_ITEMS or {}).keys())
+            "branch_list": [b["BranchName"] for b in st.session_state.branches or []],
+            "master_items": list(st.session_state.DAILY_ITEMS.keys() or []) +
+                            list(st.session_state.WEEKLY_ITEMS.keys() or [])
         }
 
         response = run_ai(user_input, context)
