@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# GLOBAL STYLES (YOUR ORIGINAL - SAFE)
+# GLOBAL STYLES
 # =========================================================
 st.markdown("""
 <style>
@@ -24,17 +24,12 @@ st.markdown("""
     display:none;
 }
 
-[data-testid="stSidebar"] {
-    display:none;
-}
-
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* LOGIN PAGE */
-
+/* LOGIN */
 .login-container {
     max-width: 460px;
     margin: 80px auto;
@@ -43,74 +38,9 @@ st.markdown("""
     border-radius: 28px;
     padding: 45px 35px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    border: 1px solid rgba(255,255,255,0.4);
 }
 
-.login-logo {
-    text-align:center;
-}
-
-.login-logo h1 {
-    font-size:70px;
-    font-weight:900;
-    letter-spacing:8px;
-    color:#C0392B;
-    margin-bottom:5px;
-}
-
-.login-logo p {
-    color:#666;
-    margin-top:0;
-    font-size:15px;
-}
-
-.login-title {
-    text-align:center;
-    margin-top:25px;
-    margin-bottom:30px;
-}
-
-.login-title h2 {
-    color:#2C2A28;
-    margin-bottom:6px;
-}
-
-.login-title span {
-    color:#777;
-    font-size:14px;
-}
-
-div[data-baseweb="input"] input {
-    border-radius:14px;
-    height:52px;
-    border:1px solid #E4E4E4;
-    background:white;
-    font-size:15px;
-}
-
-div.stButton > button {
-    width:100%;
-    height:52px;
-    border:none;
-    border-radius:14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color:white;
-    font-size:16px;
-    font-weight:700;
-}
-
-div.stButton > button:hover {
-    opacity:0.92;
-}
-
-/* MAIN PAGE */
-
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
-
+/* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 60px 30px;
@@ -123,7 +53,6 @@ div.stButton > button:hover {
 .hero h1 {
     font-size: 70px;
     font-weight: 900;
-    letter-spacing: 8px;
     color: #C0392B;
     margin: 0;
 }
@@ -131,24 +60,9 @@ div.stButton > button:hover {
 .hero h2 {
     font-size: 22px;
     color: #2C2A28;
-    margin-top: 10px;
 }
 
-.hero p {
-    font-size: 15px;
-    color: #555;
-    max-width: 750px;
-    margin: 10px auto 0;
-    line-height: 1.6;
-}
-
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
-
+/* SECTION */
 .section {
     background: rgba(255,255,255,0.9);
     padding: 30px 20px;
@@ -157,21 +71,36 @@ div.stButton > button:hover {
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
 }
 
-.section h2 {
-    color: #C0392B;
-    text-align: center;
+/* CHAT BOX (ON PAGE) */
+.chat-container {
+    background: white;
+    border-radius: 16px;
+    padding: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    margin-top: 25px;
 }
 
-.section p {
-    color: #555;
-    text-align: center;
+.user-msg {
+    background: #f1f1f1;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    text-align: right;
+}
+
+.ai-msg {
+    background: #fff3f3;
+    color: #C0392B;
+    padding: 10px;
+    border-radius: 10px;
+    margin-bottom: 6px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SESSION STATE
+# SESSION
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -195,21 +124,15 @@ if "WEEKLY_ITEMS" not in st.session_state:
     st.session_state.WEEKLY_ITEMS = {}
 
 # =========================================================
-# LOGIN SCREEN
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-        <div class="login-logo">
-            <h1>BART</h1>
-            <p>Coffee • French Toast • Fresh Bites</p>
-        </div>
-
-        <div class="login-title">
-            <h2>Control Center</h2>
-            <span>Secure Internal Access</span>
-        </div>
+        <h1 style="text-align:center;color:#C0392B;">BART</h1>
+        <p style="text-align:center;">Coffee • French Toast • Fresh Bites</p>
+        <h3 style="text-align:center;">Control Center</h3>
     """, unsafe_allow_html=True)
 
     username = st.text_input("Username")
@@ -234,7 +157,7 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid username or password")
+            st.error("Invalid credentials")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -257,15 +180,11 @@ else:
     <div class="hero">
         <h1>BART</h1>
         <h2>Coffee • French Toast • Fresh Bites</h2>
-        <p>
-        A modern café experience built for speed,
-        quality, and taste.
-        📍 Jeddah • bart.sa
-        </p>
+        <p>📍 Jeddah • bart.sa</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # BUTTONS
+    # NAV BUTTONS
     col1, col2 = st.columns(2)
 
     with col1:
@@ -277,40 +196,41 @@ else:
             st.switch_page("pages/management_dashboard.py")
 
     # =====================================================
-    # CLEAN AI SIDEBAR (STABLE + NO DESIGN BREAK)
+    # 🔥 AI CHAT (NOW INSIDE PAGE - CLEAN VERSION)
     # =====================================================
-    with st.sidebar:
-        st.markdown("## 🤖 BART AI Assistant")
+    st.markdown("## 🤖 BART AI Assistant")
 
-        for sender, msg in st.session_state.chat[-20:]:
-            if sender == "You":
-                st.markdown(f"**🧑 You:** {msg}")
-            else:
-                st.markdown(f"**🤖 AI:** {msg}")
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
 
-        st.divider()
+    for sender, msg in st.session_state.chat[-20:]:
+        if sender == "You":
+            st.markdown(f'<div class="user-msg"><b>You:</b> {msg}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="ai-msg"><b>AI:</b> {msg}</div>', unsafe_allow_html=True)
 
-        with st.form("ai_chat_form", clear_on_submit=True):
-            user_input = st.text_input("Ask something...")
-            send = st.form_submit_button("Send")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        if send and user_input:
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_input("Ask something...")
+        send = st.form_submit_button("Send")
 
-            context = {
-                "cache_data": st.session_state.all_data,
-                "branch_list": [b["BranchName"] for b in st.session_state.branches],
-                "master_items": (
-                    list(st.session_state.DAILY_ITEMS.keys()) +
-                    list(st.session_state.WEEKLY_ITEMS.keys())
-                )
-            }
+    if send and user_input:
 
-            response = run_ai(user_input, context)
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": (
+                list(st.session_state.DAILY_ITEMS.keys()) +
+                list(st.session_state.WEEKLY_ITEMS.keys())
+            )
+        }
 
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
+        response = run_ai(user_input, context)
 
-            st.rerun()
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
+
+        st.rerun()
 
     # =====================================================
     # FOOTER
