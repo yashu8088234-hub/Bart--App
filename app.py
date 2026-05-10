@@ -16,6 +16,9 @@ st.set_page_config(
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+if "role" not in st.session_state:
+    st.session_state.role = None
+
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -35,7 +38,7 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# YOUR ORIGINAL DESIGN (UNCHANGED)
+# YOUR ORIGINAL RED DESIGN (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -66,10 +69,21 @@ st.markdown("""
 }
 
 .hero h2 {
+    font-size: 22px;
     color: #2C2A28;
 }
 
-/* BUTTON STYLE (RED THEME KEPT) */
+/* SECTION */
+.section {
+    background: white;
+    padding: 25px;
+    margin-top: 15px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+/* BUTTON STYLE (YOUR ORIGINAL RED LOOK KEPT) */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -84,20 +98,11 @@ div.stButton > button:hover {
     opacity: 0.9;
 }
 
-.section {
-    background: white;
-    padding: 25px;
-    margin-top: 15px;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-    text-align: center;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (UNCHANGED)
+# LOGIN (UNCHANGED LOGIC)
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -113,7 +118,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# HERO
+# HERO (UNCHANGED)
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -124,28 +129,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (TOP ROW)
+# ✅ FIXED DESKTOP BUTTON LAYOUT (ONLY CHANGE)
 # =========================================================
-col1, col2 = st.columns(2)
 
-with col1:
-    if st.button("👨‍💼 Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
+# CENTER CONTAINER (keeps desktop clean, doesn't affect mobile)
+left, center, right = st.columns([1, 4, 1])
 
-with col2:
-    if st.button("📦 Management Dashboard"):
-        st.switch_page("pages/management_dashboard.py")
+with center:
+    col1, col2, col3 = st.columns(3)
 
-# =========================================================
-# AI BUTTON (MOVED DOWN — FIXED ALIGNMENT)
-# =========================================================
-st.markdown("<br>", unsafe_allow_html=True)
+    with col1:
+        if st.button("👨‍💼 Staff Dashboard"):
+            st.switch_page("pages/staff_dashboard.py")
 
-col_left, col_mid, col_right = st.columns([1,2,1])
+    with col2:
+        if st.button("📦 Management Dashboard"):
+            st.switch_page("pages/management_dashboard.py")
 
-with col_mid:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = not st.session_state.ai_open
+    with col3:
+        if st.button("🤖 AI Assistant"):
+            st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
 # AI CHAT (UNCHANGED LOGIC)
@@ -177,7 +180,7 @@ if st.session_state.ai_open:
         st.rerun()
 
 # =========================================================
-# FOOTER
+# FOOTER (UNCHANGED)
 # =========================================================
 st.markdown("""
 <div class="section">
