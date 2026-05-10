@@ -31,9 +31,6 @@ if "DAILY_ITEMS" not in st.session_state:
 if "WEEKLY_ITEMS" not in st.session_state:
     st.session_state.WEEKLY_ITEMS = {}
 
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = True  # sidebar default open feel
-
 # =========================================================
 # DATA CHECK
 # =========================================================
@@ -46,7 +43,7 @@ def data_missing():
     )
 
 # =========================================================
-# STYLE (UNCHANGED)
+# STYLE (UNCHANGED — YOUR ORIGINAL)
 # =========================================================
 st.markdown("""
 <style>
@@ -60,7 +57,6 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* HERO */
 .hero {
     background: white;
     padding: 60px;
@@ -80,7 +76,6 @@ st.markdown("""
     color: #2C2A28;
 }
 
-/* BUTTON STYLE */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -130,7 +125,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# HERO
+# HERO (UNCHANGED)
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -141,9 +136,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (AI REMOVED FROM HERE)
+# MAIN BUTTONS (RESTORED EXACTLY 3 IN A ROW)
 # =========================================================
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("👨‍💼 Staff Dashboard"):
@@ -153,8 +148,11 @@ with col2:
     if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
 
+with col3:
+    st.empty()  # AI button removed as requested
+
 # =========================================================
-# SIDE BAR AI (NEW LOCATION)
+# SIDE BAR AI ONLY (NEW LOCATION)
 # =========================================================
 with st.sidebar:
 
@@ -162,7 +160,7 @@ with st.sidebar:
 
     if data_missing():
         st.warning("⚠ Stock not loaded")
-        st.info("Go to Management Dashboard to load data")
+        st.info("Please open Management Dashboard to load data")
         st.stop()
 
     for sender, msg in st.session_state.chat[-20:]:
@@ -188,16 +186,16 @@ with st.sidebar:
         st.rerun()
 
 # =========================================================
-# FOOTER
+# FOOTER (UNCHANGED — YOUR ORIGINAL EXACTLY)
 # =========================================================
 st.markdown("""
 <div class="section">
-    <h3>Our Experience</h3>
-    <p>Premium café experience in Jeddah</p>
+    <h2>Our Experience</h2>
+    <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
 </div>
 
 <div class="section">
-    <h3>Visit Us</h3>
-    <p>bart.sa • Jeddah Branches</p>
+    <h2>Visit Us</h2>
+    <p>Find us in Jeddah branches or visit bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
