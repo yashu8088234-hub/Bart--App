@@ -8,19 +8,19 @@ from groq import Groq
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # =========================================================
-# 📦 TOOL: GET RAW DATA (AI USES SESSION STATE)
+# 📦 TOOL: GET RAW DATA (SAFE + DEBUG PROTECTED)
 # =========================================================
 def get_raw_data():
 
     return {
-        "cache_data": st.session_state.get("all_data", []),
-        "branches": st.session_state.get("branches", []),
-        "daily_items": st.session_state.get("DAILY_ITEMS", {}),
-        "weekly_items": st.session_state.get("WEEKLY_ITEMS", {})
+        "cache_data": st.session_state.get("all_data", None),
+        "branches": st.session_state.get("branches", None),
+        "daily_items": st.session_state.get("DAILY_ITEMS", None),
+        "weekly_items": st.session_state.get("WEEKLY_ITEMS", None)
     }
 
 # =========================================================
-# 🧼 SAFE JSON EXTRACTOR (IMPORTANT FIX)
+# 🧼 SAFE JSON PARSER
 # =========================================================
 def extract_json(text):
 
@@ -44,30 +44,29 @@ def extract_json(text):
 def run_ai(user_input):
 
     system_prompt = """
-You are STOCK AI, an autonomous inventory intelligence system.
+You are STOCK AI, an inventory intelligence system.
 
-You control reasoning fully.
+You analyze stock data and give structured business insights.
 
-TOOLS AVAILABLE:
-1. get_raw_data
+TOOLS:
+- get_raw_data
 
 RULES:
-- Decide when to use tools
-- Do all calculations yourself
-- Never ask Python to process stock
-- Always return final structured answer
-- Continue after tool responses
+- Always request tool when needed
+- Never assume missing data
+- If data is missing, report it clearly
+- Always give final structured answer
 
 TOOL FORMAT:
 {"tool":"get_raw_data"}
 
 OUTPUT FORMAT:
-- Summary
-- Stock Status
-- Branch Breakdown
-- Insights
-- Action Plan
-- Risk Level
+Summary
+Stock Status
+Branch Breakdown
+Insights
+Action Plan
+Risk Level
 """
 
     messages = [
@@ -77,9 +76,6 @@ OUTPUT FORMAT:
 
     try:
 
-        # =====================================================
-        # TOOL LOOP (UP TO 5 STEPS)
-        # =====================================================
         for _ in range(5):
 
             response = client.chat.completions.create(
@@ -91,27 +87,39 @@ OUTPUT FORMAT:
 
             reply = response.choices[0].message.content.strip()
 
-            # =================================================
-            # CHECK TOOL CALL
-            # =================================================
             tool_request = extract_json(reply)
 
-            if (
-                isinstance(tool_request, dict)
-                and tool_request.get("tool") == "get_raw_data"
-            ):
+            # =================================================
+            # TOOL CALL
+            # =================================================
+            if isinstance(tool_request, dict) and tool_request.get("tool") == "get_raw_data":
 
                 tool_data = get_raw_data()
 
-                messages.append({
-                    "role": "assistant",
-                    "content": reply
-                })
+                # 🚨 FIX: detect empty data BEFORE sending to AI
+                if not tool_data or tool_data.get("cache_data") is None:
 
-                messages.append({
-                    "role": "user",
-                    "content": f"TOOL_RESULT:\n{json.dumps(tool_data)}"
-                })
+                    messages.append({
+                        "role": "assistant",
+                        "content": reply
+                    })
+
+                    messages.append({
+                        "role": "user",
+                        "content": "TOOL_RESULT: NO DATA FOUND IN SYSTEM"
+                    })
+
+                else:
+
+                    messages.append({
+                        "role": "assistant",
+                        "content": reply
+                    })
+
+                    messages.append({
+                        "role": "user",
+                        "content": f"TOOL_RESULT:\n{json.dumps(tool_data)}"
+                    })
 
                 continue
 
