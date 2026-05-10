@@ -8,7 +8,7 @@ from groq import Groq
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # =========================================================
-# 📦 TOOL: GET RAW DATA (AI-OWNED CONTEXT)
+# 📦 TOOL: GET RAW DATA (AI USES SESSION STATE)
 # =========================================================
 def get_raw_data():
 
@@ -20,7 +20,7 @@ def get_raw_data():
     }
 
 # =========================================================
-# 🧼 SAFE JSON EXTRACTOR (FIXES YOUR ERROR)
+# 🧼 SAFE JSON EXTRACTOR (IMPORTANT FIX)
 # =========================================================
 def extract_json(text):
 
@@ -46,21 +46,22 @@ def run_ai(user_input):
     system_prompt = """
 You are STOCK AI, an autonomous inventory intelligence system.
 
-You control all reasoning.
+You control reasoning fully.
 
 TOOLS AVAILABLE:
 1. get_raw_data
 
 RULES:
 - Decide when to use tools
-- Do all analysis yourself
-- Never ask Python for calculations
+- Do all calculations yourself
+- Never ask Python to process stock
 - Always return final structured answer
+- Continue after tool responses
 
-TOOL FORMAT (STRICT):
+TOOL FORMAT:
 {"tool":"get_raw_data"}
 
-FINAL FORMAT:
+OUTPUT FORMAT:
 - Summary
 - Stock Status
 - Branch Breakdown
@@ -77,7 +78,7 @@ FINAL FORMAT:
     try:
 
         # =====================================================
-        # TOOL LOOP
+        # TOOL LOOP (UP TO 5 STEPS)
         # =====================================================
         for _ in range(5):
 
@@ -90,11 +91,11 @@ FINAL FORMAT:
 
             reply = response.choices[0].message.content.strip()
 
+            # =================================================
+            # CHECK TOOL CALL
+            # =================================================
             tool_request = extract_json(reply)
 
-            # =================================================
-            # TOOL CALL DETECTED
-            # =================================================
             if (
                 isinstance(tool_request, dict)
                 and tool_request.get("tool") == "get_raw_data"
@@ -115,7 +116,7 @@ FINAL FORMAT:
                 continue
 
             # =================================================
-            # FINAL RESPONSE
+            # FINAL ANSWER
             # =================================================
             return reply
 
