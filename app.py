@@ -1,223 +1,303 @@
+import re
+import json
+import datetime
+from difflib import SequenceMatcher
+
 import streamlit as st
-from ai_core import run_ai
+from groq import Groq
 
 # =========================================================
-# CONFIG
+# 🔐 GROQ CLIENT
 # =========================================================
-st.set_page_config(
-    page_title="BART",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
 
 # =========================================================
-# SESSION STATE
+# 🧠 TEXT NORMALIZATION
 # =========================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+def normalize(text):
+    if not text:
+        return ""
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
+    text = str(text).lower().strip()
+    text = re.sub(r"[^a-zA-Z0-9\u0600-\u06FF ]", " ", text)
+    text = re.sub(r"\s+", " ", text)
 
-if "all_data" not in st.session_state:
-    st.session_state.all_data = []
+    return text.strip()
 
-if "branches" not in st.session_state:
-    st.session_state.branches = []
-
-if "DAILY_ITEMS" not in st.session_state:
-    st.session_state.DAILY_ITEMS = {}
-
-if "WEEKLY_ITEMS" not in st.session_state:
-    st.session_state.WEEKLY_ITEMS = {}
-
-if "show_mgmt_password" not in st.session_state:
-    st.session_state.show_mgmt_password = False
 
 # =========================================================
-# DATA CHECK
+# 🧠 SIMILARITY SCORE
 # =========================================================
-def data_missing():
-    return (
-        not st.session_state.all_data
-        and not st.session_state.branches
-        and not st.session_state.DAILY_ITEMS
-        and not st.session_state.WEEKLY_ITEMS
+def similarity(a, b):
+    return SequenceMatcher(
+        None,
+        normalize(a),
+        normalize(b)
+    ).ratio()
+
+
+# =========================================================
+# 📅 DATE PARSER
+# =========================================================
+def parse_date(text):
+
+    text = normalize(text)
+
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+
+    if "yesterday" in text:
+        return yesterday.strftime("%Y-%m-%d")
+
+    if "today" in text:
+        return today.strftime("%Y-%m-%d")
+
+    # YYYY-MM-DD
+    match = re.search(r"\d{4}-\d{2}-\d{2}", text)
+    if match:
+        return match.group()
+
+    # DAY + MONTH (e.g. 6 may)
+    month_map = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+        "may": 5, "jun": 6, "jul": 7, "aug": 8,
+        "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    }
+
+    match = re.search(
+        r"(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
+        text
     )
 
-# =========================================================
-# STYLE (UNCHANGED)
-# =========================================================
-st.markdown("""
-<style>
+    if match:
+        day = int(match.group(1))
+        month = month_map[match.group(2)]
+        year = today.year
 
-#MainMenu, footer, header {
-    visibility: hidden;
-}
+        try:
+            return datetime.date(year, month, day).strftime("%Y-%m-%d")
+        except:
+            pass
 
-.stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
-    font-family: 'Segoe UI', sans-serif;
-}
+    return today.strftime("%Y-%m-%d")
 
-.hero {
-    background: white;
-    padding: 60px;
-    text-align: center;
-    border-radius: 25px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
-
-.hero h1 {
-    font-size: 70px;
-    color: #C0392B;
-    margin: 0;
-}
-
-.hero h2 {
-    color: #2C2A28;
-}
-
-div.stButton > button {
-    width: 100%;
-    height: 52px;
-    border-radius: 14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color: white;
-    font-weight: 700;
-    border: none;
-}
-
-div.stButton > button:hover {
-    opacity: 0.9;
-}
-
-.section {
-    background: white;
-    padding: 25px;
-    margin-top: 15px;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-    text-align: center;
-}
-
-</style>
-""", unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# 🏢 FIND BRANCH
 # =========================================================
-if not st.session_state.authenticated:
+def find_branch(user_input, branch_list):
 
-    st.markdown("""
-    <div style="text-align:center; padding:50px;">
-        <h1 style="color:#C0392B; font-size:60px;">BART</h1>
-        <p>Coffee • French Toast • Fresh Bites</p>
-        <h3>Secure Login</h3>
-    </div>
-    """, unsafe_allow_html=True)
+    text = normalize(user_input)
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    best_branch = None
+    best_score = 0
 
-    if st.button("Login"):
-        st.session_state.authenticated = True
-        st.rerun()
+    for branch in branch_list:
 
-    st.stop()
+        if normalize(branch) in text:
+            return branch
 
-# =========================================================
-# HERO
-# =========================================================
-st.markdown("""
-<div class="hero">
-    <h1>BART</h1>
-    <h2>Coffee • French Toast • Fresh Bites</h2>
-    <p>📍 Jeddah • bart.sa</p>
-</div>
-""", unsafe_allow_html=True)
+        score = similarity(text, branch)
+
+        if score > best_score:
+            best_score = score
+            best_branch = branch
+
+    return best_branch if best_score >= 0.45 else None
+
 
 # =========================================================
-# MAIN BUTTONS (CLEAN + PASSWORD GATE)
+# 📦 FIND ITEM
 # =========================================================
-col1, col3, col2 = st.columns(3, gap="large")
+def find_item(user_input, item_list):
 
-with col1:
-    if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
-        st.switch_page("pages/staff_dashboard.py")
+    text = normalize(user_input)
 
-with col2:
-    if st.button("📦 Management Dashboard", use_container_width=True):
-        st.session_state.show_mgmt_password = True
+    best_item = None
+    best_score = 0
 
-with col3:
-    st.empty()
+    for item in item_list:
 
-# =========================================================
-# MANAGEMENT PASSWORD POPUP LOGIC
-# =========================================================
-if st.session_state.show_mgmt_password:
+        item_norm = normalize(item)
 
-    st.markdown("### 🔐 Manager Access Required")
+        if text in item_norm:
+            return item
 
-    password_input = st.text_input("Enter Manager Password", type="password")
+        score = similarity(text, item)
 
-    if st.button("Validate & Continue"):
+        # keyword boost
+        for word in text.split():
+            if len(word) > 2 and word in item_norm:
+                score += 0.15
 
-        if password_input == st.secrets["MANAGER_PASSWORD"]:
+        if score > best_score:
+            best_score = score
+            best_item = item
 
-            st.session_state.show_mgmt_password = False
-            st.switch_page("pages/management_dashboard.py")
+    return best_item if best_score >= 0.35 else None
 
-        else:
-            st.error("❌ Incorrect password")
 
 # =========================================================
-# SIDE BAR AI
+# 📊 STOCK EXTRACTION
 # =========================================================
-with st.sidebar:
+def extract_stock_data(all_data, item_name, target_date, target_branch=None):
 
-    st.markdown("## 🤖 BART AI Assistant")
+    results = []
 
-    if data_missing():
-        st.warning("⚠ Stock not loaded")
-        st.info("Open Management Dashboard to load data")
-        st.stop()
+    for branch_name, raw in all_data:
 
-    for sender, msg in st.session_state.chat[-20:]:
-        icon = "🧑" if sender == "You" else "🤖"
-        st.markdown(f"**{icon} {sender}:** {msg}")
+        if target_branch and normalize(branch_name) != normalize(target_branch):
+            continue
 
-    user_input = st.text_input("Ask something...", key="ai_input")
+        if not raw or len(raw) < 2:
+            continue
 
-    if st.button("Send AI") and user_input:
+        headers = raw[0]
 
-        context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": [b["BranchName"] for b in st.session_state.branches],
-            "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
-                            list(st.session_state.WEEKLY_ITEMS.keys())
+        if target_date not in headers:
+            continue
+
+        date_index = headers.index(target_date)
+
+        for row in raw:
+
+            if not row or not row[0]:
+                continue
+
+            row_item = str(row[0]).strip()
+
+            if similarity(item_name, row_item) < 0.40:
+                continue
+
+            try:
+                qty = float(row[date_index] or 0) if len(row) > date_index else 0
+            except:
+                qty = 0
+
+            results.append({
+                "branch": branch_name,
+                "item": row_item,
+                "qty": qty,
+                "date": target_date
+            })
+
+    return results
+
+
+# =========================================================
+# 🚨 MANAGEMENT INSIGHTS ENGINE
+# =========================================================
+def generate_insights(total_stock, branch_summary):
+
+    insights = []
+
+    if total_stock == 0:
+        insights.append("🚨 OUT OF STOCK - Immediate action required")
+
+    elif total_stock < 10:
+        insights.append("⚠️ LOW STOCK - Restock recommended")
+
+    elif total_stock > 50:
+        insights.append("📦 HIGH STOCK - No urgent action needed")
+
+    if len(branch_summary) == 1:
+        insights.append("📍 Stock concentrated in single branch")
+
+    if len(branch_summary) > 3:
+        insights.append("🌍 Distributed stock across multiple branches")
+
+    return insights
+
+
+# =========================================================
+# 🤖 MAIN AI FUNCTION (MANAGEMENT VERSION)
+# =========================================================
+def run_ai(user_input, context):
+
+    try:
+
+        all_data = context.get("cache_data", [])
+        branch_list = context.get("branch_list", [])
+        master_items = context.get("master_items", [])
+
+        if not all_data:
+            return "⚠️ Stock data not loaded."
+
+        # ---------------- PARSE ----------------
+        target_date = parse_date(user_input)
+        matched_branch = find_branch(user_input, branch_list)
+        matched_item = find_item(user_input, master_items)
+
+        if not matched_item:
+            return "❌ Item not found in inventory."
+
+        # ---------------- STOCK ----------------
+        stock_results = extract_stock_data(
+            all_data,
+            matched_item,
+            target_date,
+            matched_branch
+        )
+
+        total_stock = sum(x["qty"] for x in stock_results)
+
+        branch_summary = {}
+        for x in stock_results:
+            branch_summary[x["branch"]] = branch_summary.get(x["branch"], 0) + x["qty"]
+
+        insights = generate_insights(total_stock, branch_summary)
+
+        # ---------------- FINAL DATA ----------------
+        payload = {
+            "query": user_input,
+            "item": matched_item,
+            "branch": matched_branch,
+            "date": target_date,
+            "total_stock": total_stock,
+            "branch_summary": branch_summary,
+            "insights": insights
         }
 
-        response = run_ai(user_input, context)
+        # ---------------- GROQ PROMPT ----------------
+        prompt = f"""
+You are BART MANAGEMENT AI.
 
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
+You are a decision-making assistant for inventory managers.
 
-        st.rerun()
+RULES:
+- Use ONLY provided data
+- Do NOT invent stock
+- Focus on actions and decisions
+- Be concise and business-friendly
 
-# =========================================================
-# FOOTER (UNCHANGED EXACTLY)
-# =========================================================
-st.markdown("""
-<div class="section">
-    <h2>Our Experience</h2>
-    <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
-</div>
+DATA:
+{json.dumps(payload, indent=2, ensure_ascii=False)}
 
-<div class="section">
-    <h2>Visit Us</h2>
-    <p>Find us in Jeddah branches or visit bart.sa</p>
-</div>
-""", unsafe_allow_html=True)
+FORMAT:
+- Summary
+- Stock Status
+- Branch Breakdown
+- Action Needed
+"""
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert inventory management AI assistant."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            max_tokens=450
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"⚠️ AI Error: {str(e)}"
