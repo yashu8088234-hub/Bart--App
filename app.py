@@ -208,7 +208,7 @@ if not st.session_state.authenticated:
 
         if (
             username == st.secrets["MANAGER_USERNAME"]
-            username == st.secrets["STAFF_USERNAM"]
+              
             
             and password == st.secrets["MANAGER_PASSWORD"]
         ):
