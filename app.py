@@ -141,7 +141,7 @@ st.markdown("""
 # =========================================================
 # MAIN BUTTONS (CLEAN + PASSWORD GATE)
 # =========================================================
-col1, col2, col3 = st.columns(3, gap="large")
+col1, col3, col2 = st.columns(3, gap="large")
 
 with col1:
     if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
