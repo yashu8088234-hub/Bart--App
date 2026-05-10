@@ -165,7 +165,7 @@ if st.session_state.show_mgmt_password:
 
     if st.button("Validate & Continue"):
 
-        if password_input == st.secrets["Manager Password"]:
+        if password_input == st.secrets["MANAGER_PASSWORD"]:
 
             st.session_state.show_mgmt_password = False
             st.switch_page("pages/management_dashboard.py")
