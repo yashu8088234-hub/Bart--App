@@ -3,272 +3,123 @@ import hashlib
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
     layout="wide",
-    initial_sidebar_state="collapsed"
 )
 
 # =========================================================
-# SECURITY HELPERS
+# STATE
 # =========================================================
-def hash_text(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-def check_password(input_password: str, stored_password: str) -> bool:
-    return hash_text(input_password) == hash_text(stored_password)
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
 # =========================================================
-# STYLES
+# SIMPLE STYLE
 # =========================================================
 st.markdown("""
 <style>
-
 #MainMenu, footer, header {visibility: hidden;}
-[data-testid="stToolbar"] {display:none;}
-[data-testid="stSidebar"] {display:none;}
 
-.stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
-    font-family: 'Segoe UI', sans-serif;
-}
-
-/* LOGIN */
-.login-container {
-    max-width: 460px;
-    margin: 80px auto;
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: blur(12px);
-    border-radius: 28px;
-    padding: 45px 35px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-}
-
-.login-logo h1 {
-    font-size:70px;
-    font-weight:900;
-    letter-spacing:8px;
-    color:#C0392B;
-    text-align:center;
-}
-
-/* BUTTONS */
-div.stButton > button {
-    width:100%;
-    height:52px;
-    border-radius:14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color:white;
-    font-weight:700;
-}
-
-/* HERO */
 .hero {
-    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
-    padding: 60px 30px;
-    border-radius: 28px;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+    padding:40px;
+    text-align:center;
+    background:#fff;
+    border-radius:20px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
 }
 
-.hero h1 {
-    font-size: 70px;
-    font-weight: 900;
-    color: #C0392B;
-    margin: 0;
+.ai-panel {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 350px;
+    height: 500px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    padding: 15px;
+    overflow-y: auto;
+    z-index: 999;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# SESSION STATE
-# =========================================================
-defaults = {
-    "authenticated": False,
-    "role": None,
-    "chat": [],
-    "all_data": [],
-    "branches": [],
-    "DAILY_ITEMS": {},
-    "WEEKLY_ITEMS": {},
-    "login_attempts": 0,
-    "ai_open": False
-}
-
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-MAX_CHAT = 50
-
-# =========================================================
-# LOGIN
+# LOGIN (simple for demo)
 # =========================================================
 if not st.session_state.authenticated:
 
-    st.markdown("""
-    <div class="login-container">
-        <div class="login-logo">
-            <h1>BART</h1>
-        </div>
-    """, unsafe_allow_html=True)
+    st.title("BART LOGIN")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.session_state.login_attempts >= 5:
-        st.error("Too many attempts. Restart app.")
-        st.stop()
+    u = st.text_input("User")
+    p = st.text_input("Pass", type="password")
 
     if st.button("Login"):
+        st.session_state.authenticated = True
+        st.rerun()
 
-        MANAGER_USER = st.secrets["MANAGER_USERNAME"].lower()
-        MANAGER_PASS = st.secrets["MANAGER_PASSWORD"]
-
-        STAFF_USER = st.secrets["STAFF_USERNAME"].lower()
-        STAFF_PASS = st.secrets["STAFF_PASSWORD"]
-
-        ok_manager = username.lower() == MANAGER_USER and check_password(password, MANAGER_PASS)
-        ok_staff = username.lower() == STAFF_USER and check_password(password, STAFF_PASS)
-
-        if ok_manager:
-            st.session_state.authenticated = True
-            st.session_state.role = "manager"
-            st.session_state.login_attempts = 0
-            st.rerun()
-
-        elif ok_staff:
-            st.session_state.authenticated = True
-            st.session_state.role = "staff"
-            st.session_state.login_attempts = 0
-            st.rerun()
-
-        else:
-            st.session_state.login_attempts += 1
-            st.error("Invalid credentials")
-
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================
-# DASHBOARD
+# HEADER
 # =========================================================
-top1, top2 = st.columns([9, 1])
-
-with top2:
-    if st.button("Logout"):
-        st.session_state.authenticated = False
-        st.session_state.role = None
-        st.session_state.chat = []
-        st.session_state.ai_open = False
-        st.rerun()
-
-# HERO
 st.markdown("""
 <div class="hero">
     <h1>BART</h1>
     <p>Coffee • French Toast • Fresh Bites</p>
-    <p>📍 Jeddah • bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS
+# BUTTONS
 # =========================================================
-c1, c2 = st.columns(2)
+c1, c2, c3 = st.columns(3)
 
 with c1:
-    if st.button("👨‍💼 Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
+    st.button("Staff Dashboard")
 
 with c2:
-    if st.button("📦 Management Dashboard"):
-        st.switch_page("pages/management_dashboard.py")
+    st.button("Management Dashboard")
 
-# =========================================================
-# ⭐ AI BUTTON (BELOW ALL BUTTONS - FIXED)
-# =========================================================
-st.markdown("---")
-
-col_ai = st.columns([1, 2, 1])[1]
-
-with col_ai:
-    if st.button("🤖 Open AI Assistant", use_container_width=True):
+with c3:
+    if st.button("🤖 AI Assistant"):
         st.session_state.ai_open = True
 
 # =========================================================
-# 🤖 AI SIDEBAR (FIXED & STABLE)
+# 🤖 AI PANEL (THIS IS THE FIX)
 # =========================================================
 if st.session_state.ai_open:
 
-    with st.sidebar:
-        st.markdown("## 🤖 BART AI Assistant")
+    with st.container():
+
+        st.markdown("## 🤖 BART AI")
 
         if st.button("❌ Close AI"):
             st.session_state.ai_open = False
             st.rerun()
 
-        st.divider()
+        # chat history
+        for sender, msg in st.session_state.chat[-10:]:
+            st.write(f"**{sender}:** {msg}")
 
-        # CHAT HISTORY
-        for sender, msg in st.session_state.chat[-20:]:
-            icon = "🧑" if sender == "You" else "🤖"
-            st.markdown(f"**{icon} {sender}:** {msg}")
+        user_input = st.text_input("Ask something", key="ai_input")
 
-        st.divider()
+        if st.button("Send AI") and user_input:
 
-        # INPUT
-        with st.form("ai_chat_form", clear_on_submit=True):
-            user_input = st.text_input("Ask something...")
-            send = st.form_submit_button("Send")
+            context = {}
 
-        if send and user_input:
-
-            context = {
-                "cache_data": st.session_state.all_data[-100:],
-                "branch_list": [b["BranchName"] for b in st.session_state.branches],
-                "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
-                                list(st.session_state.WEEKLY_ITEMS.keys())
-            }
-
-            try:
-                response = run_ai(user_input, context)
-            except Exception as e:
-                response = f"AI error: {str(e)}"
+            response = run_ai(user_input, context)
 
             st.session_state.chat.append(("You", user_input))
             st.session_state.chat.append(("AI", response))
 
-            st.session_state.chat = st.session_state.chat[-MAX_CHAT:]
-
             st.rerun()
-
-# =========================================================
-# FOOTER
-# =========================================================
-st.markdown("""
-<div style="
-    background: rgba(255,255,255,0.9);
-    padding: 30px;
-    border-radius: 16px;
-    margin-top: 25px;
-    text-align:center;
-">
-    <h3 style="color:#C0392B;">Our Experience</h3>
-    <p>Fast service, premium coffee, and modern café culture in Jeddah.</p>
-</div>
-
-<div style="
-    background: rgba(255,255,255,0.9);
-    padding: 30px;
-    border-radius: 16px;
-    margin-top: 15px;
-    text-align:center;
-">
-    <h3 style="color:#C0392B;">Visit Us</h3>
-    <p>bart.sa • Jeddah Branches</p>
-</div>
-""", unsafe_allow_html=True)
