@@ -141,11 +141,11 @@ st.markdown("""
 # =========================================================
 col1, col2, col3 = st.columns(3, gap="large")
 
-with col1:
+with col3:
     if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
         st.switch_page("pages/staff_dashboard.py")
 
-with col3:
+with col1x:
     if st.button("📦 Management Dashboard", use_container_width=True):
         st.switch_page("pages/management_dashboard.py")
 
