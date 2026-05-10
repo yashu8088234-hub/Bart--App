@@ -3,15 +3,14 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
+from difflib import get_close_matches
 from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-# =========================================================
-# AI STATE
-# =========================================================
+# ---------------- AI STATE ----------------
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
@@ -43,21 +42,18 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- SAFE SHEET CACHE ----------------
+# ---------------- SHEET CACHE ----------------
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
-
     for b in branches:
         sheet_id = b.get("SheetID")
         if not sheet_id:
             continue
-
         try:
             cache[sheet_id] = client.open_by_key(sheet_id)
         except:
             pass
-
     return cache
 
 sheet_cache = get_sheets(branches)
@@ -66,13 +62,11 @@ sheet_cache = get_sheets(branches)
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
-
         if not sheet_id or sheet_id not in sheet_cache:
             return branch["BranchName"], None
 
         file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
-
         return branch["BranchName"], ws.get_all_values()
 
     except:
@@ -97,7 +91,7 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- PROCESS STOCK ----------------
+# ---------------- STOCK PROCESSING ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
@@ -162,19 +156,46 @@ st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
 # =========================================================
-# 🤖 AI BUTTON (TOP)
+# 🤖 AI TOGGLE BUTTON
 # =========================================================
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# 🤖 AI PANEL (INLINE)
+# 🔥 SMART ITEM MATCHING FUNCTION (FIX)
+# =========================================================
+def find_best_item(user_input, items):
+    if not items:
+        return None
+
+    user_input = user_input.lower().strip()
+    items_lower = {i.lower(): i for i in items}
+
+    # 1. exact match
+    if user_input in items_lower:
+        return items_lower[user_input]
+
+    # 2. partial match
+    for key, original in items_lower.items():
+        if user_input in key:
+            return original
+
+    # 3. fuzzy match
+    match = get_close_matches(user_input, items_lower.keys(), n=1, cutoff=0.4)
+    if match:
+        return items_lower[match[0]]
+
+    return None
+
+# =========================================================
+# 🤖 AI PANEL
 # =========================================================
 if st.session_state.ai_open:
 
-    st.markdown("## 🤖 AI Assistant (Stock Expert)")
+    st.markdown("## 🤖 AI Stock Assistant")
 
-    # show chat
+    all_items = list(daily_items.keys()) + list(weekly_items.keys())
+
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
@@ -183,14 +204,20 @@ if st.session_state.ai_open:
 
     if st.button("Send") and user_input:
 
-        context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": branch_names,
-            "daily_items": daily_items,
-            "weekly_items": weekly_items
-        }
+        matched_item = find_best_item(user_input, all_items)
 
-        response = run_ai(user_input, context)
+        if not matched_item:
+            response = "❌ Could not identify item.\n\nTry:\n" + "\n".join(all_items[:5])
+
+        else:
+            context = {
+                "item": matched_item,
+                "daily": daily_items.get(matched_item, {}),
+                "weekly": weekly_items.get(matched_item, {}),
+                "branches": branch_names
+            }
+
+            response = run_ai(user_input, context)
 
         st.session_state.chat.append(("You", user_input))
         st.session_state.chat.append(("AI", response))
@@ -198,7 +225,7 @@ if st.session_state.ai_open:
         st.rerun()
 
 # =========================================================
-# DAILY DF
+# 📦 DAILY TABLE
 # =========================================================
 daily_rows = []
 for i, (item, values) in enumerate(daily_items.items(), start=1):
@@ -209,7 +236,7 @@ for i, (item, values) in enumerate(daily_items.items(), start=1):
 daily_df = pd.DataFrame(daily_rows)
 
 # =========================================================
-# WEEKLY DF
+# 📦 WEEKLY TABLE
 # =========================================================
 weekly_rows = []
 for i, (item, values) in enumerate(weekly_items.items(), start=1):
