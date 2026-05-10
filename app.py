@@ -92,19 +92,11 @@ div.stButton > button:hover {
 
 .section {
     background: white;
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+    padding: 25px;
+    margin-top: 15px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     text-align: center;
-}
-
-.section h2 {
-    color: #C0392B;
-}
-
-.section p {
-    color: #555;
 }
 
 </style>
@@ -144,20 +136,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (3 IN A ROW RESTORED)
+# MAIN BUTTONS (FIXED ALIGNMENT)
 # =========================================================
-col1, col2, col3 = st.columns(3)
+col1, col2, col3 = st.columns([1,1,1], gap="large")
 
 with col1:
+    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
     if st.button("👨‍💼 Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
+    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
     if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col3:
-    st.empty()  # AI removed from top as requested
+    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
+    st.button(" ", disabled=True, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
 # SIDE BAR AI
@@ -194,7 +192,7 @@ with st.sidebar:
         st.rerun()
 
 # =========================================================
-# 🔥 DOWN PART (RESTORED EXACT ORIGINAL STYLE)
+# FOOTER (UNCHANGED EXACTLY)
 # =========================================================
 st.markdown("""
 <div class="section">
