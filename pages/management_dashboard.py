@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-import time
 from concurrent.futures import ThreadPoolExecutor
 from difflib import get_close_matches
 from ai_core import run_ai
@@ -40,17 +39,14 @@ branch_names = [b["BranchName"] for b in branches]
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
-
     for b in branches:
         sheet_id = b.get("SheetID")
         if not sheet_id:
             continue
-
         try:
             cache[sheet_id] = client.open_by_key(sheet_id)
         except:
             pass
-
     return cache
 
 sheet_cache = get_sheets(branches)
@@ -59,13 +55,11 @@ sheet_cache = get_sheets(branches)
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
-
         if not sheet_id or sheet_id not in sheet_cache:
             return branch["BranchName"], None
 
         file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
-
         return branch["BranchName"], ws.get_all_values()
 
     except:
@@ -79,7 +73,6 @@ def load_all_data(branches):
 
 all_data = load_all_data(branches)
 
-# ---------------- SESSION ----------------
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
@@ -91,13 +84,6 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
-
-# ---------------- AI BUTTON ----------------
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
-
-if st.button("🤖 AI Assistant"):
-    st.session_state.ai_open = not st.session_state.ai_open
 
 # ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
@@ -117,7 +103,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             continue
 
         date_index = headers.index(selected_date_str)
-
         current_section = None
 
         for row in raw:
@@ -162,7 +147,6 @@ def process_stock(all_data, selected_date_str, branch_names):
 
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
-# ---------------- SAVE FOR AI ----------------
 st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
@@ -202,7 +186,7 @@ if not weekly_df.empty:
     st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
 
 # =========================================================
-# 🤖 AI PANEL (FIXED)
+# 🤖 AI ASSISTANT (FIXED)
 # =========================================================
 
 def find_best_item(user_input, items_dict):
@@ -221,6 +205,15 @@ def find_best_item(user_input, items_dict):
     return match[0] if match else None
 
 
+# ---------------- AI TOGGLE ----------------
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if st.button("🤖 AI Assistant"):
+    st.session_state.ai_open = not st.session_state.ai_open
+
+
+# ---------------- AI PANEL ----------------
 if st.session_state.ai_open:
 
     st.markdown("## 🤖 Stock AI Assistant")
@@ -229,29 +222,29 @@ if st.session_state.ai_open:
     combined.update(st.session_state.get("DAILY_ITEMS", {}))
     combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
 
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
+
+    # ---------------- CHAT DISPLAY ----------------
+    for role, msg in st.session_state.chat:
+        if role == "You":
+            st.markdown(f"🧑 **You:** {msg}")
+        else:
+            st.markdown(f"🤖 **AI:** {msg}")
+
     if not combined:
         st.warning("No stock data available.")
     else:
 
-        user_input = st.text_input("Ask about stock...", key="ai_input")
+        # ---------------- FORM INPUT ----------------
+        with st.form("ai_form", clear_on_submit=True):
+            user_input = st.text_input("Ask about stock...")
+            submitted = st.form_submit_button("Send")
 
-        col1, col2 = st.columns(2)
-
-        send = col1.button("Send")
-        clear = col2.button("Clear Chat")
-
-        if "chat" not in st.session_state:
-            st.session_state.chat = []
-
-        if clear:
-            st.session_state.chat = []
-            st.rerun()
-
-        if send and user_input.strip():
+        if submitted and user_input.strip():
 
             matched = find_best_item(user_input, combined)
 
-            # ✅ FIXED CONTEXT (THIS WAS THE BUG)
             context = {
                 "cache_data": st.session_state.all_data,
                 "branch_list": branch_names,
