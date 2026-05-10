@@ -208,6 +208,8 @@ if not st.session_state.authenticated:
 
         if (
             username == st.secrets["MANAGER_USERNAME"]
+            username == st.secrets["STAFF_USERNAM"]
+            
             and password == st.secrets["MANAGER_PASSWORD"]
         ):
             st.session_state.authenticated = True
@@ -216,6 +218,7 @@ if not st.session_state.authenticated:
 
         elif (
             username == st.secrets["STAFF_USERNAME"]
+            username == st.secrets["STAFF_USERNAM"]
             and password == st.secrets["STAFF_PASSWORD"]
         ):
             st.session_state.authenticated = True
