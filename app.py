@@ -76,6 +76,7 @@ st.markdown("""
     color: #2C2A28;
 }
 
+/* BUTTON STYLE (YOUR ORIGINAL) */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -136,26 +137,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (FIXED ALIGNMENT)
+# MAIN BUTTONS (CLEAN ALIGNMENT FIX ONLY)
 # =========================================================
-col1, col2, col3 = st.columns([1,1,1], gap="large")
+col1, col2, col3 = st.columns(3, gap="large")
 
 with col1:
-    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-    if st.button("👨‍💼 Staff Dashboard"):
+    if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
         st.switch_page("pages/staff_dashboard.py")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with col2:
-    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-    if st.button("📦 Management Dashboard"):
-        st.switch_page("pages/management_dashboard.py")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 with col3:
-    st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-    st.button(" ", disabled=True, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("📦 Management Dashboard", use_container_width=True):
+        st.switch_page("pages/management_dashboard.py")
+
+with col3:
+    if st.button(" ", use_container_width=True, disabled=True):
+        pass
 
 # =========================================================
 # SIDE BAR AI
@@ -192,7 +188,7 @@ with st.sidebar:
         st.rerun()
 
 # =========================================================
-# FOOTER (UNCHANGED EXACTLY)
+# FOOTER (EXACT ORIGINAL RESTORED)
 # =========================================================
 st.markdown("""
 <div class="section">
