@@ -43,7 +43,7 @@ def data_missing():
     )
 
 # =========================================================
-# STYLE (UNCHANGED — YOUR ORIGINAL)
+# STYLE (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -92,11 +92,19 @@ div.stButton > button:hover {
 
 .section {
     background: white;
-    padding: 25px;
-    margin-top: 15px;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    padding: 30px 20px;
+    margin-top: 20px;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
     text-align: center;
+}
+
+.section h2 {
+    color: #C0392B;
+}
+
+.section p {
+    color: #555;
 }
 
 </style>
@@ -125,7 +133,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# HERO (UNCHANGED)
+# HERO
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -136,7 +144,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (RESTORED EXACTLY 3 IN A ROW)
+# MAIN BUTTONS (3 IN A ROW RESTORED)
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
@@ -149,10 +157,10 @@ with col2:
         st.switch_page("pages/management_dashboard.py")
 
 with col3:
-    st.empty()  # AI button removed as requested
+    st.empty()  # AI removed from top as requested
 
 # =========================================================
-# SIDE BAR AI ONLY (NEW LOCATION)
+# SIDE BAR AI
 # =========================================================
 with st.sidebar:
 
@@ -160,7 +168,7 @@ with st.sidebar:
 
     if data_missing():
         st.warning("⚠ Stock not loaded")
-        st.info("Please open Management Dashboard to load data")
+        st.info("Open Management Dashboard to load data")
         st.stop()
 
     for sender, msg in st.session_state.chat[-20:]:
@@ -186,7 +194,7 @@ with st.sidebar:
         st.rerun()
 
 # =========================================================
-# FOOTER (UNCHANGED — YOUR ORIGINAL EXACTLY)
+# 🔥 DOWN PART (RESTORED EXACT ORIGINAL STYLE)
 # =========================================================
 st.markdown("""
 <div class="section">
