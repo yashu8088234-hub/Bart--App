@@ -36,7 +36,7 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- SAFE SHEET CACHE ----------------
+# ---------------- SHEET CACHE ----------------
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
@@ -55,7 +55,7 @@ def get_sheets(branches):
 
 sheet_cache = get_sheets(branches)
 
-# ---------------- FETCH BRANCH DATA ----------------
+# ---------------- FETCH ----------------
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
@@ -79,7 +79,7 @@ def load_all_data(branches):
 
 all_data = load_all_data(branches)
 
-# ---------------- SESSION STORAGE ----------------
+# ---------------- SESSION ----------------
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
@@ -92,15 +92,12 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# =========================================================
-# 🤖 AI BUTTON (MOVED HERE - RIGHT BELOW REFRESH)
-# =========================================================
+# ---------------- AI BUTTON ----------------
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
-
 
 # ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
@@ -144,11 +141,11 @@ def process_stock(all_data, selected_date_str, branch_names):
             item = str(row[0]).strip()
 
             qty = 0
-            if len(row) > date_index:
-                try:
+            try:
+                if len(row) > date_index:
                     qty = float(row[date_index] or 0)
-                except:
-                    qty = 0
+            except:
+                qty = 0
 
             if current_section == "daily":
                 if item not in daily:
@@ -192,11 +189,9 @@ search = st.text_input("🔎 Search Item")
 
 if search:
     if not daily_df.empty:
-        st.subheader("Daily Search")
         st.dataframe(daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)])
 
     if not weekly_df.empty:
-        st.subheader("Weekly Search")
         st.dataframe(weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)])
 
 # ---------------- DOWNLOADS ----------------
@@ -206,17 +201,8 @@ if not daily_df.empty:
 if not weekly_df.empty:
     st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
 
-if not daily_df.empty or not weekly_df.empty:
-    full_df = pd.concat(
-        [daily_df.assign(Type="Daily"), weekly_df.assign(Type="Weekly")],
-        ignore_index=True
-    )
-
-    st.download_button("📥 Full Report", full_df.to_csv(index=False), "full.csv")
-
-
 # =========================================================
-# 🤖 AI PANEL (UNCHANGED LOGIC)
+# 🤖 AI PANEL (FIXED)
 # =========================================================
 
 def find_best_item(user_input, items_dict):
@@ -226,10 +212,6 @@ def find_best_item(user_input, items_dict):
 
     keys = list(items_dict.keys())
     user_input = user_input.lower().strip()
-
-    for k in keys:
-        if user_input == k.lower():
-            return k
 
     for k in keys:
         if user_input in k.lower():
@@ -269,15 +251,16 @@ if st.session_state.ai_open:
 
             matched = find_best_item(user_input, combined)
 
+            # ✅ FIXED CONTEXT (THIS WAS THE BUG)
+            context = {
+                "cache_data": st.session_state.all_data,
+                "branch_list": branch_names,
+                "master_items": list(combined.keys())
+            }
+
             if not matched:
                 response = "❌ Item not found in stock database."
             else:
-                context = {
-                    "item": matched,
-                    "daily": st.session_state.get("DAILY_ITEMS", {}),
-                    "weekly": st.session_state.get("WEEKLY_ITEMS", {})
-                }
-
                 with st.spinner("Analyzing stock... 🤖"):
                     response = run_ai(user_input, context)
 
