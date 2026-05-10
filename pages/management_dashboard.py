@@ -162,9 +162,6 @@ weekly_df = pd.DataFrame([
 ])
 
 # ---------------- DISPLAY ----------------
-# =========================================================
-# 🤖 AI ASSISTANT (FIXED)
-# =========================================================
 
 def find_best_item(user_input, items_dict):
 
@@ -218,12 +215,12 @@ if st.session_state.ai_open:
             user_input = st.text_input("Ask about stock...")
             submitted = st.form_submit_button("Send")
 
-        # ---------------- CLEAR CHAT BUTTON ----------------
+        # ---------------- CLEAR CHAT BUTTON (FIXED POSITION) ----------------
+        if st.button("🧹 Clear Chat"):
+            st.session_state.chat = []
+            st.rerun()
 
-    if st.button("🧹 Clear Chat"):
-        st.session_state.chat = []
-        st.rerun()
-
+        # ---------------- CHAT PROCESS ----------------
         if submitted and user_input.strip():
 
             matched = find_best_item(user_input, combined)
@@ -245,6 +242,7 @@ if st.session_state.ai_open:
 
             st.rerun()
 
+# ---------------- TABLES ----------------
 st.subheader("📦 Daily Items Stock")
 st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
 
