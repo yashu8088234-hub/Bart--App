@@ -206,27 +206,24 @@ if not st.session_state.authenticated:
 
     if login:
 
-        if (
-            username == st.secrets["MANAGER_USERNAME"]
-              
-            
-            and password == st.secrets["MANAGER_PASSWORD"]
-        ):
-            st.session_state.authenticated = True
-            st.session_state.role = "manager"
-            st.rerun()
+        iif (
+    username.strip().lower() == st.secrets["MANAGER_USERNAME"].lower()
+    and password == st.secrets["MANAGER_PASSWORD"]
+):
+    st.session_state.authenticated = True
+    st.session_state.role = "manager"
+    st.rerun()
 
-        elif (
-            username == st.secrets["STAFF_USERNAME"]
-            
-            and password == st.secrets["STAFF_PASSWORD"]
-        ):
-            st.session_state.authenticated = True
-            st.session_state.role = "staff"
-            st.rerun()
+elif (
+    username.strip().lower() == st.secrets["STAFF_USERNAME"].lower()
+    and password == st.secrets["STAFF_PASSWORD"]
+):
+    st.session_state.authenticated = True
+    st.session_state.role = "staff"
+    st.rerun()
 
-        else:
-            st.error("Invalid username or password")
+else:
+    st.error("Invalid username or password")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
