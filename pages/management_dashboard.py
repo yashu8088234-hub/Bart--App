@@ -71,9 +71,7 @@ def fetch_branch(branch):
         return branch["BranchName"], None
 
 
-# =========================================================
-# ⚡ FIX 1: CACHE ALL DATA (IMPORTANT PERFORMANCE FIX)
-# =========================================================
+# ---------------- CACHE ALL DATA ----------------
 @st.cache_data(ttl=300)
 def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=3) as executor:
@@ -90,18 +88,11 @@ st.session_state.branches = branches
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-daily_items = {}
-weekly_items = {}
-
-# ---------------- REFRESH ----------------
 if st.button("🔄 Refresh Data"):
-
     st.cache_data.clear()
     st.rerun()
 
-# =========================================================
-# ⚡ FIX 2: CACHE PROCESSING (BIG SPEED BOOST)
-# =========================================================
+# ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
@@ -241,7 +232,6 @@ if not weekly_df.empty:
         "text/csv"
     )
 
-# ---------------- FULL EXPORT ----------------
 if not daily_df.empty or not weekly_df.empty:
 
     full_df = pd.concat(
@@ -259,4 +249,104 @@ if not daily_df.empty or not weekly_df.empty:
         "text/csv"
     )
 
- 
+
+# =========================================================
+# 🤖 AI ASSISTANT (SAFE ADD-ON - NOTHING MODIFIED ABOVE)
+# =========================================================
+
+from difflib import get_close_matches
+from ai_core import run_ai
+
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+if "ai_input" not in st.session_state:
+    st.session_state.ai_input = ""
+
+
+def find_best_item(user_input, items_dict):
+
+    if not items_dict:
+        return None
+
+    keys = list(items_dict.keys())
+    user_input = user_input.lower().strip()
+
+    for k in keys:
+        if user_input == k.lower():
+            return k
+
+    for k in keys:
+        if user_input in k.lower():
+            return k
+
+    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+    if match:
+        return match[0]
+
+    return None
+
+
+def render_ai_button():
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = not st.session_state.ai_open
+
+
+render_ai_button()
+
+
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 Stock AI Assistant")
+
+    combined = {}
+    combined.update(st.session_state.get("DAILY_ITEMS", {}))
+    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
+
+    if not combined:
+        st.warning("⚠ No stock data available for AI.")
+    else:
+
+        for sender, msg in st.session_state.chat[-30:]:
+            icon = "🧑" if sender == "You" else "🤖"
+            st.markdown(f"**{icon} {sender}:** {msg}")
+
+        st.markdown("---")
+
+        user_input = st.text_input("Ask about stock...", key="ai_input")
+
+        col1, col2 = st.columns(2)
+
+        send = col1.button("Send")
+        clear = col2.button("Clear Chat")
+
+        if clear:
+            st.session_state.chat = []
+            st.rerun()
+
+        if send and user_input.strip():
+
+            matched = find_best_item(user_input, combined)
+
+            if not matched:
+                response = "❌ Item not found in stock database."
+            else:
+                context = {
+                    "item": matched,
+                    "daily": st.session_state.get("DAILY_ITEMS", {}),
+                    "weekly": st.session_state.get("WEEKLY_ITEMS", {})
+                }
+
+                with st.spinner("Analyzing stock... 🤖"):
+                    response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.session_state.ai_input = ""
+
+            st.rerun()
