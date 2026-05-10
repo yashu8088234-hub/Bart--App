@@ -31,6 +31,9 @@ if "DAILY_ITEMS" not in st.session_state:
 if "WEEKLY_ITEMS" not in st.session_state:
     st.session_state.WEEKLY_ITEMS = {}
 
+if "show_mgmt_password" not in st.session_state:
+    st.session_state.show_mgmt_password = False
+
 # =========================================================
 # DATA CHECK
 # =========================================================
@@ -76,7 +79,6 @@ st.markdown("""
     color: #2C2A28;
 }
 
-/* BUTTON STYLE (YOUR ORIGINAL) */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -137,19 +139,39 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (CLEAN ALIGNMENT FIX ONLY)
+# MAIN BUTTONS (CLEAN + PASSWORD GATE)
 # =========================================================
 col1, col2, col3 = st.columns(3, gap="large")
 
-with col3:
+with col1:
     if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
         st.switch_page("pages/staff_dashboard.py")
 
-with col1:
+with col2:
     if st.button("📦 Management Dashboard", use_container_width=True):
-        st.switch_page("pages/management_dashboard.py")
+        st.session_state.show_mgmt_password = True
 
+with col3:
+    st.empty()
 
+# =========================================================
+# MANAGEMENT PASSWORD POPUP LOGIC
+# =========================================================
+if st.session_state.show_mgmt_password:
+
+    st.markdown("### 🔐 Manager Access Required")
+
+    password_input = st.text_input("Enter Manager Password", type="password")
+
+    if st.button("Validate & Continue"):
+
+        if password_input == st.secrets["Manager Password"]:
+
+            st.session_state.show_mgmt_password = False
+            st.switch_page("pages/management_dashboard.py")
+
+        else:
+            st.error("❌ Incorrect password")
 
 # =========================================================
 # SIDE BAR AI
@@ -186,7 +208,7 @@ with st.sidebar:
         st.rerun()
 
 # =========================================================
-# FOOTER (EXACT ORIGINAL RESTORED)
+# FOOTER (UNCHANGED EXACTLY)
 # =========================================================
 st.markdown("""
 <div class="section">
