@@ -77,11 +77,9 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ---------------- ACTIVITY ----------------
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
-# ---------------- TIMEOUT ----------------
 def check_timeout():
     if st.session_state.authenticated and st.session_state.last_activity:
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
@@ -92,14 +90,6 @@ def check_timeout():
             st.rerun()
 
 check_timeout()
-
-# ---------------- FORCE LOGOUT IF BRANCH CHANGES ----------------
-if st.session_state.authenticated:
-    if st.session_state.auth_branch != st.session_state.selected_branch:
-        st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.last_activity = None
-        st.rerun()
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -177,35 +167,59 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
+# ---------------- FIXED FREEZE CSS (IMPORTANT) ----------------
 st.markdown("""
 <style>
-/* Column 1 */
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+
+/* container scroll */
+div[data-testid="stDataFrame"] {
+    overflow-x: auto;
+}
+
+/* table base */
+div[data-testid="stDataFrame"] table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* FIRST COLUMN */
+div[data-testid="stDataFrame"] th:nth-child(1),
+div[data-testid="stDataFrame"] td:nth-child(1) {
     position: sticky;
     left: 0;
-    background: white;
+    background: white !important;
+    z-index: 5;
+    min-width: 120px;
+}
+
+/* SECOND COLUMN */
+div[data-testid="stDataFrame"] th:nth-child(2),
+div[data-testid="stDataFrame"] td:nth-child(2) {
+    position: sticky;
+    left: 120px;
+    background: white !important;
+    z-index: 4;
+    min-width: 120px;
+}
+
+/* THIRD COLUMN */
+div[data-testid="stDataFrame"] th:nth-child(3),
+div[data-testid="stDataFrame"] td:nth-child(3) {
+    position: sticky;
+    left: 240px;
+    background: white !important;
     z-index: 3;
+    min-width: 120px;
 }
 
-/* Column 2 */
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+/* header top freeze */
+div[data-testid="stDataFrame"] thead th {
     position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
+    top: 0;
+    background: #f2f2f2 !important;
+    z-index: 10;
 }
 
-/* Column 3 */
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,31 +255,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # ---------------- RESET PASSWORD ----------------
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password")
-
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
-
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(st.session_state.selected_branch, new_pass)
-                st.success("Password updated successfully")
-                st.session_state.reset_mode = False
-            else:
-                st.error("Wrong admin password")
-
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
         col1, col2, col3 = st.columns(3)
-
-        if col1.button("📦 Stock Record"):
-            refresh_activity()
-            st.switch_page("pages/stock_consumption.py")
 
         if col3.button("🔍 Stock View"):
             refresh_activity()
