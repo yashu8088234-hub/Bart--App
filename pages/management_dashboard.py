@@ -10,14 +10,18 @@ from ai_core import run_ai
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-# ---------------- AI STATE ----------------
+# =========================================================
+# AI STATE
+# =========================================================
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-# ---------------- GOOGLE AUTH ----------------
+# =========================================================
+# GOOGLE AUTH
+# =========================================================
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -42,7 +46,7 @@ def load_branches():
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
-# ---------------- SHEET CACHE ----------------
+# ---------------- SHEETS CACHE ----------------
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
@@ -58,7 +62,7 @@ def get_sheets(branches):
 
 sheet_cache = get_sheets(branches)
 
-# ---------------- FETCH DATA ----------------
+# ---------------- FETCH ----------------
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
@@ -67,6 +71,7 @@ def fetch_branch(branch):
 
         file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
+
         return branch["BranchName"], ws.get_all_values()
 
     except:
@@ -82,16 +87,22 @@ all_data = load_all_data(branches)
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
-# ---------------- DATE ----------------
+# =========================================================
+# DATE
+# =========================================================
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# ---------------- REFRESH ----------------
+# =========================================================
+# REFRESH
+# =========================================================
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
-# ---------------- STOCK PROCESSING ----------------
+# =========================================================
+# PROCESS STOCK
+# =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
@@ -150,52 +161,63 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
-daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
-
-st.session_state.DAILY_ITEMS = daily_items
-st.session_state.WEEKLY_ITEMS = weekly_items
+# =========================================================
+# IMPORTANT FIX: SESSION STATE BINDING (ROOT FIX)
+# =========================================================
+st.session_state.daily_items, st.session_state.weekly_items = process_stock(
+    all_data,
+    selected_date_str,
+    branch_names
+)
 
 # =========================================================
-# 🤖 AI TOGGLE BUTTON
+# AI BUTTON
 # =========================================================
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# 🔥 SMART ITEM MATCHING FUNCTION (FIX)
+# SMART MATCH FUNCTION
 # =========================================================
 def find_best_item(user_input, items):
+
     if not items:
         return None
 
     user_input = user_input.lower().strip()
-    items_lower = {i.lower(): i for i in items}
+    items_map = {i.lower(): i for i in items}
 
-    # 1. exact match
-    if user_input in items_lower:
-        return items_lower[user_input]
+    if user_input in items_map:
+        return items_map[user_input]
 
-    # 2. partial match
-    for key, original in items_lower.items():
-        if user_input in key:
-            return original
+    for k, v in items_map.items():
+        if user_input in k:
+            return v
 
-    # 3. fuzzy match
-    match = get_close_matches(user_input, items_lower.keys(), n=1, cutoff=0.4)
+    match = get_close_matches(user_input, items_map.keys(), n=1, cutoff=0.4)
     if match:
-        return items_lower[match[0]]
+        return items_map[match[0]]
 
     return None
 
 # =========================================================
-# 🤖 AI PANEL
+# AI PANEL
 # =========================================================
 if st.session_state.ai_open:
 
     st.markdown("## 🤖 AI Stock Assistant")
 
+    daily_items = st.session_state.get("daily_items", {})
+    weekly_items = st.session_state.get("weekly_items", {})
+
+    # ❗ FIX: prevent empty data crash
+    if not daily_items and not weekly_items:
+        st.warning("⚠ Stock not loaded yet. Please refresh data.")
+        st.stop()
+
     all_items = list(daily_items.keys()) + list(weekly_items.keys())
 
+    # CHAT HISTORY
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
@@ -207,7 +229,7 @@ if st.session_state.ai_open:
         matched_item = find_best_item(user_input, all_items)
 
         if not matched_item:
-            response = "❌ Could not identify item.\n\nTry:\n" + "\n".join(all_items[:5])
+            response = "❌ Could not identify item.\n\nTry examples:\n" + "\n".join(all_items[:5])
 
         else:
             context = {
@@ -225,25 +247,21 @@ if st.session_state.ai_open:
         st.rerun()
 
 # =========================================================
-# 📦 DAILY TABLE
+# TABLES
 # =========================================================
 daily_rows = []
-for i, (item, values) in enumerate(daily_items.items(), start=1):
+for i, (item, values) in enumerate(st.session_state.daily_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
     row.update(values)
     daily_rows.append(row)
 
-daily_df = pd.DataFrame(daily_rows)
-
-# =========================================================
-# 📦 WEEKLY TABLE
-# =========================================================
 weekly_rows = []
-for i, (item, values) in enumerate(weekly_items.items(), start=1):
+for i, (item, values) in enumerate(st.session_state.weekly_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
     row.update(values)
     weekly_rows.append(row)
 
+daily_df = pd.DataFrame(daily_rows)
 weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
