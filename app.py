@@ -54,6 +54,7 @@ st.markdown("""
     text-align:center;
 }
 
+/* BUTTONS */
 div.stButton > button {
     width:100%;
     height:52px;
@@ -79,12 +80,6 @@ div.stButton > button {
     margin: 0;
 }
 
-.ai-button {
-    display:flex;
-    justify-content:center;
-    margin-top:20px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,7 +95,7 @@ defaults = {
     "DAILY_ITEMS": {},
     "WEEKLY_ITEMS": {},
     "login_attempts": 0,
-    "ai_open": False   # ⭐ AI SIDEBAR TOGGLE
+    "ai_open": False
 }
 
 for k, v in defaults.items():
@@ -110,7 +105,7 @@ for k, v in defaults.items():
 MAX_CHAT = 50
 
 # =========================================================
-# LOGIN PAGE
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -159,7 +154,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# MAIN DASHBOARD
+# DASHBOARD
 # =========================================================
 top1, top2 = st.columns([9, 1])
 
@@ -168,6 +163,7 @@ with top2:
         st.session_state.authenticated = False
         st.session_state.role = None
         st.session_state.chat = []
+        st.session_state.ai_open = False
         st.rerun()
 
 # HERO
@@ -180,18 +176,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🤖 AI BUTTON (OPEN SIDEBAR)
-# =========================================================
-st.markdown('<div class="ai-button">', unsafe_allow_html=True)
-
-if st.button("🤖 Open AI Assistant"):
-    st.session_state.ai_open = True
-    st.rerun()
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# =========================================================
-# NAVIGATION BUTTONS
+# MAIN BUTTONS
 # =========================================================
 c1, c2 = st.columns(2)
 
@@ -204,14 +189,24 @@ with c2:
         st.switch_page("pages/management_dashboard.py")
 
 # =========================================================
-# 🧠 AI SIDEBAR (TOGGLE SYSTEM)
+# ⭐ AI BUTTON (BELOW ALL BUTTONS - FIXED)
+# =========================================================
+st.markdown("---")
+
+col_ai = st.columns([1, 2, 1])[1]
+
+with col_ai:
+    if st.button("🤖 Open AI Assistant", use_container_width=True):
+        st.session_state.ai_open = True
+
+# =========================================================
+# 🤖 AI SIDEBAR (FIXED & STABLE)
 # =========================================================
 if st.session_state.ai_open:
 
     with st.sidebar:
         st.markdown("## 🤖 BART AI Assistant")
 
-        # CLOSE BUTTON
         if st.button("❌ Close AI"):
             st.session_state.ai_open = False
             st.rerun()
@@ -225,7 +220,7 @@ if st.session_state.ai_open:
 
         st.divider()
 
-        # CHAT INPUT
+        # INPUT
         with st.form("ai_chat_form", clear_on_submit=True):
             user_input = st.text_input("Ask something...")
             send = st.form_submit_button("Send")
