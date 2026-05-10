@@ -11,31 +11,41 @@ client = Groq(
 
 # =========================================================
 # 📦 RAW DATA TOOL
+# AI HANDLES CONTEXT ITSELF
 # =========================================================
-def get_raw_data(context):
+def get_raw_data():
 
     return {
 
-        "cache_data": context.get(
-            "cache_data",
+        # FULL RAW CACHE
+        "cache_data": st.session_state.get(
+            "all_data",
             []
         ),
 
-        "branches": context.get(
-            "branch_list",
+        # BRANCHES
+        "branches": st.session_state.get(
+            "branches",
             []
         ),
 
-        "items": context.get(
-            "master_items",
-            []
+        # DAILY ITEMS
+        "daily_items": st.session_state.get(
+            "DAILY_ITEMS",
+            {}
+        ),
+
+        # WEEKLY ITEMS
+        "weekly_items": st.session_state.get(
+            "WEEKLY_ITEMS",
+            {}
         )
     }
 
 # =========================================================
 # 🧠 AI AGENT
 # =========================================================
-def run_ai(user_input, context):
+def run_ai(user_input):
 
     system_prompt = """
 You are STOCK AI, an autonomous inventory intelligence system.
@@ -105,21 +115,22 @@ FINAL RESPONSE FORMAT:
             )
 
             # =================================================
-            # CHECK TOOL CALL
+            # TOOL CALL CHECK
             # =================================================
             try:
 
                 tool_request = json.loads(reply)
 
+                # ---------------------------------------------
+                # GET RAW DATA TOOL
+                # ---------------------------------------------
                 if (
                     isinstance(tool_request, dict)
                     and tool_request.get("tool")
                     == "get_raw_data"
                 ):
 
-                    tool_data = get_raw_data(
-                        context
-                    )
+                    tool_data = get_raw_data()
 
                     # SAVE TOOL REQUEST
                     messages.append({
