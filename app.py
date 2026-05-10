@@ -35,7 +35,7 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# STYLE (UNCHANGED)
+# STYLE (YOUR ORIGINAL + SMALL UPGRADE)
 # =========================================================
 st.markdown("""
 <style>
@@ -47,12 +47,20 @@ st.markdown("""
     font-family:Segoe UI;
 }
 
+/* CENTER CONTAINER FOR DESKTOP */
+.main-container {
+    max-width: 900px;
+    margin: auto;
+}
+
+/* HERO */
 .hero {
     background:white;
     padding:60px;
     text-align:center;
     border-radius:25px;
     box-shadow:0 10px 30px rgba(0,0,0,0.1);
+    margin-bottom:20px;
 }
 
 .hero h1 {
@@ -61,6 +69,7 @@ st.markdown("""
     margin:0;
 }
 
+/* SECTION */
 .section {
     background:white;
     padding:25px;
@@ -70,6 +79,7 @@ st.markdown("""
     text-align:center;
 }
 
+/* BUTTON */
 div.stButton > button {
     width:100%;
     height:52px;
@@ -99,6 +109,11 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
+# CENTER WRAPPER (DESKTOP FIX)
+# =========================================================
+st.markdown('<div class="main-container">', unsafe_allow_html=True)
+
+# =========================================================
 # HERO
 # =========================================================
 st.markdown("""
@@ -110,20 +125,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# NAVIGATION BUTTONS (FIXED VERSION)
+# NAVIGATION BUTTONS (IMPROVED DESKTOP LAYOUT)
 # =========================================================
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns([1, 2, 2])
 
-with col1:
+with col2:
     if st.button("👨‍💼 Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
 
-with col2:
+with col3:
     if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
 
 # =========================================================
-# AI TOGGLE BUTTON
+# AI BUTTON
 # =========================================================
 st.markdown("---")
 
@@ -176,3 +191,5 @@ st.markdown("""
     <p>bart.sa • Jeddah Branches</p>
 </div>
 """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
