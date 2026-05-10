@@ -11,10 +11,13 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE
+# SESSION STATE (UNCHANGED LOGIC)
 # =========================================================
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+if "role" not in st.session_state:
+    st.session_state.role = None
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
@@ -35,22 +38,18 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# STYLE (YOUR ORIGINAL + SMALL UPGRADE)
+# STYLE (CARD UI ONLY)
 # =========================================================
 st.markdown("""
 <style>
 
-#MainMenu, footer, header {visibility:hidden;}
+#MainMenu, footer, header {
+    visibility: hidden;
+}
 
 .stApp {
     background: linear-gradient(135deg,#F7F1EA,#FFFFFF);
     font-family:Segoe UI;
-}
-
-/* CENTER CONTAINER FOR DESKTOP */
-.main-container {
-    max-width: 900px;
-    margin: auto;
 }
 
 /* HERO */
@@ -69,31 +68,66 @@ st.markdown("""
     margin:0;
 }
 
-/* SECTION */
-.section {
-    background:white;
-    padding:25px;
-    margin-top:15px;
-    border-radius:15px;
-    box-shadow:0 5px 20px rgba(0,0,0,0.08);
-    text-align:center;
+/* CARD STYLE */
+.card {
+    background: white;
+    padding: 30px;
+    border-radius: 18px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    text-align: center;
+    transition: 0.2s;
+    cursor: pointer;
 }
 
-/* BUTTON */
-div.stButton > button {
-    width:100%;
-    height:52px;
-    border-radius:14px;
-    background:linear-gradient(135deg,#2C2A28,#C0392B);
-    color:white;
-    font-weight:700;
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.12);
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.card-btn button {
+    width: 100%;
+    height: 45px;
+    border-radius: 12px;
+    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    color: white;
+    font-weight: 700;
+    border: none;
+}
+
+/* AI SECTION */
+.ai-box {
+    background:white;
+    padding:20px;
+    border-radius:18px;
+    margin-top:20px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+
+.chat-msg {
+    padding:10px;
+    margin:5px 0;
+    border-radius:10px;
+}
+
+.user {
+    background:#f1f1f1;
+}
+
+.ai {
+    background:#ffecec;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# LOGIN (UNCHANGED LOGIC)
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -109,12 +143,7 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# CENTER WRAPPER (DESKTOP FIX)
-# =========================================================
-st.markdown('<div class="main-container">', unsafe_allow_html=True)
-
-# =========================================================
-# HERO
+# HERO (UNCHANGED)
 # =========================================================
 st.markdown("""
 <div class="hero">
@@ -125,31 +154,43 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# NAVIGATION BUTTONS (IMPROVED DESKTOP LAYOUT)
+# CARD DASHBOARD UI (OPTION 2 IMPLEMENTATION)
 # =========================================================
-col1, col2, col3 = st.columns([1, 2, 2])
 
-with col2:
-    if st.button("👨‍💼 Staff Dashboard"):
+col1, col2, col3 = st.columns(3)
+
+# ================= STAFF CARD =================
+with col1:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">👨‍💼 Staff Dashboard</div>', unsafe_allow_html=True)
+
+    if st.button("Open Staff", key="staff_card"):
         st.switch_page("pages/staff_dashboard.py")
 
-with col3:
-    if st.button("📦 Management Dashboard"):
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ================= MANAGEMENT CARD =================
+with col2:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">📦 Management Dashboard</div>', unsafe_allow_html=True)
+
+    if st.button("Open Management", key="mgmt_card"):
         st.switch_page("pages/management_dashboard.py")
 
-# =========================================================
-# AI BUTTON
-# =========================================================
-st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-col_ai = st.columns([1,2,1])[1]
+# ================= AI CARD =================
+with col3:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown('<div class="card-title">🤖 AI Assistant</div>', unsafe_allow_html=True)
 
-with col_ai:
-    if st.button("🤖 AI Assistant"):
+    if st.button("Open AI", key="ai_card"):
         st.session_state.ai_open = not st.session_state.ai_open
 
+    st.markdown('</div>', unsafe_allow_html=True)
+
 # =========================================================
-# AI CHAT
+# AI CHAT (UNCHANGED LOGIC)
 # =========================================================
 if st.session_state.ai_open:
 
@@ -181,15 +222,8 @@ if st.session_state.ai_open:
 # FOOTER
 # =========================================================
 st.markdown("""
-<div class="section">
+<div style="margin-top:25px; background:white; padding:25px; border-radius:15px; text-align:center;">
     <h3>Our Experience</h3>
-    <p>Premium café experience in Jeddah.</p>
-</div>
-
-<div class="section">
-    <h3>Visit Us</h3>
-    <p>bart.sa • Jeddah Branches</p>
+    <p>Premium café experience in Jeddah</p>
 </div>
 """, unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
