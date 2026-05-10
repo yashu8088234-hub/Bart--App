@@ -3,12 +3,11 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
-from difflib import get_close_matches
 from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
-st.title("📦 BART - Stock Management (All Branches)")
+st.title("📦 BART - Stock Management (AI Controlled)")
 
 # ---------------- GOOGLE AUTH ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -161,36 +160,16 @@ weekly_df = pd.DataFrame([
     for i, (item, values) in enumerate(weekly_items.items())
 ])
 
-# ---------------- DISPLAY ----------------
-
-def find_best_item(user_input, items_dict):
-
-    if not items_dict:
-        return None
-
-    keys = list(items_dict.keys())
-    user_input = user_input.lower().strip()
-
-    for k in keys:
-        if user_input in k.lower():
-            return k
-
-    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-    return match[0] if match else None
-
-
-# ---------------- AI TOGGLE ----------------
+# ---------------- AI PANEL ----------------
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
-
-# ---------------- AI PANEL ----------------
 if st.session_state.ai_open:
 
-    st.markdown("## 🤖 Stock AI Assistant")
+    st.markdown("## 🤖 Stock AI Assistant (Full Control Mode)")
 
     combined = {}
     combined.update(st.session_state.get("DAILY_ITEMS", {}))
@@ -199,7 +178,7 @@ if st.session_state.ai_open:
     if "chat" not in st.session_state:
         st.session_state.chat = []
 
-    # ---------------- CHAT DISPLAY ----------------
+    # ---------------- CHAT HISTORY ----------------
     for role, msg in st.session_state.chat:
         if role == "You":
             st.markdown(f"🧑 **You:** {msg}")
@@ -210,20 +189,18 @@ if st.session_state.ai_open:
         st.warning("No stock data available.")
     else:
 
-        # ---------------- FORM INPUT ----------------
+        # ---------------- INPUT ----------------
         with st.form("ai_form", clear_on_submit=True):
-            user_input = st.text_input("Ask about stock...")
+            user_input = st.text_input("Ask anything about stock...")
             submitted = st.form_submit_button("Send")
 
-        # ---------------- CLEAR CHAT BUTTON (FIXED POSITION) ----------------
+        # ---------------- CLEAR CHAT ----------------
         if st.button("🧹 Clear Chat"):
             st.session_state.chat = []
             st.rerun()
 
-        # ---------------- CHAT PROCESS ----------------
+        # ---------------- AI EXECUTION (NO BLOCKING LOGIC) ----------------
         if submitted and user_input.strip():
-
-            matched = find_best_item(user_input, combined)
 
             context = {
                 "cache_data": st.session_state.all_data,
@@ -231,11 +208,8 @@ if st.session_state.ai_open:
                 "master_items": list(combined.keys())
             }
 
-            if not matched:
-                response = "❌ Item not found in stock database."
-            else:
-                with st.spinner("Analyzing stock... 🤖"):
-                    response = run_ai(user_input, context)
+            with st.spinner("AI analyzing full inventory... 🤖"):
+                response = run_ai(user_input, context)
 
             st.session_state.chat.append(("You", user_input))
             st.session_state.chat.append(("AI", response))
