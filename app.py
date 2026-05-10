@@ -16,9 +16,6 @@ st.set_page_config(
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-if "role" not in st.session_state:
-    st.session_state.role = None
-
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
@@ -38,96 +35,111 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# STYLE (CARD UI ONLY)
+# THEME (STANDARD COLORS + YOUR BRAND RED)
 # =========================================================
-st.markdown("""
+PRIMARY = "#C0392B"   # your brand red
+DARK = "#2C2A28"
+BG = "#F6F7FB"
+CARD = "#FFFFFF"
+TEXT = "#1F1F1F"
+
+# =========================================================
+# STYLE (SAAS NAVBAR UI)
+# =========================================================
+st.markdown(f"""
 <style>
 
-#MainMenu, footer, header {
+#MainMenu, footer, header {{
     visibility: hidden;
-}
+}}
 
-.stApp {
-    background: linear-gradient(135deg,#F7F1EA,#FFFFFF);
-    font-family:Segoe UI;
-}
+.stApp {{
+    background: {BG};
+    font-family: 'Segoe UI', sans-serif;
+}}
+
+/* TOP NAV BAR */
+.navbar {{
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 14px 25px;
+    border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}}
+
+.brand {{
+    font-size: 22px;
+    font-weight: 800;
+    color: {PRIMARY};
+    letter-spacing: 2px;
+}}
+
+.nav-buttons button {{
+    margin-left: 10px;
+    background: {DARK};
+    color: white;
+    border-radius: 10px;
+    height: 40px;
+    padding: 0 14px;
+    border: none;
+    font-weight: 600;
+}}
+
+.nav-buttons button:hover {{
+    background: {PRIMARY};
+}}
 
 /* HERO */
-.hero {
-    background:white;
-    padding:60px;
-    text-align:center;
-    border-radius:25px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.1);
-    margin-bottom:20px;
-}
-
-.hero h1 {
-    font-size:70px;
-    color:#C0392B;
-    margin:0;
-}
-
-/* CARD STYLE */
-.card {
-    background: white;
-    padding: 30px;
-    border-radius: 18px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+.hero {{
+    background: {CARD};
+    padding: 50px;
     text-align: center;
-    transition: 0.2s;
-    cursor: pointer;
-}
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+}}
 
-.card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 35px rgba(0,0,0,0.12);
-}
+.hero h1 {{
+    font-size: 60px;
+    color: {PRIMARY};
+    margin: 0;
+}}
 
-.card-title {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 10px;
-}
+/* SECTION */
+.section {{
+    background: {CARD};
+    padding: 25px;
+    margin-top: 15px;
+    border-radius: 14px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.06);
+    text-align: center;
+}}
 
-.card-btn button {
+/* MAIN BUTTON STYLE (CONSISTENT) */
+div.stButton > button {{
     width: 100%;
-    height: 45px;
+    height: 48px;
     border-radius: 12px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    background: {DARK};
     color: white;
     font-weight: 700;
     border: none;
-}
+}}
 
-/* AI SECTION */
-.ai-box {
-    background:white;
-    padding:20px;
-    border-radius:18px;
-    margin-top:20px;
-    box-shadow:0 10px 25px rgba(0,0,0,0.1);
-}
-
-.chat-msg {
-    padding:10px;
-    margin:5px 0;
-    border-radius:10px;
-}
-
-.user {
-    background:#f1f1f1;
-}
-
-.ai {
-    background:#ffecec;
-}
+div.stButton > button:hover {{
+    background: {PRIMARY};
+}}
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (UNCHANGED LOGIC)
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -143,51 +155,38 @@ if not st.session_state.authenticated:
     st.stop()
 
 # =========================================================
-# HERO (UNCHANGED)
+# TOP NAV BAR (OPTION 1 IMPLEMENTATION)
 # =========================================================
-st.markdown("""
-<div class="hero">
-    <h1>BART</h1>
-    <p>Coffee • French Toast • Fresh Bites</p>
-    <p>📍 Jeddah • bart.sa</p>
+st.markdown(f"""
+<div class="navbar">
+    <div class="brand">BART</div>
 </div>
 """, unsafe_allow_html=True)
 
-# =========================================================
-# CARD DASHBOARD UI (OPTION 2 IMPLEMENTATION)
-# =========================================================
+col1, col2, col3 = st.columns([2,2,2])
 
-col1, col2, col3 = st.columns(3)
-
-# ================= STAFF CARD =================
 with col1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">👨‍💼 Staff Dashboard</div>', unsafe_allow_html=True)
-
-    if st.button("Open Staff", key="staff_card"):
+    if st.button("👨‍💼 Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ================= MANAGEMENT CARD =================
 with col2:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">📦 Management Dashboard</div>', unsafe_allow_html=True)
-
-    if st.button("Open Management", key="mgmt_card"):
+    if st.button("📦 Management Dashboard"):
         st.switch_page("pages/management_dashboard.py")
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ================= AI CARD =================
 with col3:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">🤖 AI Assistant</div>', unsafe_allow_html=True)
-
-    if st.button("Open AI", key="ai_card"):
+    if st.button("🤖 AI Assistant"):
         st.session_state.ai_open = not st.session_state.ai_open
 
-    st.markdown('</div>', unsafe_allow_html=True)
+# =========================================================
+# HERO
+# =========================================================
+st.markdown(f"""
+<div class="hero">
+    <h1>BART</h1>
+    <p style="color:{TEXT}">Coffee • French Toast • Fresh Bites</p>
+    <p style="color:{TEXT}">📍 Jeddah • bart.sa</p>
+</div>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # AI CHAT (UNCHANGED LOGIC)
@@ -221,9 +220,14 @@ if st.session_state.ai_open:
 # =========================================================
 # FOOTER
 # =========================================================
-st.markdown("""
-<div style="margin-top:25px; background:white; padding:25px; border-radius:15px; text-align:center;">
+st.markdown(f"""
+<div class="section">
     <h3>Our Experience</h3>
     <p>Premium café experience in Jeddah</p>
+</div>
+
+<div class="section">
+    <h3>Visit Us</h3>
+    <p>bart.sa • Jeddah Branches</p>
 </div>
 """, unsafe_allow_html=True)
