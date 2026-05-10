@@ -1,8 +1,4 @@
-import re
 import json
-import datetime
-from difflib import SequenceMatcher
-
 import streamlit as st
 from groq import Groq
 
@@ -11,345 +7,120 @@ from groq import Groq
 # =========================================================
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-
 # =========================================================
-# 🧠 NORMALIZE TEXT
+# 📦 TOOL: GET RAW DATA (AI USES SESSION STATE)
 # =========================================================
-def normalize(text):
+def get_raw_data():
 
-    if not text:
-        return ""
-
-    text = str(text).lower().strip()
-
-    text = re.sub(r"[^a-zA-Z0-9\u0600-\u06FF ]", " ", text)
-    text = re.sub(r"\s+", " ", text)
-
-    return text.strip()
-
-
-# =========================================================
-# 🧠 SIMILARITY
-# =========================================================
-def similarity(a, b):
-
-    return SequenceMatcher(
-        None,
-        normalize(a),
-        normalize(b)
-    ).ratio()
-
-
-# =========================================================
-# 📅 DATE PARSER
-# =========================================================
-def parse_date(text):
-
-    text = normalize(text)
-
-    today = datetime.date.today()
-    yesterday = today - datetime.timedelta(days=1)
-
-    if "yesterday" in text:
-        return yesterday.strftime("%Y-%m-%d")
-
-    if "today" in text:
-        return today.strftime("%Y-%m-%d")
-
-    # yyyy-mm-dd
-    match = re.search(r"\d{4}-\d{2}-\d{2}", text)
-
-    if match:
-        return match.group()
-
-    # 06 may
-    month_map = {
-        "jan": 1,
-        "feb": 2,
-        "mar": 3,
-        "apr": 4,
-        "may": 5,
-        "jun": 6,
-        "jul": 7,
-        "aug": 8,
-        "sep": 9,
-        "oct": 10,
-        "nov": 11,
-        "dec": 12,
+    return {
+        "cache_data": st.session_state.get("all_data", []),
+        "branches": st.session_state.get("branches", []),
+        "daily_items": st.session_state.get("DAILY_ITEMS", {}),
+        "weekly_items": st.session_state.get("WEEKLY_ITEMS", {})
     }
 
-    match = re.search(
-        r"(\d{1,2})\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)",
-        text
-    )
+# =========================================================
+# 🧼 SAFE JSON EXTRACTOR (IMPORTANT FIX)
+# =========================================================
+def extract_json(text):
 
-    if match:
+    try:
+        text = text.replace("```json", "").replace("```", "").strip()
 
-        day = int(match.group(1))
-        month = month_map[match.group(2)]
-        year = today.year
+        start = text.find("{")
+        end = text.rfind("}") + 1
 
-        try:
-            return datetime.date(
-                year,
-                month,
-                day
-            ).strftime("%Y-%m-%d")
+        if start == -1 or end == -1:
+            return None
 
-        except:
-            pass
+        return json.loads(text[start:end])
 
-    return today.strftime("%Y-%m-%d")
-
+    except:
+        return None
 
 # =========================================================
-# 🏢 FIND BRANCH
+# 🧠 AI CORE ENGINE
 # =========================================================
-def find_branch(user_input, branch_list):
+def run_ai(user_input):
 
-    text = normalize(user_input)
+    system_prompt = """
+You are STOCK AI, an autonomous inventory intelligence system.
 
-    best_branch = None
-    best_score = 0
+You control reasoning fully.
 
-    for branch in branch_list:
+TOOLS AVAILABLE:
+1. get_raw_data
 
-        score = similarity(text, branch)
+RULES:
+- Decide when to use tools
+- Do all calculations yourself
+- Never ask Python to process stock
+- Always return final structured answer
+- Continue after tool responses
 
-        if normalize(branch) in text:
-            return branch
+TOOL FORMAT:
+{"tool":"get_raw_data"}
 
-        if score > best_score:
-            best_score = score
-            best_branch = branch
+OUTPUT FORMAT:
+- Summary
+- Stock Status
+- Branch Breakdown
+- Insights
+- Action Plan
+- Risk Level
+"""
 
-    if best_score >= 0.45:
-        return best_branch
-
-    return None
-
-
-# =========================================================
-# 📦 FIND ITEM
-# =========================================================
-def find_item(user_input, item_list):
-
-    text = normalize(user_input)
-
-    best_item = None
-    best_score = 0
-
-    for item in item_list:
-
-        item_norm = normalize(item)
-
-        # direct contains
-        if text in item_norm:
-            return item
-
-        score = similarity(text, item)
-
-        # word boost
-        for word in text.split():
-
-            if len(word) < 2:
-                continue
-
-            if word in item_norm:
-                score += 0.15
-
-        if score > best_score:
-            best_score = score
-            best_item = item
-
-    if best_score >= 0.35:
-        return best_item
-
-    return None
-
-
-# =========================================================
-# 📊 EXTRACT STOCK
-# =========================================================
-def extract_stock_data(
-    all_data,
-    item_name,
-    target_date,
-    target_branch=None
-):
-
-    results = []
-
-    for branch_name, raw in all_data:
-
-        if target_branch:
-
-            if normalize(branch_name) != normalize(target_branch):
-                continue
-
-        if not raw or len(raw) < 2:
-            continue
-
-        headers = raw[0]
-
-        if target_date not in headers:
-            continue
-
-        date_index = headers.index(target_date)
-
-        for row in raw:
-
-            if not row:
-                continue
-
-            if len(row) == 0:
-                continue
-
-            row_item = str(row[0]).strip()
-
-            if not row_item:
-                continue
-
-            score = similarity(item_name, row_item)
-
-            if normalize(item_name) not in normalize(row_item):
-
-                if score < 0.40:
-                    continue
-
-            qty = 0
-
-            try:
-
-                if len(row) > date_index:
-                    qty = float(row[date_index] or 0)
-
-            except:
-                qty = 0
-
-            results.append({
-                "branch": branch_name,
-                "item": row_item,
-                "qty": qty,
-                "date": target_date
-            })
-
-    return results
-
-
-# =========================================================
-# 🤖 MAIN AI FUNCTION
-# =========================================================
-def run_ai(user_input, context):
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_input}
+    ]
 
     try:
 
-        all_data = context.get("cache_data", [])
-        branch_list = context.get("branch_list", [])
-        master_items = context.get("master_items", [])
+        # =====================================================
+        # TOOL LOOP (UP TO 5 STEPS)
+        # =====================================================
+        for _ in range(5):
 
-        if not all_data:
-            return "⚠️ Stock data not loaded."
-
-        # ---------------- DATE ----------------
-        target_date = parse_date(user_input)
-
-        # ---------------- BRANCH ----------------
-        matched_branch = find_branch(
-            user_input,
-            branch_list
-        )
-
-        # ---------------- ITEM ----------------
-        matched_item = find_item(
-            user_input,
-            master_items
-        )
-
-        if not matched_item:
-            return (
-                "❌ Could not identify item.\n\n"
-                "Try:\n"
-                "- crunchy cake\n"
-                "- lotus crumble\n"
-                "- cinnamoroll cup"
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                temperature=0.2,
+                max_tokens=1200
             )
 
-        # ---------------- FETCH STOCK ----------------
-        stock_results = extract_stock_data(
-            all_data=all_data,
-            item_name=matched_item,
-            target_date=target_date,
-            target_branch=matched_branch
-        )
+            reply = response.choices[0].message.content.strip()
 
-        if not stock_results:
+            # =================================================
+            # CHECK TOOL CALL
+            # =================================================
+            tool_request = extract_json(reply)
 
-            if matched_branch:
-                return (
-                    f"📦 No stock found for "
-                    f"{matched_item} at "
-                    f"{matched_branch} on "
-                    f"{target_date}"
-                )
+            if (
+                isinstance(tool_request, dict)
+                and tool_request.get("tool") == "get_raw_data"
+            ):
 
-            return (
-                f"📦 No stock found for "
-                f"{matched_item} on "
-                f"{target_date}"
-            )
+                tool_data = get_raw_data()
 
-        # ---------------- TOTAL ----------------
-        total_stock = sum(
-            x["qty"] for x in stock_results
-        )
+                messages.append({
+                    "role": "assistant",
+                    "content": reply
+                })
 
-        payload = {
-            "query": user_input,
-            "item": matched_item,
-            "branch": matched_branch,
-            "date": target_date,
-            "total_stock": total_stock,
-            "results": stock_results
-        }
-
-        # =====================================================
-        # 🤖 GROQ RESPONSE
-        # =====================================================
-        prompt = f"""
-You are BART AI.
-
-Use ONLY this stock JSON.
-
-{json.dumps(payload, ensure_ascii=False, indent=2)}
-
-Rules:
-- Be natural like ChatGPT
-- NEVER invent stock
-- If branch requested, ONLY show that branch
-- Keep response concise
-"""
-
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an inventory AI assistant."
-                    )
-                },
-                {
+                messages.append({
                     "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0.4,
-            max_tokens=400
-        )
+                    "content": f"TOOL_RESULT:\n{json.dumps(tool_data)}"
+                })
 
-        return response.choices[0].message.content.strip()
+                continue
+
+            # =================================================
+            # FINAL ANSWER
+            # =================================================
+            return reply
+
+        return "⚠️ AI loop limit reached."
 
     except Exception as e:
-
-        return f"⚠️ AI Error: {str(e)}"
+        return f"⚠️ System Error: {str(e)}"
