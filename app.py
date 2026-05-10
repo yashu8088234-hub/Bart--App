@@ -3,199 +3,169 @@ import hashlib
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
 # =========================================================
 # SESSION STATE
 # =========================================================
-defaults = {
-    "authenticated": False,
-    "role": None,
-    "chat": [],
-    "all_data": [],
-    "branches": [],
-    "DAILY_ITEMS": {},
-    "WEEKLY_ITEMS": {},
-    "ai_open": False
-}
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if "all_data" not in st.session_state:
+    st.session_state.all_data = []
+
+if "branches" not in st.session_state:
+    st.session_state.branches = []
+
+if "DAILY_ITEMS" not in st.session_state:
+    st.session_state.DAILY_ITEMS = {}
+
+if "WEEKLY_ITEMS" not in st.session_state:
+    st.session_state.WEEKLY_ITEMS = {}
 
 # =========================================================
-# STYLES (YOUR ORIGINAL - RESTORED)
+# STYLE (YOUR DESIGN KEPT)
 # =========================================================
 st.markdown("""
 <style>
 
-#MainMenu, footer, header {
-    visibility: hidden;
-}
-
-[data-testid="stToolbar"] {
-    display:none;
-}
-
-[data-testid="stSidebar"] {
-    display:none;
-}
+#MainMenu, footer, header {visibility:hidden;}
 
 .stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
-    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg,#F7F1EA,#FFFFFF);
+    font-family:Segoe UI;
 }
 
-/* LOGIN */
-.login-container {
-    max-width: 460px;
-    margin: 80px auto;
-    background: rgba(255,255,255,0.88);
-    backdrop-filter: blur(12px);
-    border-radius: 28px;
-    padding: 45px 35px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-}
-
-/* HERO */
 .hero {
-    background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
-    padding: 60px 30px;
-    border-radius: 28px;
-    text-align: center;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    margin-bottom: 25px;
+    background:white;
+    padding:60px;
+    text-align:center;
+    border-radius:25px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.1);
+    margin-bottom:20px;
 }
 
 .hero h1 {
-    font-size: 70px;
-    font-weight: 900;
-    color: #C0392B;
+    font-size:70px;
+    color:#C0392B;
+    margin:0;
 }
 
-/* SECTIONS (YOUR ORIGINAL LOOK KEPT) */
 .section {
-    background: rgba(255,255,255,0.9);
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-    text-align: center;
+    background:white;
+    padding:25px;
+    border-radius:15px;
+    margin-top:15px;
+    box-shadow:0 5px 20px rgba(0,0,0,0.08);
 }
 
 /* BUTTON */
 div.stButton > button {
     width:100%;
     height:52px;
-    border-radius:14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
+    border-radius:12px;
+    background:linear-gradient(135deg,#2C2A28,#C0392B);
     color:white;
     font-weight:700;
+}
+
+.ai-box {
+    background:white;
+    padding:20px;
+    border-radius:18px;
+    margin-top:20px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1);
+}
+
+.chat-msg {
+    padding:10px;
+    margin:5px 0;
+    border-radius:10px;
+}
+
+.user {
+    background:#f1f1f1;
+}
+
+.ai {
+    background:#ffecec;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (kept simple for structure)
+# LOGIN (simple)
 # =========================================================
 if not st.session_state.authenticated:
+    st.title("BART Login")
 
-    st.markdown("""
-    <div class="login-container">
-        <h1 style="text-align:center;color:#C0392B;">BART</h1>
-        <p style="text-align:center;">Control Center</p>
-    """, unsafe_allow_html=True)
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    u = st.text_input("User")
+    p = st.text_input("Password", type="password")
 
     if st.button("Login"):
         st.session_state.authenticated = True
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # =========================================================
-# HERO (YOUR ORIGINAL)
+# HERO
 # =========================================================
 st.markdown("""
 <div class="hero">
     <h1>BART</h1>
-    <h2>Coffee • French Toast • Fresh Bites</h2>
+    <p>Coffee • French Toast • Fresh Bites</p>
     <p>📍 Jeddah • bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (UNCHANGED STRUCTURE)
+# MAIN BUTTONS
 # =========================================================
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("👨‍💼 Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
+    st.button("👨‍💼 Staff Dashboard")
 
 with col2:
-    if st.button("📦 Management Dashboard"):
-        st.switch_page("pages/management_dashboard.py")
+    st.button("📦 Management Dashboard")
 
 # =========================================================
-# ⭐ AI BUTTON (ADDED BELOW ALL BUTTONS)
+# ⭐ AI TOGGLE BUTTON (SAME BUTTON OPENS/CLOSES)
 # =========================================================
-st.markdown("---")
-
-col_ai = st.columns([1,2,1])[1]
-
-with col_ai:
-    if st.button("🤖 Open AI Assistant"):
-        st.session_state.ai_open = True
+if st.button("🤖 AI Assistant (Chat Toggle)"):
+    st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# 🧠 AI FLOATING PANEL (SAFE ADDITION ONLY)
+# 🧠 INLINE AI CHAT (NO BOX, NO SIDEBAR)
 # =========================================================
 if st.session_state.ai_open:
 
-    st.markdown("""
-    <div style="
-        position: fixed;
-        right: 20px;
-        bottom: 20px;
-        width: 370px;
-        height: 520px;
-        background: white;
-        border-radius: 18px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-        padding: 15px;
-        overflow-y: auto;
-        z-index: 9999;
-    ">
-    """, unsafe_allow_html=True)
+    st.markdown("## 🤖 BART AI Assistant")
 
-    st.markdown("## 🤖 BART AI")
+    st.markdown('<div class="ai-box">', unsafe_allow_html=True)
 
-    if st.button("❌ Close AI"):
-        st.session_state.ai_open = False
-        st.rerun()
-
-    st.divider()
-
-    # CHAT
+    # CHAT HISTORY
     for sender, msg in st.session_state.chat[-15:]:
-        icon = "🧑" if sender == "You" else "🤖"
-        st.write(f"**{icon} {sender}:** {msg}")
+        css = "user" if sender == "You" else "ai"
+        st.markdown(f'<div class="chat-msg {css}"><b>{sender}:</b> {msg}</div>', unsafe_allow_html=True)
 
-    user_input = st.text_input("Ask something", key="ai_input")
+    # INPUT
+    user_input = st.text_input("Ask something...", key="chat_input")
 
-    if st.button("Send") and user_input:
-
+    if st.button("Send"):
         context = {
             "cache_data": st.session_state.all_data,
             "branch_list": [b["BranchName"] for b in st.session_state.branches],
@@ -213,16 +183,16 @@ if st.session_state.ai_open:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# FOOTER SECTIONS (RESTORED ORIGINAL STRUCTURE)
+# FOOTER SECTIONS (UNCHANGED IDEA)
 # =========================================================
 st.markdown("""
 <div class="section">
-    <h2>Our Experience</h2>
-    <p>Relax in a cozy café environment with fast service and premium coffee experience.</p>
+    <h3>Our Experience</h3>
+    <p>Relax in a cozy café environment with premium service.</p>
 </div>
 
 <div class="section">
-    <h2>Visit Us</h2>
-    <p>Find us in Jeddah branches or visit bart.sa</p>
+    <h3>Visit Us</h3>
+    <p>Jeddah Branches • bart.sa</p>
 </div>
 """, unsafe_allow_html=True)
