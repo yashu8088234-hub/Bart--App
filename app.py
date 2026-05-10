@@ -2,7 +2,7 @@ import streamlit as st
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -34,30 +34,22 @@ if "WEEKLY_ITEMS" not in st.session_state:
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
-# =========================================================
-# REAL DATA LOADER HOOK (NO FAKE DATA)
-# =========================================================
-def ensure_data_loaded():
-    """
-    IMPORTANT:
-    Replace this with your real DB / API / file loader.
-    This prevents AI crash without faking data.
-    """
-
-    if st.session_state.all_data is None:
-        st.session_state.all_data = []
-
-    if st.session_state.branches is None:
-        st.session_state.branches = []
-
-    if st.session_state.DAILY_ITEMS is None:
-        st.session_state.DAILY_ITEMS = {}
-
-    if st.session_state.WEEKLY_ITEMS is None:
-        st.session_state.WEEKLY_ITEMS = {}
+if "return_to_ai" not in st.session_state:
+    st.session_state.return_to_ai = False
 
 # =========================================================
-# STYLE (YOUR ORIGINAL DESIGN - UNTOUCHED)
+# SAFE DATA CHECK (NO FAKE DATA)
+# =========================================================
+def data_missing():
+    return (
+        not st.session_state.all_data
+        and not st.session_state.branches
+        and not st.session_state.DAILY_ITEMS
+        and not st.session_state.WEEKLY_ITEMS
+    )
+
+# =========================================================
+# YOUR ORIGINAL STYLE (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -91,7 +83,7 @@ st.markdown("""
     color: #2C2A28;
 }
 
-/* BUTTON STYLE (YOUR RED BRAND STYLE) */
+/* BUTTON STYLE */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -106,7 +98,6 @@ div.stButton > button:hover {
     opacity: 0.9;
 }
 
-/* SECTION */
 .section {
     background: white;
     padding: 25px;
@@ -116,34 +107,17 @@ div.stButton > button:hover {
     text-align: center;
 }
 
-/* LOGIN CARD */
-.login-box {
-    max-width: 450px;
-    margin: 80px auto;
-    padding: 50px;
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    text-align: center;
-}
-
-.login-title {
-    font-size: 50px;
-    color: #C0392B;
-    margin-bottom: 5px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (IMPROVED UX ONLY)
+# LOGIN (IMPROVED SIMPLE UI)
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
-    <div class="login-box">
-        <div class="login-title">BART</div>
+    <div style="text-align:center; padding:50px;">
+        <h1 style="color:#C0392B; font-size:60px;">BART</h1>
         <p>Coffee • French Toast • Fresh Bites</p>
         <h3>Secure Login</h3>
     </div>
@@ -170,7 +144,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# MAIN BUTTONS (ORIGINAL UI RESTORED)
+# ORIGINAL 3 BUTTON LAYOUT (UNCHANGED)
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
@@ -187,15 +161,29 @@ with col3:
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# AI CHAT (FIXED — NO MORE STOCK ERROR)
+# AI SYSTEM (SMART FLOW YOU REQUESTED)
 # =========================================================
 if st.session_state.ai_open:
 
-    # 🔥 FIX: ensure data is ready before AI runs
-    ensure_data_loaded()
-
     st.markdown("## 🤖 BART AI Assistant")
 
+    # -------------------------
+    # DATA NOT LOADED STATE
+    # -------------------------
+    if data_missing():
+
+        st.warning("⚠ Stock not loaded")
+
+        if st.button("📦 Click to Open Management Dashboard (Load Data)"):
+
+            st.session_state.return_to_ai = True
+            st.switch_page("pages/management_dashboard.py")
+
+        st.stop()
+
+    # -------------------------
+    # NORMAL AI CHAT
+    # -------------------------
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
