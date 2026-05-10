@@ -149,9 +149,7 @@ with col3:
     if st.button("📦 Management Dashboard", use_container_width=True):
         st.switch_page("pages/management_dashboard.py")
 
-with col3:
-    if st.button(" ", use_container_width=True, disabled=True):
-        pass
+
 
 # =========================================================
 # SIDE BAR AI
