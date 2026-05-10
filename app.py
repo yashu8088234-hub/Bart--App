@@ -31,25 +31,16 @@ if "data_loaded" not in st.session_state:
 st.markdown("""
 <style>
 
-#MainMenu, footer, header {
-    visibility: hidden;
-}
-
-[data-testid="stToolbar"] {
-    display:none;
-}
-
-[data-testid="stSidebar"] {
-    display:none;
-}
+#MainMenu, footer, header {visibility: hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* LOGIN PAGE */
-
+/* LOGIN */
 .login-container {
     max-width: 460px;
     margin: 80px auto;
@@ -58,11 +49,6 @@ st.markdown("""
     border-radius: 28px;
     padding: 45px 35px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    border: 1px solid rgba(255,255,255,0.4);
-}
-
-.login-logo {
-    text-align:center;
 }
 
 .login-logo h1 {
@@ -70,122 +56,19 @@ st.markdown("""
     font-weight:900;
     letter-spacing:8px;
     color:#C0392B;
-    margin-bottom:5px;
-}
-
-.login-logo p {
-    color:#666;
-    margin-top:0;
-    font-size:15px;
-}
-
-.login-title {
     text-align:center;
-    margin-top:25px;
-    margin-bottom:30px;
 }
 
-.login-title h2 {
-    color:#2C2A28;
-    margin-bottom:6px;
-}
-
-.login-title span {
-    color:#777;
-    font-size:14px;
-}
-
-div[data-baseweb="input"] input {
-    border-radius:14px;
-    height:52px;
-    border:1px solid #E4E4E4;
-    background:white;
-    font-size:15px;
-}
-
-div.stButton > button {
-    width:100%;
-    height:52px;
-    border:none;
-    border-radius:14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color:white;
-    font-size:16px;
-    font-weight:700;
-}
-
-div.stButton > button:hover {
-    opacity:0.92;
-}
-
-/* MAIN PAGE */
-
-.block-container {
-    padding: 1.2rem 2rem !important;
-    max-width: 1100px;
-    margin: auto;
-}
-
+/* HERO */
 .hero {
     background: linear-gradient(135deg, #FFFFFF, #F7F1EA);
     padding: 60px 30px;
     border-radius: 28px;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.08);
-    margin-bottom: 25px;
 }
 
-.hero h1 {
-    font-size: 70px;
-    font-weight: 900;
-    letter-spacing: 8px;
-    color: #C0392B;
-    margin: 0;
-}
-
-.hero h2 {
-    font-size: 22px;
-    color: #2C2A28;
-    margin-top: 10px;
-}
-
-.hero p {
-    font-size: 15px;
-    color: #555;
-    max-width: 750px;
-    margin: 10px auto 0;
-    line-height: 1.6;
-}
-
-.login-row {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0 35px;
-}
-
-.section {
-    background: rgba(255,255,255,0.9);
-    padding: 30px 20px;
-    margin-top: 20px;
-    border-radius: 16px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-}
-
-.section h2 {
-    color: #C0392B;
-    text-align: center;
-}
-
-.section p {
-    color: #555;
-    text-align: center;
-}
-
-/* ===================================================== */
-/* AI CHAT SECTION */
-/* ===================================================== */
-
+/* CHAT */
 .ai-wrapper {
     background: rgba(255,255,255,0.92);
     border-radius: 22px;
@@ -194,93 +77,50 @@ div.stButton > button:hover {
     box-shadow: 0 10px 30px rgba(0,0,0,0.06);
 }
 
-.ai-title {
-    color:#C0392B;
-    font-size:28px;
-    font-weight:700;
-    margin-bottom:20px;
-}
-
 .chat-container {
-    max-height: 500px;
+    max-height: 420px;
     overflow-y: auto;
-    padding-right: 8px;
+    padding: 10px;
 }
 
 .user-msg {
     background:#f4f4f4;
-    padding:14px 16px;
-    border-radius:14px;
-    margin-bottom:14px;
+    padding:12px;
+    border-radius:12px;
+    margin-bottom:10px;
     text-align:right;
-    color:#2C2A28;
-    font-size:15px;
-    line-height:1.6;
 }
 
 .ai-msg {
     background:#fff3f3;
-    color:#2C2A28;
-    padding:16px;
-    border-radius:14px;
-    margin-bottom:18px;
+    padding:12px;
+    border-radius:12px;
+    margin-bottom:12px;
     border-left:4px solid #C0392B;
-    font-size:15px;
-    line-height:1.7;
-}
-
-.ai-label {
-    color:#C0392B;
-    font-weight:700;
-    margin-bottom:6px;
-}
-
-.user-label {
-    color:#666;
-    font-weight:700;
-    margin-bottom:6px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN SCREEN
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
     st.markdown("""
     <div class="login-container">
-
-    <div class="login-logo">
-        <h1>BART</h1>
-        <p>Coffee • French Toast • Fresh Bites</p>
-    </div>
-
-    <div class="login-title">
-        <h2>Control Center</h2>
-        <span>Secure Internal Access</span>
-    </div>
+        <div class="login-logo">
+            <h1>BART</h1>
+        </div>
     """, unsafe_allow_html=True)
 
-    username = st.text_input(
-        "Username",
-        placeholder="Enter username"
-    )
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-    password = st.text_input(
-        "Password",
-        type="password",
-        placeholder="Enter password"
-    )
-
-    login = st.button("Login")
-
-    if login:
+    if st.button("Login"):
 
         clean_username = username.strip().lower()
 
-        # MANAGER LOGIN
         if (
             clean_username == st.secrets["MANAGER_USERNAME"].lower()
             and password == st.secrets["MANAGER_PASSWORD"]
@@ -290,7 +130,6 @@ if not st.session_state.authenticated:
             st.session_state.data_loaded = False
             st.rerun()
 
-        # STAFF LOGIN
         elif (
             clean_username == st.secrets["STAFF_USERNAME"].lower()
             and password == st.secrets["STAFF_PASSWORD"]
@@ -301,136 +140,87 @@ if not st.session_state.authenticated:
             st.rerun()
 
         else:
-            st.error("Invalid username or password")
+            st.error("Invalid login")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =========================================================
-# MAIN DASHBOARD
+# MAIN APP
 # =========================================================
 else:
 
-    # =====================================================
-    # AUTO LOAD DATA
-    # =====================================================
-
+    # AUTO LOAD DATA ONCE
     if not st.session_state.data_loaded:
 
-        # =================================================
-        # PASTE YOUR MANAGEMENT DATA LOADING LOGIC HERE
-        # =================================================
-
-        # EXAMPLE PLACEHOLDERS
-        # Replace with your real loading logic
-
         st.session_state.all_data = []
-
-        st.session_state.branches = [
-            {"BranchName": "Jeddah Main"}
-        ]
+        st.session_state.branches = [{"BranchName": "Jeddah Main"}]
 
         st.session_state.DAILY_ITEMS = {
             "Latte": {},
-            "Espresso": {},
-            "French Toast": {}
+            "Espresso": {}
         }
 
         st.session_state.WEEKLY_ITEMS = {
-            "Croissant": {},
-            "Cold Brew": {}
+            "Croissant": {}
         }
 
         st.session_state.data_loaded = True
 
-    # =====================================================
-    # TOP BAR
-    # =====================================================
-
-    col1, col2 = st.columns([9,1])
-
-    with col2:
-        if st.button("Logout"):
-            st.session_state.authenticated = False
-            st.session_state.role = None
-            st.session_state.chat = []
-            st.session_state.data_loaded = False
-            st.rerun()
-
-    # =====================================================
-    # HERO SECTION
-    # =====================================================
-
+    # HERO
     st.markdown("""
     <div class="hero">
         <h1>BART</h1>
-        <h2>Coffee • French Toast • Fresh Bites</h2>
-        <p>
-        A modern café experience built for speed,
-        quality, and taste.
-        📍 Jeddah • bart.sa
-        </p>
+        <h3>Coffee • French Toast • Fresh Bites</h3>
     </div>
     """, unsafe_allow_html=True)
 
     # =====================================================
-    # DASHBOARD BUTTONS
-    # =====================================================
-
-    st.markdown('<div class="login-row">', unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-
-    with col2:
-        if st.button("📦 Management Dashboard"):
-            st.switch_page("pages/management_dashboard.py")
-
-    with col1:
-        if st.button("👨‍💼 Staff Dashboard"):
-            st.switch_page("pages/staff_dashboard.py")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # =====================================================
-    # AI CHAT SECTION
+    # AI SECTION (FIXED ORDER)
     # =====================================================
 
     st.markdown("""
     <div class="ai-wrapper">
-        <div class="ai-title">💬 BART AI Assistant</div>
+        <h3 style="color:#C0392B;">💬 BART AI Assistant</h3>
     """, unsafe_allow_html=True)
 
-    # CHAT INPUT
+    # =========================
+    # CHAT DISPLAY (TOP)
+    # =========================
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+    for chat in st.session_state.chat[-20:]:
+
+        st.markdown(f"""
+        <div class="user-msg">
+            <b>You:</b><br>{chat['user']}
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div class="ai-msg">
+            <b>BART:</b><br>{chat['ai']}
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # =========================
+    # INPUT (BOTTOM)
+    # =========================
     with st.form("chat_form", clear_on_submit=True):
-
-        user_input = st.text_input(
-            "",
-            placeholder="🤖 Ask something..."
-        )
-
+        user_input = st.text_input("", placeholder="Ask something...")
         send = st.form_submit_button("Send")
-
-    # =====================================================
-    # AI RESPONSE
-    # =====================================================
 
     if send and user_input:
 
-        all_items = (
-            list(st.session_state.DAILY_ITEMS.keys()) +
-            list(st.session_state.WEEKLY_ITEMS.keys())
-        )
-
         context = {
             "cache_data": st.session_state.all_data,
-            "branch_list": [
-                b["BranchName"]
-                for b in st.session_state.branches
-            ],
-            "master_items": all_items
+            "branch_list": [b["BranchName"] for b in st.session_state.branches],
+            "master_items": list(st.session_state.DAILY_ITEMS.keys()) +
+                            list(st.session_state.WEEKLY_ITEMS.keys())
         }
 
-        with st.spinner("BART is thinking..."):
-
+        with st.spinner("Thinking..."):
             response = run_ai(user_input, context)
 
         st.session_state.chat.append({
@@ -438,60 +228,15 @@ else:
             "ai": response
         })
 
-    # =====================================================
-    # CHAT DISPLAY
-    # =====================================================
-
-    st.markdown(
-        '<div class="chat-container">',
-        unsafe_allow_html=True
-    )
-
-    for chat in st.session_state.chat[-20:]:
-
-        st.markdown(
-            f"""
-            <div class="user-msg">
-                <div class="user-label">You</div>
-                {chat["user"]}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.markdown(
-            f"""
-            <div class="ai-msg">
-                <div class="ai-label">BART</div>
-                {chat["ai"]}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    st.markdown(
-        "</div></div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================================
-    # FOOTER SECTIONS
+    # BUTTONS (UNCHANGED)
     # =====================================================
+    col1, col2 = st.columns(2)
 
-    st.markdown("""
-    <div class="section">
-    <h2>Our Experience</h2>
-    <p>
-    Relax in a cozy café environment with
-    fast service and premium coffee experience.
-    </p>
-    </div>
+    with col1:
+        st.button("👨‍💼 Staff Dashboard")
 
-    <div class="section">
-    <h2>Visit Us</h2>
-    <p>
-    Find us in Jeddah branches or visit bart.sa
-    for more information.
-    </p>
-    </div>
-    """, unsafe_allow_html=True)
+    with col2:
+        st.button("📦 Management Dashboard")
