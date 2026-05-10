@@ -2,12 +2,21 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-import time
 from concurrent.futures import ThreadPoolExecutor
+from ai_core import run_ai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
+
+# =========================================================
+# AI STATE
+# =========================================================
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
 # ---------------- GOOGLE AUTH ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -29,7 +38,6 @@ client = get_client()
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
-
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 branches = load_branches()
@@ -54,7 +62,7 @@ def get_sheets(branches):
 
 sheet_cache = get_sheets(branches)
 
-# ---------------- FETCH BRANCH DATA ----------------
+# ---------------- FETCH DATA ----------------
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
@@ -70,38 +78,26 @@ def fetch_branch(branch):
     except:
         return branch["BranchName"], None
 
-
-# =========================================================
-# ⚡ FIX 1: CACHE ALL DATA (IMPORTANT PERFORMANCE FIX)
-# =========================================================
 @st.cache_data(ttl=300)
 def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=3) as executor:
         return list(executor.map(fetch_branch, branches))
 
-
 all_data = load_all_data(branches)
 
-# ---------------- SESSION STORAGE ----------------
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
-# ---------------- DATE PICKER ----------------
+# ---------------- DATE ----------------
 selected_date = st.date_input("📅 Select Stock Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-daily_items = {}
-weekly_items = {}
-
 # ---------------- REFRESH ----------------
 if st.button("🔄 Refresh Data"):
-
     st.cache_data.clear()
     st.rerun()
 
-# =========================================================
-# ⚡ FIX 2: CACHE PROCESSING (BIG SPEED BOOST)
-# =========================================================
+# ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
@@ -119,7 +115,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             continue
 
         date_index = headers.index(selected_date_str)
-
         current_section = None
 
         for row in raw:
@@ -150,29 +145,61 @@ def process_stock(all_data, selected_date_str, branch_names):
                     qty = 0
 
             if current_section == "daily":
-
                 if item not in daily:
                     daily[item] = {bn: 0 for bn in branch_names}
-
                 daily[item][branch_name] = qty
 
             elif current_section == "weekly":
-
                 if item not in weekly:
                     weekly[item] = {bn: 0 for bn in branch_names}
-
                 weekly[item][branch_name] = qty
 
     return daily, weekly
 
-
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
-# ---------------- SAVE FOR AI ----------------
 st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
-# ---------------- DAILY DF ----------------
+# =========================================================
+# 🤖 AI BUTTON (TOP)
+# =========================================================
+if st.button("🤖 AI Assistant"):
+    st.session_state.ai_open = not st.session_state.ai_open
+
+# =========================================================
+# 🤖 AI PANEL (INLINE)
+# =========================================================
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 AI Assistant (Stock Expert)")
+
+    # show chat
+    for sender, msg in st.session_state.chat[-20:]:
+        icon = "🧑" if sender == "You" else "🤖"
+        st.markdown(f"**{icon} {sender}:** {msg}")
+
+    user_input = st.text_input("Ask about stock...", key="ai_input")
+
+    if st.button("Send") and user_input:
+
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": branch_names,
+            "daily_items": daily_items,
+            "weekly_items": weekly_items
+        }
+
+        response = run_ai(user_input, context)
+
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
+
+        st.rerun()
+
+# =========================================================
+# DAILY DF
+# =========================================================
 daily_rows = []
 for i, (item, values) in enumerate(daily_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
@@ -181,7 +208,9 @@ for i, (item, values) in enumerate(daily_items.items(), start=1):
 
 daily_df = pd.DataFrame(daily_rows)
 
-# ---------------- WEEKLY DF ----------------
+# =========================================================
+# WEEKLY DF
+# =========================================================
 weekly_rows = []
 for i, (item, values) in enumerate(weekly_items.items(), start=1):
     row = {"Sl No": i, "Item Name": item}
@@ -190,71 +219,11 @@ for i, (item, values) in enumerate(weekly_items.items(), start=1):
 
 weekly_df = pd.DataFrame(weekly_rows)
 
-# ---------------- DISPLAY ----------------
+# =========================================================
+# DISPLAY
+# =========================================================
 st.subheader("📦 Daily Items Stock")
-
-if daily_df.empty:
-    st.warning("No daily stock data found")
-else:
-    st.dataframe(daily_df, use_container_width=True)
+st.dataframe(daily_df, use_container_width=True) if not daily_df.empty else st.warning("No data")
 
 st.subheader("📦 Weekly Items Stock")
-
-if weekly_df.empty:
-    st.warning("No weekly stock data found")
-else:
-    st.dataframe(weekly_df, use_container_width=True)
-
-# ---------------- SEARCH ----------------
-search = st.text_input("🔎 Search Item")
-
-if search:
-
-    if not daily_df.empty:
-        st.subheader("📦 Daily Search Results")
-        st.dataframe(
-            daily_df[daily_df["Item Name"].str.contains(search, case=False, na=False)],
-            use_container_width=True
-        )
-
-    if not weekly_df.empty:
-        st.subheader("📦 Weekly Search Results")
-        st.dataframe(
-            weekly_df[weekly_df["Item Name"].str.contains(search, case=False, na=False)],
-            use_container_width=True
-        )
-
-# ---------------- DOWNLOADS ----------------
-if not daily_df.empty:
-    st.download_button(
-        "📥 Download Daily CSV",
-        daily_df.to_csv(index=False),
-        "daily_stock_report.csv",
-        "text/csv"
-    )
-
-if not weekly_df.empty:
-    st.download_button(
-        "📥 Download Weekly CSV",
-        weekly_df.to_csv(index=False),
-        "weekly_stock_report.csv",
-        "text/csv"
-    )
-
-# ---------------- FULL EXPORT ----------------
-if not daily_df.empty or not weekly_df.empty:
-
-    full_df = pd.concat(
-        [
-            daily_df.assign(Type="Daily"),
-            weekly_df.assign(Type="Weekly")
-        ],
-        ignore_index=True
-    )
-
-    st.download_button(
-        "📥 Download FULL Stock Report",
-        full_df.to_csv(index=False),
-        "full_stock_report.csv",
-        "text/csv"
-    )
+st.dataframe(weekly_df, use_container_width=True) if not weekly_df.empty else st.warning("No data")
