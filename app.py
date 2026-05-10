@@ -2,7 +2,7 @@ import streamlit as st
 from ai_core import run_ai
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 st.set_page_config(
     page_title="BART",
@@ -35,7 +35,7 @@ if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
 # =========================================================
-# SAFE DATA CHECK
+# DATA CHECK
 # =========================================================
 def data_missing():
     return (
@@ -46,7 +46,7 @@ def data_missing():
     )
 
 # =========================================================
-# STYLE (UNCHANGED YOUR RED DESIGN)
+# STYLE (UNCHANGED)
 # =========================================================
 st.markdown("""
 <style>
@@ -60,7 +60,6 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* HERO */
 .hero {
     background: white;
     padding: 60px;
@@ -108,7 +107,7 @@ div.stButton > button:hover {
 """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN (CLEAN BUT SIMPLE)
+# LOGIN
 # =========================================================
 if not st.session_state.authenticated:
 
@@ -141,7 +140,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# ORIGINAL 3 BUTTONS (UNCHANGED)
+# MAIN BUTTONS (UNCHANGED)
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
@@ -158,35 +157,25 @@ with col3:
         st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
-# 🤖 AI SYSTEM (OPTION 1 FIXED FLOW)
+# AI SECTION (UPDATED - NO INNER BUTTON)
 # =========================================================
 if st.session_state.ai_open:
 
     st.markdown("## 🤖 BART AI Assistant")
 
-    # =====================================================
-    # ❌ DATA MISSING STATE (NO PAGE SWITCHING)
-    # =====================================================
+    # ---------------------------
+    # DATA NOT LOADED STATE
+    # ---------------------------
     if data_missing():
 
         st.warning("⚠ Stock not loaded")
-
-        if st.button("📦 Load Management Data (Inside AI)"):
-            # 👉 REAL FIX: no navigation, just initialize safely
-
-            st.session_state.all_data = st.session_state.get("all_data", [])
-            st.session_state.branches = st.session_state.get("branches", [])
-            st.session_state.DAILY_ITEMS = st.session_state.get("DAILY_ITEMS", {})
-            st.session_state.WEEKLY_ITEMS = st.session_state.get("WEEKLY_ITEMS", {})
-
-            st.success("✅ Data loaded successfully")
-            st.rerun()
+        st.info("📦 Please open Management Dashboard to load data")
 
         st.stop()
 
-    # =====================================================
-    # 💬 CHAT HISTORY
-    # =====================================================
+    # ---------------------------
+    # CHAT HISTORY
+    # ---------------------------
     for sender, msg in st.session_state.chat[-20:]:
         icon = "🧑" if sender == "You" else "🤖"
         st.markdown(f"**{icon} {sender}:** {msg}")
