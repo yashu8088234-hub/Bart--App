@@ -208,16 +208,14 @@ if not st.session_state.authenticated:
 
         iif (
     username.strip().lower() == st.secrets["MANAGER_USERNAME"].lower()
-    and password == st.secrets["MANAGER_PASSWORD"]
-):
+    and password == st.secrets["MANAGER_PASSWORD"]):
     st.session_state.authenticated = True
     st.session_state.role = "manager"
     st.rerun()
 
 elif (
     username.strip().lower() == st.secrets["STAFF_USERNAME"].lower()
-    and password == st.secrets["STAFF_PASSWORD"]
-):
+    and password == st.secrets["STAFF_PASSWORD"]):
     st.session_state.authenticated = True
     st.session_state.role = "staff"
     st.rerun()
