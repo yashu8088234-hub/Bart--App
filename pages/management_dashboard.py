@@ -85,9 +85,9 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
+
 if st.button("⬅ Back"):
     st.switch_page("app.py")
-
 # ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -164,20 +164,89 @@ weekly_df = pd.DataFrame([
     for i, (item, values) in enumerate(weekly_items.items())
 ])
 
-# ---------------- SAFE DISPLAY HELPER ----------------
-def show_table(title, df):
-    st.subheader(title)
-    if isinstance(df, pd.DataFrame) and not df.empty:
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.info("No data available")
-
 # ---------------- DISPLAY ----------------
+# =========================================================
+# 🤖 AI ASSISTANT (FIXED)
+# =========================================================
+
+def find_best_item(user_input, items_dict):
+
+    if not items_dict:
+        return None
+
+    keys = list(items_dict.keys())
+    user_input = user_input.lower().strip()
+
+    for k in keys:
+        if user_input in k.lower():
+            return k
+
+    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+    return match[0] if match else None
+
+
+# ---------------- AI TOGGLE ----------------
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+if st.button("🤖 AI Assistant"):
+    st.session_state.ai_open = not st.session_state.ai_open
+
+
+# ---------------- AI PANEL ----------------
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 Stock AI Assistant")
+
+    combined = {}
+    combined.update(st.session_state.get("DAILY_ITEMS", {}))
+    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
+
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
+
+    # ---------------- CHAT DISPLAY ----------------
+    for role, msg in st.session_state.chat:
+        if role == "You":
+            st.markdown(f"🧑 **You:** {msg}")
+        else:
+            st.markdown(f"🤖 **AI:** {msg}")
+
+    if not combined:
+        st.warning("No stock data available.")
+    else:
+
+        # ---------------- FORM INPUT ----------------
+        with st.form("ai_form", clear_on_submit=True):
+            user_input = st.text_input("Ask about stock...")
+            submitted = st.form_submit_button("Send")
+
+        if submitted and user_input.strip():
+
+            matched = find_best_item(user_input, combined)
+
+            context = {
+                "cache_data": st.session_state.all_data,
+                "branch_list": branch_names,
+                "master_items": list(combined.keys())
+            }
+
+            if not matched:
+                response = "❌ Item not found in stock database."
+            else:
+                with st.spinner("Analyzing stock... 🤖"):
+                    response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.rerun()
+
 st.subheader("📦 Daily Items Stock")
-show_table("", daily_df)
+st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
 
 st.subheader("📦 Weekly Items Stock")
-show_table("", weekly_df)
+st.dataframe(weekly_df if not weekly_df.empty else "No data", use_container_width=True)
 
 # ---------------- SEARCH ----------------
 search = st.text_input("🔎 Search Item")
@@ -195,3 +264,8 @@ if not daily_df.empty:
 
 if not weekly_df.empty:
     st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
+
+
+
+
+
