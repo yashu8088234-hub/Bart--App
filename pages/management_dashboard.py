@@ -161,11 +161,7 @@ weekly_df = pd.DataFrame([
     for i, (item, values) in enumerate(weekly_items.items())
 ])
 
-# ---------------- DISPLAY ----------------
-# =========================================================
-# 🤖 AI ASSISTANT (FIXED)
-# =========================================================
-
+# ---------------- AI ITEM MATCH ----------------
 def find_best_item(user_input, items_dict):
 
     if not items_dict:
@@ -186,6 +182,9 @@ def find_best_item(user_input, items_dict):
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
+if "chat" not in st.session_state:
+    st.session_state.chat = []
+
 if st.button("🤖 AI Assistant"):
     st.session_state.ai_open = not st.session_state.ai_open
 
@@ -199,9 +198,6 @@ if st.session_state.ai_open:
     combined.update(st.session_state.get("DAILY_ITEMS", {}))
     combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
 
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
-
     # ---------------- CHAT DISPLAY ----------------
     for role, msg in st.session_state.chat:
         if role == "You":
@@ -213,11 +209,24 @@ if st.session_state.ai_open:
         st.warning("No stock data available.")
     else:
 
-        # ---------------- FORM INPUT ----------------
+        # ---------------- INPUT FORM ----------------
         with st.form("ai_form", clear_on_submit=True):
             user_input = st.text_input("Ask about stock...")
-            submitted = st.form_submit_button("Send")
 
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                submitted = st.form_submit_button("Send")
+
+            with col2:
+                clear = st.form_submit_button("Clear Chat")
+
+        # ---------------- CLEAR CHAT ----------------
+        if clear:
+            st.session_state.chat = []
+            st.rerun()
+
+        # ---------------- SEND MESSAGE ----------------
         if submitted and user_input.strip():
 
             matched = find_best_item(user_input, combined)
@@ -239,6 +248,7 @@ if st.session_state.ai_open:
 
             st.rerun()
 
+# ---------------- TABLES ----------------
 st.subheader("📦 Daily Items Stock")
 st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
 
@@ -261,4 +271,3 @@ if not daily_df.empty:
 
 if not weekly_df.empty:
     st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
-
