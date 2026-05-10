@@ -13,15 +13,13 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 
 # =========================================================
-# 🧠 NORMALIZE TEXT
+# 🧠 TEXT NORMALIZATION
 # =========================================================
 def normalize(text):
-
     if not text:
         return ""
 
     text = str(text).lower().strip()
-
     text = re.sub(r"[^a-zA-Z0-9\u0600-\u06FF ]", " ", text)
     text = re.sub(r"\s+", " ", text)
 
@@ -29,10 +27,9 @@ def normalize(text):
 
 
 # =========================================================
-# 🧠 SIMILARITY
+# 🧠 SIMILARITY SCORE
 # =========================================================
 def similarity(a, b):
-
     return SequenceMatcher(
         None,
         normalize(a),
@@ -56,26 +53,16 @@ def parse_date(text):
     if "today" in text:
         return today.strftime("%Y-%m-%d")
 
-    # yyyy-mm-dd
+    # YYYY-MM-DD
     match = re.search(r"\d{4}-\d{2}-\d{2}", text)
-
     if match:
         return match.group()
 
-    # 06 may
+    # DAY + MONTH (e.g. 6 may)
     month_map = {
-        "jan": 1,
-        "feb": 2,
-        "mar": 3,
-        "apr": 4,
-        "may": 5,
-        "jun": 6,
-        "jul": 7,
-        "aug": 8,
-        "sep": 9,
-        "oct": 10,
-        "nov": 11,
-        "dec": 12,
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+        "may": 5, "jun": 6, "jul": 7, "aug": 8,
+        "sep": 9, "oct": 10, "nov": 11, "dec": 12
     }
 
     match = re.search(
@@ -84,18 +71,12 @@ def parse_date(text):
     )
 
     if match:
-
         day = int(match.group(1))
         month = month_map[match.group(2)]
         year = today.year
 
         try:
-            return datetime.date(
-                year,
-                month,
-                day
-            ).strftime("%Y-%m-%d")
-
+            return datetime.date(year, month, day).strftime("%Y-%m-%d")
         except:
             pass
 
@@ -114,19 +95,16 @@ def find_branch(user_input, branch_list):
 
     for branch in branch_list:
 
-        score = similarity(text, branch)
-
         if normalize(branch) in text:
             return branch
+
+        score = similarity(text, branch)
 
         if score > best_score:
             best_score = score
             best_branch = branch
 
-    if best_score >= 0.45:
-        return best_branch
-
-    return None
+    return best_branch if best_score >= 0.45 else None
 
 
 # =========================================================
@@ -143,49 +121,34 @@ def find_item(user_input, item_list):
 
         item_norm = normalize(item)
 
-        # direct contains
         if text in item_norm:
             return item
 
         score = similarity(text, item)
 
-        # word boost
+        # keyword boost
         for word in text.split():
-
-            if len(word) < 2:
-                continue
-
-            if word in item_norm:
+            if len(word) > 2 and word in item_norm:
                 score += 0.15
 
         if score > best_score:
             best_score = score
             best_item = item
 
-    if best_score >= 0.35:
-        return best_item
-
-    return None
+    return best_item if best_score >= 0.35 else None
 
 
 # =========================================================
-# 📊 EXTRACT STOCK
+# 📊 STOCK EXTRACTION
 # =========================================================
-def extract_stock_data(
-    all_data,
-    item_name,
-    target_date,
-    target_branch=None
-):
+def extract_stock_data(all_data, item_name, target_date, target_branch=None):
 
     results = []
 
     for branch_name, raw in all_data:
 
-        if target_branch:
-
-            if normalize(branch_name) != normalize(target_branch):
-                continue
+        if target_branch and normalize(branch_name) != normalize(target_branch):
+            continue
 
         if not raw or len(raw) < 2:
             continue
@@ -199,31 +162,16 @@ def extract_stock_data(
 
         for row in raw:
 
-            if not row:
-                continue
-
-            if len(row) == 0:
+            if not row or not row[0]:
                 continue
 
             row_item = str(row[0]).strip()
 
-            if not row_item:
+            if similarity(item_name, row_item) < 0.40:
                 continue
 
-            score = similarity(item_name, row_item)
-
-            if normalize(item_name) not in normalize(row_item):
-
-                if score < 0.40:
-                    continue
-
-            qty = 0
-
             try:
-
-                if len(row) > date_index:
-                    qty = float(row[date_index] or 0)
-
+                qty = float(row[date_index] or 0) if len(row) > date_index else 0
             except:
                 qty = 0
 
@@ -238,7 +186,32 @@ def extract_stock_data(
 
 
 # =========================================================
-# 🤖 MAIN AI FUNCTION
+# 🚨 MANAGEMENT INSIGHTS ENGINE
+# =========================================================
+def generate_insights(total_stock, branch_summary):
+
+    insights = []
+
+    if total_stock == 0:
+        insights.append("🚨 OUT OF STOCK - Immediate action required")
+
+    elif total_stock < 10:
+        insights.append("⚠️ LOW STOCK - Restock recommended")
+
+    elif total_stock > 50:
+        insights.append("📦 HIGH STOCK - No urgent action needed")
+
+    if len(branch_summary) == 1:
+        insights.append("📍 Stock concentrated in single branch")
+
+    if len(branch_summary) > 3:
+        insights.append("🌍 Distributed stock across multiple branches")
+
+    return insights
+
+
+# =========================================================
+# 🤖 MAIN AI FUNCTION (MANAGEMENT VERSION)
 # =========================================================
 def run_ai(user_input, context):
 
@@ -251,83 +224,61 @@ def run_ai(user_input, context):
         if not all_data:
             return "⚠️ Stock data not loaded."
 
-        # ---------------- DATE ----------------
+        # ---------------- PARSE ----------------
         target_date = parse_date(user_input)
-
-        # ---------------- BRANCH ----------------
-        matched_branch = find_branch(
-            user_input,
-            branch_list
-        )
-
-        # ---------------- ITEM ----------------
-        matched_item = find_item(
-            user_input,
-            master_items
-        )
+        matched_branch = find_branch(user_input, branch_list)
+        matched_item = find_item(user_input, master_items)
 
         if not matched_item:
-            return (
-                "❌ Could not identify item.\n\n"
-                "Try:\n"
-                "- crunchy cake\n"
-                "- lotus crumble\n"
-                "- cinnamoroll cup"
-            )
+            return "❌ Item not found in inventory."
 
-        # ---------------- FETCH STOCK ----------------
+        # ---------------- STOCK ----------------
         stock_results = extract_stock_data(
-            all_data=all_data,
-            item_name=matched_item,
-            target_date=target_date,
-            target_branch=matched_branch
+            all_data,
+            matched_item,
+            target_date,
+            matched_branch
         )
 
-        if not stock_results:
+        total_stock = sum(x["qty"] for x in stock_results)
 
-            if matched_branch:
-                return (
-                    f"📦 No stock found for "
-                    f"{matched_item} at "
-                    f"{matched_branch} on "
-                    f"{target_date}"
-                )
+        branch_summary = {}
+        for x in stock_results:
+            branch_summary[x["branch"]] = branch_summary.get(x["branch"], 0) + x["qty"]
 
-            return (
-                f"📦 No stock found for "
-                f"{matched_item} on "
-                f"{target_date}"
-            )
+        insights = generate_insights(total_stock, branch_summary)
 
-        # ---------------- TOTAL ----------------
-        total_stock = sum(
-            x["qty"] for x in stock_results
-        )
-
+        # ---------------- FINAL DATA ----------------
         payload = {
             "query": user_input,
             "item": matched_item,
             "branch": matched_branch,
             "date": target_date,
             "total_stock": total_stock,
-            "results": stock_results
+            "branch_summary": branch_summary,
+            "insights": insights
         }
 
-        # =====================================================
-        # 🤖 GROQ RESPONSE
-        # =====================================================
+        # ---------------- GROQ PROMPT ----------------
         prompt = f"""
-You are BART AI.
+You are BART MANAGEMENT AI.
 
-Use ONLY this stock JSON.
+You are a decision-making assistant for inventory managers.
 
-{json.dumps(payload, ensure_ascii=False, indent=2)}
+RULES:
+- Use ONLY provided data
+- Do NOT invent stock
+- Focus on actions and decisions
+- Be concise and business-friendly
 
-Rules:
-- Be natural like ChatGPT
-- NEVER invent stock
-- If branch requested, ONLY show that branch
-- Keep response concise
+DATA:
+{json.dumps(payload, indent=2, ensure_ascii=False)}
+
+FORMAT:
+- Summary
+- Stock Status
+- Branch Breakdown
+- Action Needed
 """
 
         response = client.chat.completions.create(
@@ -335,21 +286,18 @@ Rules:
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are an inventory AI assistant."
-                    )
+                    "content": "You are an expert inventory management AI assistant."
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            temperature=0.4,
-            max_tokens=400
+            temperature=0.3,
+            max_tokens=450
         )
 
         return response.choices[0].message.content.strip()
 
     except Exception as e:
-
         return f"⚠️ AI Error: {str(e)}"
