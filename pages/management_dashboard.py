@@ -86,7 +86,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA (SESSION FIX - IMPORTANT)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -94,37 +94,10 @@ def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
-# =========================================================
-# 🔄 REFRESH BUTTON
-# =========================================================
+if "all_data" not in st.session_state:
+    st.session_state.all_data = load_all_data(branches)
 
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("🔄 Refresh Data"):
-        st.cache_data.clear()
-        st.rerun()
-
-# =========================================================
-# AI STATE BUTTONS
-# =========================================================
-
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
-
-with col2:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = True
-
-with col3:
-    if st.button("🔙 Back"):
-        st.session_state.ai_open = False
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
-all_data = load_all_data(branches)
+all_data = st.session_state.all_data
 
 # =========================================================
 # DATE
@@ -134,7 +107,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED)
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -214,9 +187,9 @@ def process_stock(all_data, selected_date_str, branch_names):
 # =========================================================
 
 daily_items, weekly_items = process_stock(
-    all_data,
+    tuple(all_data),
     selected_date_str,
-    branch_names
+    tuple(branch_names)
 )
 
 # =========================================================
@@ -264,7 +237,7 @@ def get_width(series, min_width):
         return min_width
 
 # =========================================================
-# AI HELPER
+# AI HELP FUNCTION
 # =========================================================
 
 def find_best_item(user_input, items_dict):
@@ -277,6 +250,23 @@ def find_best_item(user_input, items_dict):
 
     match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
     return match[0] if match else None
+
+# =========================================================
+# AI STATE (FIXED - NO TOGGLE BUG)
+# =========================================================
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = True
+
+with col2:
+    if st.button("🔙 Close AI"):
+        st.session_state.ai_open = False
 
 # =========================================================
 # AI PANEL
@@ -368,7 +358,7 @@ def render_grid(df, title):
     )
 
 # =========================================================
-# DISPLAY TABLES
+# DISPLAY
 # =========================================================
 
 render_grid(daily_df, "📦 Daily Items Stock")
