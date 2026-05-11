@@ -280,6 +280,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
             for row in rows:
 
+                if not row or not any(row):
+                    continue
+
                 row_text = " ".join(row).strip().lower()
 
                 if "daily item" in row_text:
@@ -293,8 +296,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if current_section is None:
                     continue
 
-                # ❗ FIX: raw sheet structure preserved
+                # ensure row length matches headers
                 row = row + [""] * (len(headers) - len(row))
+
+                # IMPORTANT FIX: keep full structure intact
                 row_dict = dict(zip(headers, row))
 
                 if current_section == "daily":
