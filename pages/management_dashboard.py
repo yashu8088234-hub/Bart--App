@@ -22,6 +22,11 @@ st.title("📦 BART - Stock Management (All Branches)")
 # API ERROR SCREEN
 # =========================================================
 
+def show_api_error():
+    st.error("🚨 Server Busy / API Limit Reached")
+    time.sleep(5)
+    st.switch_page("app.py")
+    st.stop()
 
 # =========================================================
 # GOOGLE AUTH
@@ -143,7 +148,6 @@ remaining = REFRESH_COOLDOWN - (
 )
 
 can_force_refresh = remaining <= 0
-st.switch_page("management_dashboard.py")
 
 # =========================================================
 # DATE
