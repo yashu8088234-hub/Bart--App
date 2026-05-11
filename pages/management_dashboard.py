@@ -8,37 +8,9 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
-from gspread.exceptions import APIError
 import time
-
-# =========================================================
-# GLOBAL ERROR SCREEN (ADDED ONLY)
-# =========================================================
-
-def show_api_error_screen():
-    st.markdown(
-        """
-        <div style="
-            padding:50px;
-            text-align:center;
-            background:#FFFFF0;
-            border-radius:15px;
-            color:white;
-            margin-top:60px;
-        ">
-            <h1 style="color:#ff4b4b;">🚨 Server Busy / API Limit Reached </h1>
-            <h2 style="color:#ff4b4b;">Please try again after 2–3 minutes Redirecting back to dashboard... </h2>
-            
-           
-            
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    time.sleep(5)
-    st.switch_page("app.py")
-    st.stop()
+import threading
+from gspread.exceptions import APIError
 
 # =========================================================
 # PAGE CONFIG
@@ -46,6 +18,52 @@ def show_api_error_screen():
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
+
+# =========================================================
+# SAFE STATE (ANTI API SPAM SYSTEM)
+# =========================================================
+
+if "api_lock" not in st.session_state:
+    st.session_state.api_lock = False
+
+if "loading" not in st.session_state:
+    st.session_state.loading = False
+
+if "all_data_cache" not in st.session_state:
+    st.session_state.all_data_cache = None
+
+# =========================================================
+# LOADING OVERLAY
+# =========================================================
+
+def show_loading():
+    st.markdown(
+        """
+        <style>
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.75);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 22px;
+            flex-direction: column;
+        }
+        </style>
+
+        <div class="overlay">
+            <h2>⏳ Loading fresh stock data...</h2>
+            <p>Please wait, fetching from server...</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # =========================================================
 # GOOGLE AUTH
@@ -69,7 +87,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES (SAFE WRAP ADDED)
+# BRANCHES
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -78,15 +96,11 @@ def load_branches():
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except APIError:
-    show_api_error_screen()
-
+branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE (SAFE WRAP)
+# SHEETS CACHE
 # =========================================================
 
 @st.cache_resource
@@ -101,43 +115,72 @@ def get_sheets(branches):
                 pass
     return cache
 
-try:
-    sheet_cache = get_sheets(branches)
-except APIError:
-    show_api_error_screen()
+sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FAST FETCH
+# FETCH
 # =========================================================
-
-@st.cache_data(ttl=600)
-def fetch_sheet_range(sheet_id):
-    try:
-        ws = sheet_cache[sheet_id].worksheet("Stocks")
-        return ws.get("A1:Z500")
-    except:
-        return None
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
     if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
 
-    return branch["BranchName"], fetch_sheet_range(sid)
+    try:
+        ws = sheet_cache[sid].worksheet("Stocks")
+        data = ws.get("A1:Z500")
+        return branch["BranchName"], data
+    except:
+        return branch["BranchName"], None
 
 # =========================================================
-# LOAD DATA (SAFE WRAP)
+# SAFE LOAD (ANTI SPAM API CONTROL)
 # =========================================================
 
 @st.cache_data(ttl=300)
 def load_all_data(branches):
-    with ThreadPoolExecutor(max_workers=10) as ex:
+    with ThreadPoolExecutor(max_workers=3) as ex:
         return list(ex.map(fetch_branch, branches))
 
-try:
-    all_data = load_all_data(branches)
-except APIError:
-    show_api_error_screen()
+
+def safe_load_data(branches):
+
+    if st.session_state.api_lock:
+        return st.session_state.all_data_cache
+
+    try:
+        st.session_state.api_lock = True
+        st.session_state.loading = True
+
+        data = load_all_data(branches)
+
+        st.session_state.all_data_cache = data
+        st.session_state.loading = False
+        st.session_state.api_lock = False
+
+        return data
+
+    except Exception:
+        st.session_state.api_lock = False
+        st.session_state.loading = False
+        raise
+
+# =========================================================
+# LOADING BLOCK
+# =========================================================
+
+if st.session_state.loading:
+    show_loading()
+    st.stop()
+
+# =========================================================
+# INITIAL DATA LOAD (CACHE CONTROLLED)
+# =========================================================
+
+if st.session_state.all_data_cache is None:
+    all_data = safe_load_data(branches)
+else:
+    all_data = st.session_state.all_data_cache
 
 # =========================================================
 # DATE
@@ -153,13 +196,14 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🔄 Refresh Data"):
-        
+    if st.button("📅 Refresh Date Only"):
         st.rerun()
 
 with col2:
-    if st.button("🔙 Back"):
-        st.switch_page("app.py")
+    if st.button("🔄 Refresh Data (Force API)"):
+        if not st.session_state.api_lock:
+            st.session_state.all_data_cache = None
+            st.rerun()
 
 # =========================================================
 # PROCESS STOCK (UNCHANGED LOGIC)
@@ -265,7 +309,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# WIDTH FUNCTION
+# GRID
 # =========================================================
 
 def get_width(series, min_width):
@@ -276,9 +320,6 @@ def get_width(series, min_width):
     except:
         return min_width
 
-# =========================================================
-# AGGRID
-# =========================================================
 
 def render_grid(df, title):
 
@@ -300,19 +341,14 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        theme="streamlit",
-        fit_columns_on_grid_load=False,
-        key=title
-    )
+    AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
+
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -320,32 +356,22 @@ def create_excel(daily_df, weekly_df):
     output = BytesIO()
     wb = Workbook()
     ws = wb.active
-    ws.title = "Stock Dashboard"
+    ws.title = "Stock"
 
-    def write_section(title, df, start_row):
-
+    def write(df, start):
         rows = list(dataframe_to_rows(df, index=False, header=True))
-        total_cols = len(rows[0])
-
-        ws.merge_cells(start_row=start_row, start_column=1,
-                       end_row=start_row, end_column=total_cols)
-
-        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
-
-        row_start = start_row + 2
-
         for r_i, row in enumerate(rows):
-            for c_i, val in enumerate(row, 1):
-                ws.cell(row=row_start + r_i, column=c_i, value=val)
+            for c_i, v in enumerate(row, 1):
+                ws.cell(row=start + r_i, column=c_i, value=v)
+        return start + len(rows) + 2
 
-        return row_start + len(rows) + 2
-
-    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
-    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
+    next_row = write(daily_df, 1)
+    write(weekly_df, next_row)
 
     wb.save(output)
     output.seek(0)
     return output
+
 
 excel_file = create_excel(daily_df, weekly_df)
 
