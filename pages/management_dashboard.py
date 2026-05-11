@@ -24,8 +24,9 @@ st.title("📦 BART - Stock Management (All Branches)")
 
 def show_api_error():
     st.error("limit exceeded ")
-    time.sleep(2)
     st.stop()
+    time.sleep(2)
+    
     st.rerun()
 
 # =========================================================
