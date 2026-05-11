@@ -42,6 +42,7 @@ client = get_client()
 def load_branches():
 
     sheet = client.open("MASTERBRANCHSHEET").sheet1
+
     data = sheet.get_all_records()
 
     return [
@@ -122,14 +123,6 @@ st.session_state.all_data = all_data
 st.session_state.branches = branches
 
 # =========================================================
-# DATE SELECTION
-# =========================================================
-
-selected_date = st.date_input("📅 Select Stock Date")
-
-selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-# =========================================================
 # REFRESH BUTTON
 # =========================================================
 
@@ -154,7 +147,7 @@ if st.button("🤖 AI Assistant"):
 # =========================================================
 
 @st.cache_data(ttl=300)
-def process_stock(all_data, selected_date_str, branch_names):
+def process_stock(all_data, branch_names):
 
     daily = {}
     weekly = {}
@@ -164,24 +157,18 @@ def process_stock(all_data, selected_date_str, branch_names):
         if not raw or len(raw) < 2:
             continue
 
-        headers = raw[0]
-
-        if selected_date_str not in headers:
-            continue
-
-        date_index = headers.index(selected_date_str)
-
         current_section = None
 
         for row in raw:
 
             row_text = " ".join(row).lower()
 
-            # Detect section
+            # DAILY SECTION
             if "daily item" in row_text:
                 current_section = "daily"
                 continue
 
+            # WEEKLY SECTION
             if "weekly item" in row_text:
                 current_section = "weekly"
                 continue
@@ -189,21 +176,29 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            # Skip empty rows
+            # SKIP EMPTY ROWS
             if not row or not row[0]:
                 continue
 
             item = str(row[0]).strip()
 
+            # =================================================
+            # TAKE DATA FROM 4TH COLUMN
+            # IF EMPTY => 0
+            # =================================================
+
             qty = 0
 
             try:
-                if len(row) > date_index:
-                    qty = float(row[date_index] or 0)
+                if len(row) > 3:
+                    qty = float(row[3] or 0)
             except:
                 qty = 0
 
-            # DAILY
+            # =================================================
+            # DAILY ITEMS
+            # =================================================
+
             if current_section == "daily":
 
                 if item not in daily:
@@ -214,7 +209,10 @@ def process_stock(all_data, selected_date_str, branch_names):
 
                 daily[item][branch_name] = qty
 
-            # WEEKLY
+            # =================================================
+            # WEEKLY ITEMS
+            # =================================================
+
             elif current_section == "weekly":
 
                 if item not in weekly:
@@ -227,9 +225,12 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
+# =========================================================
+# LOAD STOCK
+# =========================================================
+
 daily_items, weekly_items = process_stock(
     all_data,
-    selected_date_str,
     branch_names
 )
 
@@ -241,12 +242,10 @@ st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
 # =========================================================
-# CREATE DATAFRAMES
+# CREATE DAILY DATAFRAME
 # FIRST 3 COLUMNS FIXED
 # FROM 4TH COLUMN BRANCH DATA
 # =========================================================
-
-# ---------------- DAILY DF ----------------
 
 daily_rows = []
 
@@ -258,7 +257,7 @@ for i, (item, values) in enumerate(daily_items.items()):
         "Type": "Daily"
     }
 
-    # Branch stock columns
+    # BRANCH COLUMNS
     for branch in branch_names:
         row[branch] = values.get(branch, 0)
 
@@ -266,7 +265,9 @@ for i, (item, values) in enumerate(daily_items.items()):
 
 daily_df = pd.DataFrame(daily_rows)
 
-# ---------------- WEEKLY DF ----------------
+# =========================================================
+# CREATE WEEKLY DATAFRAME
+# =========================================================
 
 weekly_rows = []
 
@@ -278,7 +279,7 @@ for i, (item, values) in enumerate(weekly_items.items()):
         "Type": "Weekly"
     }
 
-    # Branch stock columns
+    # BRANCH COLUMNS
     for branch in branch_names:
         row[branch] = values.get(branch, 0)
 
@@ -287,22 +288,36 @@ for i, (item, values) in enumerate(weekly_items.items()):
 weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
-# DISPLAY TABLES
+# DISPLAY DAILY TABLE
 # =========================================================
 
 st.subheader("📦 Daily Items Stock")
 
-st.dataframe(
-    daily_df if not daily_df.empty else pd.DataFrame(),
-    use_container_width=True
-)
+if not daily_df.empty:
+
+    st.dataframe(
+        daily_df,
+        use_container_width=True
+    )
+
+else:
+    st.warning("No Daily Data Found")
+
+# =========================================================
+# DISPLAY WEEKLY TABLE
+# =========================================================
 
 st.subheader("📦 Weekly Items Stock")
 
-st.dataframe(
-    weekly_df if not weekly_df.empty else pd.DataFrame(),
-    use_container_width=True
-)
+if not weekly_df.empty:
+
+    st.dataframe(
+        weekly_df,
+        use_container_width=True
+    )
+
+else:
+    st.warning("No Weekly Data Found")
 
 # =========================================================
 # SEARCH
@@ -325,8 +340,13 @@ if search:
         ]
 
         if not filtered_daily.empty:
+
             st.write("### Daily Items")
-            st.dataframe(filtered_daily, use_container_width=True)
+
+            st.dataframe(
+                filtered_daily,
+                use_container_width=True
+            )
 
     if not weekly_df.empty:
 
@@ -339,8 +359,13 @@ if search:
         ]
 
         if not filtered_weekly.empty:
+
             st.write("### Weekly Items")
-            st.dataframe(filtered_weekly, use_container_width=True)
+
+            st.dataframe(
+                filtered_weekly,
+                use_container_width=True
+            )
 
 # =========================================================
 # DOWNLOAD BUTTONS
@@ -377,12 +402,12 @@ def find_best_item(user_input, items_dict):
 
     user_input = user_input.lower().strip()
 
-    # direct contains
+    # DIRECT MATCH
     for k in keys:
         if user_input in k.lower():
             return k
 
-    # fuzzy match
+    # FUZZY MATCH
     match = get_close_matches(
         user_input,
         keys,
@@ -478,7 +503,13 @@ if st.session_state.ai_open:
         for sender, msg in st.session_state.chat:
 
             if sender == "You":
-                st.markdown(f"🧑 **You:** {msg}")
+
+                st.markdown(
+                    f"🧑 **You:** {msg}"
+                )
 
             else:
-                st.markdown(f"🤖 **AI:** {msg}")
+
+                st.markdown(
+                    f"🤖 **AI:** {msg}"
+                )
