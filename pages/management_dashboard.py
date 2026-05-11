@@ -252,7 +252,7 @@ def render_grid(df, title):
     gb.configure_column(
         "Item Name",
         pinned="left",
-        minWidth=get_width(df["Item Name"], 110)
+        minWidth=get_width(df["Item Name"], 90)
     )
 
     gb.configure_column(
