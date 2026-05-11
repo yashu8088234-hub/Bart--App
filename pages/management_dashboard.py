@@ -101,6 +101,105 @@ all_data = load_all_data(branches)
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
+
+
+
+
+# =========================================================
+# 🔄 REFRESH BUTTON
+# =========================================================
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+
+# =========================================================
+# 🤖 AI STATE
+# =========================================================
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+with col2:
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = True
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = False
+
+# =========================================================
+# 🤖 AI PANEL (SAFE WRAPPER - NO LOGIC CHANGE)
+# =========================================================
+
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 Stock AI Assistant")
+
+    # combine both datasets
+    combined = {}
+    combined.update(daily_items)
+    combined.update(weekly_items)
+
+    if not combined:
+        st.warning("No stock data available for AI.")
+    else:
+
+        user_input = st.text_input("Ask about stock...", key="ai_input")
+
+        col1, col2 = st.columns(2)
+
+        send = col1.button("Send")
+        clear = col2.button("Clear Chat")
+
+        if "chat" not in st.session_state:
+            st.session_state.chat = []
+
+        if clear:
+            st.session_state.chat = []
+            st.rerun()
+
+        def find_best_item(user_input, items_dict):
+            from difflib import get_close_matches
+
+            keys = list(items_dict.keys())
+
+            for k in keys:
+                if user_input.lower() in k.lower():
+                    return k
+
+            match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+            return match[0] if match else None
+
+        if send and user_input.strip():
+
+            matched = find_best_item(user_input, combined)
+
+            context = {
+                "cache_data": all_data,
+                "branch_list": branch_names,
+                "master_items": list(combined.keys())
+            }
+
+            if not matched:
+                response = "❌ Item not found in stock database."
+            else:
+                with st.spinner("Analyzing stock... 🤖"):
+                    response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.rerun()
+
+        # chat display
+        for role, msg in st.session_state.chat:
+            st.write(f"**{role}:** {msg}")
+
+
+
+
 # =========================================================
 # PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
