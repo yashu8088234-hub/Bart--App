@@ -4,8 +4,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
-from difflib import get_close_matches
-from ai_core import run_ai
 
 # =========================================================
 # PAGE CONFIG
@@ -67,7 +65,7 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FETCH
+# FAST FETCH
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -86,38 +84,15 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (ONLY ON REFRESH)
+# LOAD DATA
 # =========================================================
 
+@st.cache_data(ttl=300)
 def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
-# =========================================================
-# SESSION DATA (CRITICAL FIX)
-# =========================================================
-
-if "all_data" not in st.session_state:
-    st.session_state.all_data = load_all_data(branches)
-
-# =========================================================
-# REFRESH BUTTON (ONLY ONE THAT RELOADS DATA)
-# =========================================================
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔄 Refresh Data"):
-        st.session_state.all_data = load_all_data(branches)
-        st.success("Data refreshed!")
-
-# =========================================================
-# BACK BUTTON (GO TO APP.PY)
-# =========================================================
-
-with col2:
-    if st.button("🔙 Back to Main App"):
-        st.switch_page("app.py")
+all_data = load_all_data(branches)
 
 # =========================================================
 # DATE
@@ -127,7 +102,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -181,6 +156,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
+
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
@@ -202,11 +178,11 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# USE SESSION DATA (NO RELOAD ON AI / BACK)
+# RUN
 # =========================================================
 
 daily_items, weekly_items = process_stock(
-    st.session_state.all_data,
+    all_data,
     selected_date_str,
     branch_names
 )
@@ -238,94 +214,72 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AI STATE (SINGLE BUTTON TOGGLE)
+# 🧠 SAFE AUTO WIDTH FUNCTION (FIXED CRASH)
 # =========================================================
 
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
+def get_width(series, min_width):
 
-if st.button("🤖 AI Assistant"):
-    st.session_state.ai_open = not st.session_state.ai_open
+    try:
+        series = series.fillna("").astype(str)
 
-# =========================================================
-# AI PANEL
-# =========================================================
+        max_len = series.map(len).max()
 
-if st.session_state.ai_open:
+        if pd.isna(max_len) or max_len is None:
+            return min_width
 
-    st.markdown("## 🤖 Stock AI Assistant")
+        width = int(max_len * 5 + 25)
 
-    combined = {}
-    combined.update(daily_items)
-    combined.update(weekly_items)
+        return max(width, min_width)
 
-    user_input = st.text_input("Ask about stock...", key="ai_input")
-
-    col1, col2 = st.columns(2)
-
-    send = col1.button("Send")
-    clear = col2.button("Clear Chat")
-
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
-
-    def find_best_item(user_input, items_dict):
-        keys = list(items_dict.keys())
-
-        for k in keys:
-            if user_input.lower() in k.lower():
-                return k
-
-        match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-        return match[0] if match else None
-
-    if clear:
-        st.session_state.chat = []
-        st.rerun()
-
-    if send and user_input.strip():
-
-        matched = find_best_item(user_input, combined)
-
-        context = {
-            "cache_data": st.session_state.all_data,
-            "branch_list": branch_names,
-            "master_items": list(combined.keys())
-        }
-
-        if not matched:
-            response = "❌ Item not found in stock database."
-        else:
-            with st.spinner("Analyzing stock... 🤖"):
-                response = run_ai(user_input, context)
-
-        st.session_state.chat.append(("You", user_input))
-        st.session_state.chat.append(("AI", response))
-
-        st.rerun()
-
-    for role, msg in st.session_state.chat:
-        st.write(f"**{role}:** {msg}")
+    except:
+        return min_width
 
 # =========================================================
-# GRID
+# AGGRID RENDER
 # =========================================================
 
 def render_grid(df, title):
 
     st.subheader(title)
 
-    if df.empty:
+    if df is None or df.empty:
         st.warning("No Data")
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left")
-    gb.configure_column("SKU", pinned="left")
-    gb.configure_column("UOM", pinned="left")
+    # FIRST 3 COLUMNS
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        minWidth=get_width(df["Item Name"], 90)
+    )
 
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        minWidth=get_width(df["SKU"], 40)
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        minWidth=get_width(df["UOM"], 40)
+    )
+
+    # BRANCH COLUMNS
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 120)
+            )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
 
     AgGrid(
         df,
@@ -348,11 +302,17 @@ render_grid(weekly_df, "📦 Weekly Items Stock")
 st.download_button(
     "📥 Download Daily CSV",
     daily_df.to_csv(index=False),
-    file_name="daily_stock.csv"
+    file_name="daily_stock.csv",
+    mime="text/csv"
 )
 
 st.download_button(
     "📥 Download Weekly CSV",
     weekly_df.to_csv(index=False),
-    file_name="weekly_stock.csv"
+    file_name="weekly_stock.csv",
+    mime="text/csv"
 )
+
+
+
+can u see made  some changes so implemtt tthose buttons as  i said now to tthis page dont cvhange anything else 
