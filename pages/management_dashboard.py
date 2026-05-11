@@ -21,7 +21,7 @@ def show_api_error_screen():
         <div style="
             padding:50px;
             text-align:center;
-            background:#111;
+            background:#FFFFF0;
             border-radius:15px;
             color:white;
             margin-top:60px;
@@ -34,7 +34,7 @@ def show_api_error_screen():
         unsafe_allow_html=True
     )
 
-    time.sleep(3)
+    time.sleep(5)
     st.switch_page("app.py")
     st.stop()
 
