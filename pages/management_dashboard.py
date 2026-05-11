@@ -202,12 +202,13 @@ with col2:
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                time.sleep(5)
+                time.sleep(10)
 
                 st.rerun()
 
             except:
                 show_api_error()
+                st.rerun()
 
 with col3:
 
