@@ -214,50 +214,60 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🧠 SMART AUTO WIDTH FUNCTION
+# 🧠 SAFE AUTO WIDTH FUNCTION (FIXED CRASH)
 # =========================================================
 
 def get_width(series, min_width):
-    max_len = series.astype(str).map(len).max()
-    return max(min_width, max_len * 8 + 25)
+
+    try:
+        series = series.fillna("").astype(str)
+
+        max_len = series.map(len).max()
+
+        if pd.isna(max_len) or max_len is None:
+            return min_width
+
+        width = int(max_len * 8 + 25)
+
+        return max(width, min_width)
+
+    except:
+        return min_width
 
 # =========================================================
-# AGGRID RENDER (SMART WIDTH)
+# AGGRID RENDER
 # =========================================================
 
 def render_grid(df, title):
 
     st.subheader(title)
 
-    if df.empty:
+    if df is None or df.empty:
         st.warning("No Data")
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # FIRST 3 COLUMNS (PINNED + SMART WIDTH)
-    if "Item Name" in df.columns:
-        gb.configure_column(
-            "Item Name",
-            pinned="left",
-            minWidth=get_width(df["Item Name"], 160)
-        )
+    # FIRST 3 COLUMNS
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        minWidth=get_width(df["Item Name"], 160)
+    )
 
-    if "SKU" in df.columns:
-        gb.configure_column(
-            "SKU",
-            pinned="left",
-            minWidth=get_width(df["SKU"], 50)
-        )
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        minWidth=get_width(df["SKU"], 50)
+    )
 
-    if "UOM" in df.columns:
-        gb.configure_column(
-            "UOM",
-            pinned="left",
-            minWidth=get_width(df["UOM"], 50)
-        )
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        minWidth=get_width(df["UOM"], 50)
+    )
 
-    # BRANCH COLUMNS (SMART WIDTH)
+    # BRANCH COLUMNS
     for col in branch_names:
         if col in df.columns:
             gb.configure_column(
