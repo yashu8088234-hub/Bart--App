@@ -102,17 +102,16 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# 🔄 REFRESH + BACK
+# 🔄 REFRESH + BACK (CHANGED ONLY HERE)
 # =========================================================
 
-col1, col2 = st.columns(2)
+col1 = st.columns(1)[0]
 
 with col1:
     if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
 
-with col2:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
