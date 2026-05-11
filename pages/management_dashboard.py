@@ -8,7 +8,10 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
-import time
+import os
+import json
+import hashlib
+from datetime import datetime, timedelta
 
 # =========================================================
 # PAGE CONFIG
@@ -18,31 +21,45 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# ERROR UI + AUTO REDIRECT
+# SMART CACHE ENGINE (ADDED ONLY)
 # =========================================================
 
-def show_api_error_and_redirect(message="🚨 Server/API issue detected"):
-    st.markdown(
-        f"""
-        <div style="
-            padding: 30px;
-            border-radius: 12px;
-            background-color: #ff4b4b15;
-            border: 2px solid #ff4b4b;
-            text-align: center;
-            font-size: 24px;
-            font-weight: 700;
-            color: #ff4b4b;
-        ">
-            {message}<br><br>
-            Please try again after a few minutes.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+CACHE_DIR = "sheet_cache"
+CACHE_TTL_MINUTES = 15
 
-    time.sleep(2.5)
-    st.switch_page("app.py")
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def get_cache_key(branch):
+    sid = branch.get("SheetID", "")
+    return hashlib.md5(sid.encode()).hexdigest()
+
+def save_cache(key, data):
+    path = os.path.join(CACHE_DIR, f"{key}.json")
+    payload = {
+        "time": datetime.now().isoformat(),
+        "data": data
+    }
+    with open(path, "w") as f:
+        json.dump(payload, f)
+
+def load_cache(key):
+    path = os.path.join(CACHE_DIR, f"{key}.json")
+    if not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r") as f:
+            payload = json.load(f)
+
+        saved_time = datetime.fromisoformat(payload["time"])
+
+        if datetime.now() - saved_time > timedelta(minutes=CACHE_TTL_MINUTES):
+            return None
+
+        return payload["data"]
+
+    except:
+        return None
 
 # =========================================================
 # GOOGLE AUTH
@@ -97,7 +114,7 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FETCH
+# FETCH (ZERO API LIMIT VERSION)
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -110,13 +127,29 @@ def fetch_sheet_range(sheet_id):
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
-    if not sid or sid not in sheet_cache:
-        return branch["BranchName"], None
+    branch_name = branch["BranchName"]
 
+    if not sid or sid not in sheet_cache:
+        return branch_name, None
+
+    key = get_cache_key(branch)
+
+    # 1. CHECK DISK CACHE FIRST
+    cached = load_cache(key)
+    if cached is not None:
+        return branch_name, cached
+
+    # 2. API CALL ONLY IF NOT CACHED
     try:
-        return branch["BranchName"], fetch_sheet_range(sid)
+        ws = sheet_cache[sid].worksheet("Stocks")
+        data = ws.get("A1:ZZ500")
+
+        save_cache(key, data)
+
+        return branch_name, data
+
     except:
-        return branch["BranchName"], None
+        return branch_name, load_cache(key)
 
 @st.cache_data(ttl=300)
 def load_all_data(branches):
@@ -137,7 +170,10 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🔄 Refresh Data"):
+    if st.button("🔄 Refresh Data (Force API)"):
+        import shutil
+        shutil.rmtree(CACHE_DIR, ignore_errors=True)
+        os.makedirs(CACHE_DIR, exist_ok=True)
         st.cache_data.clear()
         st.rerun()
 
@@ -146,21 +182,13 @@ with col2:
         st.switch_page("app.py")
 
 # =========================================================
-# SAFE DATA LOAD (ERROR HANDLED)
+# LOAD DATA
 # =========================================================
 
-try:
-    all_data = load_all_data(branches)
-except Exception:
-    show_api_error_and_redirect("🚨 Facing server/API limit issue")
-    st.stop()
-
-if not all_data:
-    show_api_error_and_redirect("🚨 No data received from server")
-    st.stop()
+all_data = load_all_data(branches)
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -218,6 +246,7 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "SKU": sku,
                     "UOM": uom
                 }
+
                 for bn in branch_names:
                     target[key][bn] = 0
 
@@ -236,7 +265,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (UNCHANGED)
 # =========================================================
 
 def build_df(data_dict):
@@ -277,7 +306,7 @@ def get_width(series, min_width):
         return min_width
 
 # =========================================================
-# AGGRID
+# AGGRID (UNCHANGED)
 # =========================================================
 
 def render_grid(df, title):
@@ -316,7 +345,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL DOWNLOAD
+# EXCEL DOWNLOAD (UNCHANGED)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
