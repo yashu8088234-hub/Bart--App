@@ -101,8 +101,107 @@ all_data = load_all_data(branches)
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
+
+
+
 # =========================================================
-# PROCESS STOCK
+# 🔄 REFRESH + 🤖 AI + 🔙 BACK
+# =========================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+
+with col2:
+    # 🤖 AI TOGGLE BUTTON
+    if st.button("🤖 AI Assistant"):
+        st.session_state.ai_open = not st.session_state.ai_open
+        st.rerun()
+
+    # 🔙 BACK BUTTON (UNDER AI BUTTON)
+    if st.button("🔙 Back to Home"):
+        st.switch_page("app.py")
+
+# =========================================================
+# 🤖 AI STATE
+# =========================================================
+
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
+
+# =========================================================
+# 🤖 AI PANEL (SAFE WRAPPER - NO LOGIC CHANGE)
+# =========================================================
+
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 Stock AI Assistant")
+
+    # combine both datasets
+    combined = {}
+    combined.update(daily_items)
+    combined.update(weekly_items)
+
+    if not combined:
+        st.warning("No stock data available for AI.")
+    else:
+
+        user_input = st.text_input("Ask about stock...", key="ai_input")
+
+        col1, col2 = st.columns(2)
+
+        send = col1.button("Send")
+        clear = col2.button("Clear Chat")
+
+        if "chat" not in st.session_state:
+            st.session_state.chat = []
+
+        if clear:
+            st.session_state.chat = []
+            st.rerun()
+
+        def find_best_item(user_input, items_dict):
+            from difflib import get_close_matches
+
+            keys = list(items_dict.keys())
+
+            for k in keys:
+                if user_input.lower() in k.lower():
+                    return k
+
+            match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+            return match[0] if match else None
+
+        if send and user_input.strip():
+
+            matched = find_best_item(user_input, combined)
+
+            context = {
+                "cache_data": all_data,
+                "branch_list": branch_names,
+                "master_items": list(combined.keys())
+            }
+
+            if not matched:
+                response = "❌ Item not found in stock database."
+            else:
+                with st.spinner("Analyzing stock... 🤖"):
+                    response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.rerun()
+
+        # chat display
+        for role, msg in st.session_state.chat:
+            st.write(f"**{role}:** {msg}")
+
+# =========================================================
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -178,7 +277,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN STOCK
+# RUN
 # =========================================================
 
 daily_items, weekly_items = process_stock(
@@ -186,96 +285,6 @@ daily_items, weekly_items = process_stock(
     selected_date_str,
     branch_names
 )
-
-# =========================================================
-# 🔄 REFRESH + 🤖 AI
-# =========================================================
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🔄 Refresh Data"):
-        st.cache_data.clear()
-        st.rerun()
-
-with col2:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = not st.session_state.get("ai_open", False)
-        st.rerun()
-
-    if st.button("🔙 Back to Home"):
-        st.switch_page("app.py")
-
-# =========================================================
-# 🤖 AI PANEL (ONLY FIXED PART)
-# =========================================================
-
-if st.session_state.get("ai_open", False):
-
-    st.markdown("## 🤖 Stock AI Assistant")
-
-    # ✅ ONLY CHANGE (FIX FOR NAMEERROR)
-    combined = {}
-
-    if "daily_items" in globals():
-        combined.update(daily_items)
-
-    if "weekly_items" in globals():
-        combined.update(weekly_items)
-
-    if not combined:
-        st.warning("No stock data available for AI.")
-    else:
-
-        user_input = st.text_input("Ask about stock...", key="ai_input")
-
-        col1, col2 = st.columns(2)
-
-        send = col1.button("Send")
-        clear = col2.button("Clear Chat")
-
-        if "chat" not in st.session_state:
-            st.session_state.chat = []
-
-        if clear:
-            st.session_state.chat = []
-            st.rerun()
-
-        def find_best_item(user_input, items_dict):
-            from difflib import get_close_matches
-
-            keys = list(items_dict.keys())
-
-            for k in keys:
-                if user_input.lower() in k.lower():
-                    return k
-
-            match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-            return match[0] if match else None
-
-        if send and user_input.strip():
-
-            matched = find_best_item(user_input, combined)
-
-            context = {
-                "cache_data": all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys())
-            }
-
-            if not matched:
-                response = "❌ Item not found in stock database."
-            else:
-                with st.spinner("Analyzing stock... 🤖"):
-                    response = run_ai(user_input, context)
-
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
-
-            st.rerun()
-
-        for role, msg in st.session_state.chat:
-            st.write(f"**{role}:** {msg}")
 
 # =========================================================
 # DATAFRAME
@@ -304,7 +313,28 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID
+# 🧠 SAFE AUTO WIDTH FUNCTION (FIXED CRASH)
+# =========================================================
+
+def get_width(series, min_width):
+
+    try:
+        series = series.fillna("").astype(str)
+
+        max_len = series.map(len).max()
+
+        if pd.isna(max_len) or max_len is None:
+            return min_width
+
+        width = int(max_len * 5 + 25)
+
+        return max(width, min_width)
+
+    except:
+        return min_width
+
+# =========================================================
+# AGGRID RENDER
 # =========================================================
 
 def render_grid(df, title):
@@ -317,9 +347,32 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left")
-    gb.configure_column("SKU", pinned="left")
-    gb.configure_column("UOM", pinned="left")
+    # FIRST 3 COLUMNS
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        minWidth=get_width(df["Item Name"], 90)
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        minWidth=get_width(df["SKU"], 40)
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        minWidth=get_width(df["UOM"], 40)
+    )
+
+    # BRANCH COLUMNS
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 120)
+            )
 
     gb.configure_default_column(
         resizable=True,
@@ -327,7 +380,12 @@ def render_grid(df, title):
         filter=True
     )
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit")
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        fit_columns_on_grid_load=False
+    )
 
 # =========================================================
 # DISPLAY
@@ -353,3 +411,6 @@ st.download_button(
     file_name="weekly_stock.csv",
     mime="text/csv"
 )
+
+
+this is my code fix the issues
