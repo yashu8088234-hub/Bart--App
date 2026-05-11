@@ -180,7 +180,6 @@ def save_passwords(branch_key, new_password):
 # ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
 st.markdown("""
 <style>
-/* Column 1 */
 div[data-testid="stDataFrame"] thead th:nth-child(1),
 div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     position: sticky;
@@ -189,7 +188,6 @@ div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     z-index: 3;
 }
 
-/* Column 2 */
 div[data-testid="stDataFrame"] thead th:nth-child(2),
 div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     position: sticky;
@@ -198,7 +196,6 @@ div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     z-index: 2;
 }
 
-/* Column 3 */
 div[data-testid="stDataFrame"] thead th:nth-child(3),
 div[data-testid="stDataFrame"] tbody td:nth-child(3) {
     position: sticky;
@@ -208,6 +205,13 @@ div[data-testid="stDataFrame"] tbody td:nth-child(3) {
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------- ONLY ADDITION (COLUMN ORDER FIX) ----------------
+def reorder_columns(df):
+    cols = df.columns.tolist()
+    fixed = cols[:3]
+    rest = cols[3:]
+    return df[fixed + rest]
 
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
@@ -241,7 +245,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # ---------------- RESET PASSWORD ----------------
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -256,7 +259,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
@@ -330,10 +332,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     weekly.append(row_dict)
 
             st.subheader("📦 Daily Items Stock")
-            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
+            df_daily = reorder_columns(pd.DataFrame(daily))
+            st.dataframe(df_daily, use_container_width=True, height=400)
 
             st.subheader("📦 Weekly Items Stock")
-            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
+            df_weekly = reorder_columns(pd.DataFrame(weekly))
+            st.dataframe(df_weekly, use_container_width=True, height=400)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
