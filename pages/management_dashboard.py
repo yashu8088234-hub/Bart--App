@@ -154,7 +154,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🔄 Refresh Data"):
-        st.cache_data.clear()
+        
         st.rerun()
 
 with col2:
