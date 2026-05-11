@@ -8,6 +8,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 import time
 
@@ -26,8 +27,6 @@ def show_api_error():
     st.error("")
     st.stop()
     time.sleep(2)
-    
-    
 
 # =========================================================
 # GOOGLE AUTH
@@ -203,13 +202,8 @@ with col2:
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                
                 if st.button("🔄 Click Now to Refresh"):
                     st.rerun()
-                    
-        
-
-                
 
             except:
                 show_api_error()
@@ -532,11 +526,18 @@ def create_excel(daily_df, weekly_df):
         next_row
     )
 
+    # =========================================================
+    # AUTO WIDTH FIXED
+    # =========================================================
+
     for col in ws.columns:
 
         max_length = 0
 
-        column = col[0].column_letter
+        try:
+            column = get_column_letter(col[0].column)
+        except:
+            continue
 
         for cell in col:
 
