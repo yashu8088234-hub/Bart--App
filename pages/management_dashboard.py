@@ -22,12 +22,6 @@ st.title("📦 BART - Stock Management (All Branches)")
 # API ERROR SCREEN
 # =========================================================
 
-def show_api_error():
-    st.error("🚨 Server Busy / API Limit Reached")
-    st.warning("Please try again after 2-3 minutes")
-    time.sleep(3)
-    
-    st.stop()
 
 # =========================================================
 # GOOGLE AUTH
