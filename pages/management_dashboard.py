@@ -102,14 +102,11 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 
-
-
-
 # =========================================================
 # 🔄 REFRESH BUTTON
 # =========================================================
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🔄 Refresh Data"):
@@ -125,11 +122,18 @@ if "ai_open" not in st.session_state:
 
 with col2:
     if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = True
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = False
+        # TOGGLE open/close instead of only open
+        st.session_state.ai_open = not st.session_state.ai_open
+        st.rerun()
 
+
+
+
+# 🔙 Back button (ONLY ONE) placed inside AI panel
+    if st.button("🔙 Back to Home"):
+        st.switch_page("app.py")
 # =========================================================
+
 # 🤖 AI PANEL (SAFE WRAPPER - NO LOGIC CHANGE)
 # =========================================================
 
@@ -196,7 +200,6 @@ if st.session_state.ai_open:
         # chat display
         for role, msg in st.session_state.chat:
             st.write(f"**{role}:** {msg}")
-
 
 
 
@@ -411,5 +414,4 @@ st.download_button(
     file_name="weekly_stock.csv",
     mime="text/csv"
 )
-
 
