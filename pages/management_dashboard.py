@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import time
 from concurrent.futures import ThreadPoolExecutor
 from difflib import get_close_matches
 from ai_core import run_ai
@@ -39,14 +40,17 @@ branch_names = [b["BranchName"] for b in branches]
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
+
     for b in branches:
         sheet_id = b.get("SheetID")
         if not sheet_id:
             continue
+
         try:
             cache[sheet_id] = client.open_by_key(sheet_id)
         except:
             pass
+
     return cache
 
 sheet_cache = get_sheets(branches)
@@ -55,11 +59,13 @@ sheet_cache = get_sheets(branches)
 def fetch_branch(branch):
     try:
         sheet_id = branch.get("SheetID")
+
         if not sheet_id or sheet_id not in sheet_cache:
             return branch["BranchName"], None
 
         file = sheet_cache[sheet_id]
         ws = file.worksheet("Stocks")
+
         return branch["BranchName"], ws.get_all_values()
 
     except:
@@ -73,6 +79,7 @@ def load_all_data(branches):
 
 all_data = load_all_data(branches)
 
+# ---------------- SESSION ----------------
 st.session_state.all_data = all_data
 st.session_state.branches = branches
 
@@ -85,9 +92,13 @@ if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
 
+# ---------------- AI BUTTON ----------------
+if "ai_open" not in st.session_state:
+    st.session_state.ai_open = False
 
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
+if st.button("🤖 AI Assistant"):
+    st.session_state.ai_open = not st.session_state.ai_open
+
 # ---------------- PROCESS STOCK ----------------
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -106,6 +117,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             continue
 
         date_index = headers.index(selected_date_str)
+
         current_section = None
 
         for row in raw:
@@ -150,6 +162,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
+# ---------------- SAVE FOR AI ----------------
 st.session_state.DAILY_ITEMS = daily_items
 st.session_state.WEEKLY_ITEMS = weekly_items
 
@@ -165,83 +178,6 @@ weekly_df = pd.DataFrame([
 ])
 
 # ---------------- DISPLAY ----------------
-# =========================================================
-# 🤖 AI ASSISTANT (FIXED)
-# =========================================================
-
-def find_best_item(user_input, items_dict):
-
-    if not items_dict:
-        return None
-
-    keys = list(items_dict.keys())
-    user_input = user_input.lower().strip()
-
-    for k in keys:
-        if user_input in k.lower():
-            return k
-
-    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-    return match[0] if match else None
-
-
-# ---------------- AI TOGGLE ----------------
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
-
-if st.button("🤖 AI Assistant"):
-    st.session_state.ai_open = not st.session_state.ai_open
-
-
-# ---------------- AI PANEL ----------------
-if st.session_state.ai_open:
-
-    st.markdown("## 🤖 Stock AI Assistant")
-
-    combined = {}
-    combined.update(st.session_state.get("DAILY_ITEMS", {}))
-    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
-
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
-
-    # ---------------- CHAT DISPLAY ----------------
-    for role, msg in st.session_state.chat:
-        if role == "You":
-            st.markdown(f"🧑 **You:** {msg}")
-        else:
-            st.markdown(f"🤖 **AI:** {msg}")
-
-    if not combined:
-        st.warning("No stock data available.")
-    else:
-
-        # ---------------- FORM INPUT ----------------
-        with st.form("ai_form", clear_on_submit=True):
-            user_input = st.text_input("Ask about stock...")
-            submitted = st.form_submit_button("Send")
-
-        if submitted and user_input.strip():
-
-            matched = find_best_item(user_input, combined)
-
-            context = {
-                "cache_data": st.session_state.all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys())
-            }
-
-            if not matched:
-                response = "❌ Item not found in stock database."
-            else:
-                with st.spinner("Analyzing stock... 🤖"):
-                    response = run_ai(user_input, context)
-
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
-
-            st.rerun()
-
 st.subheader("📦 Daily Items Stock")
 st.dataframe(daily_df if not daily_df.empty else "No data", use_container_width=True)
 
@@ -264,3 +200,71 @@ if not daily_df.empty:
 
 if not weekly_df.empty:
     st.download_button("📥 Weekly CSV", weekly_df.to_csv(index=False), "weekly.csv")
+
+# =========================================================
+# 🤖 AI PANEL (FIXED)
+# =========================================================
+
+def find_best_item(user_input, items_dict):
+
+    if not items_dict:
+        return None
+
+    keys = list(items_dict.keys())
+    user_input = user_input.lower().strip()
+
+    for k in keys:
+        if user_input in k.lower():
+            return k
+
+    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+    return match[0] if match else None
+
+
+if st.session_state.ai_open:
+
+    st.markdown("## 🤖 Stock AI Assistant")
+
+    combined = {}
+    combined.update(st.session_state.get("DAILY_ITEMS", {}))
+    combined.update(st.session_state.get("WEEKLY_ITEMS", {}))
+
+    if not combined:
+        st.warning("No stock data available.")
+    else:
+
+        user_input = st.text_input("Ask about stock...", key="ai_input")
+
+        col1, col2 = st.columns(2)
+
+        send = col1.button("Send")
+        clear = col2.button("Clear Chat")
+
+        if "chat" not in st.session_state:
+            st.session_state.chat = []
+
+        if clear:
+            st.session_state.chat = []
+            st.rerun()
+
+        if send and user_input.strip():
+
+            matched = find_best_item(user_input, combined)
+
+            # ✅ FIXED CONTEXT (THIS WAS THE BUG)
+            context = {
+                "cache_data": st.session_state.all_data,
+                "branch_list": branch_names,
+                "master_items": list(combined.keys())
+            }
+
+            if not matched:
+                response = "❌ Item not found in stock database."
+            else:
+                with st.spinner("Analyzing stock... 🤖"):
+                    response = run_ai(user_input, context)
+
+            st.session_state.chat.append(("You", user_input))
+            st.session_state.chat.append(("AI", response))
+
+            st.rerun()
