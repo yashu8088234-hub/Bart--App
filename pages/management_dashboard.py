@@ -25,7 +25,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 def show_api_error():
     st.error("🚨 Server Busy / API Limit Reached")
     time.sleep(5)
-    st.switch_page("management_dashboard.py")
+    
     st.stop()
 
 # =========================================================
