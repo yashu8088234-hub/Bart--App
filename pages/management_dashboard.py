@@ -102,7 +102,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (NO CHANGE)
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -214,7 +214,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID WITH FIXED WIDTH RULES
+# AGGRID (MIN WIDTH FIXED PROPERLY)
 # =========================================================
 
 def render_grid(df, title):
@@ -227,15 +227,15 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # FIRST 3 COLUMNS WIDTH FIX
-    gb.configure_column("Item Name", width=160, pinned="left")
-    gb.configure_column("SKU", width=50, pinned="left")
-    gb.configure_column("UOM", width=50, pinned="left")
+    # FIRST 3 COLUMNS
+    gb.configure_column("Item Name", pinned="left", minWidth=160)
+    gb.configure_column("SKU", pinned="left", minWidth=50)
+    gb.configure_column("UOM", pinned="left", minWidth=50)
 
-    # BRANCH COLUMNS WIDTH FIX
+    # BRANCH COLUMNS
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(col, width=80)
+            gb.configure_column(col, minWidth=80)
 
     gb.configure_default_column(
         resizable=True,
@@ -243,11 +243,9 @@ def render_grid(df, title):
         filter=True
     )
 
-    gridOptions = gb.build()
-
     AgGrid(
         df,
-        gridOptions=gridOptions,
+        gridOptions=gb.build(),
         theme="streamlit",
         fit_columns_on_grid_load=False
     )
