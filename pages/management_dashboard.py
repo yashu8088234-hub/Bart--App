@@ -314,5 +314,3 @@ st.download_button(
 )
 
 
-
-can u see made  some changes so implemtt tthose buttons as  i said now to tthis page dont cvhange anything else 
