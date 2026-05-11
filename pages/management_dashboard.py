@@ -252,19 +252,19 @@ def render_grid(df, title):
     gb.configure_column(
         "Item Name",
         pinned="left",
-        minWidth=get_width(df["Item Name"], 160)
+        minWidth=get_width(df["Item Name"], 130)
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
-        minWidth=get_width(df["SKU"], 50)
+        minWidth=get_width(df["SKU"], 40)
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
-        minWidth=get_width(df["UOM"], 50)
+        minWidth=get_width(df["UOM"], 40)
     )
 
     # BRANCH COLUMNS
@@ -272,7 +272,7 @@ def render_grid(df, title):
         if col in df.columns:
             gb.configure_column(
                 col,
-                minWidth=get_width(df[col], 80)
+                minWidth=get_width(df[col], 120)
             )
 
     gb.configure_default_column(
