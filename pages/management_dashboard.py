@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from ai_core import run_ai
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 # =========================================================
 # PAGE CONFIG
@@ -34,7 +35,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCH LIST
+# BRANCHES
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -81,7 +82,7 @@ def fetch_branch(branch):
         return branch["BranchName"], None
 
 # =========================================================
-# LOAD DATA
+# LOAD ALL DATA
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -92,14 +93,14 @@ def load_all_data(branches):
 all_data = load_all_data(branches)
 
 # =========================================================
-# DATE
+# DATE INPUT
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (DAILY + WEEKLY PRESERVED)
+# PROCESS STOCK (NO CHANGE IN LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -115,7 +116,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        # FIND DATE COLUMN
+        # find date column
         date_index = None
         for i, h in enumerate(headers):
             if h == selected_date_str:
@@ -131,7 +132,6 @@ def process_stock(all_data, selected_date_str, branch_names):
 
             text = " ".join(row).lower()
 
-            # KEEP ORIGINAL LOGIC
             if "daily item" in text:
                 current_section = "daily"
                 continue
@@ -189,10 +189,9 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME (NO SL NO)
+# DATAFRAMES (NO SL NO)
 # =========================================================
 
-# DAILY
 daily_rows = []
 
 for _, v in daily_items.items():
@@ -210,7 +209,6 @@ for _, v in daily_items.items():
 
 daily_df = pd.DataFrame(daily_rows)
 
-# WEEKLY
 weekly_rows = []
 
 for _, v in weekly_items.items():
@@ -229,14 +227,66 @@ for _, v in weekly_items.items():
 weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
-# DISPLAY
+# 🔥 AGGRID (FROZEN FIRST 3 COLUMNS)
 # =========================================================
 
 st.subheader("📦 Daily Items Stock")
-st.dataframe(daily_df, use_container_width=True)
+
+if not daily_df.empty:
+
+    gb = GridOptionsBuilder.from_dataframe(daily_df)
+
+    gb.configure_columns(
+        ["Item Name", "SKU", "UOM"],
+        pinned="left"
+    )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
+
+    gridOptions = gb.build()
+
+    AgGrid(
+        daily_df,
+        gridOptions=gridOptions,
+        fit_columns_on_grid_load=True
+    )
+
+else:
+    st.warning("No Daily Data")
+
+# ---------------- WEEKLY ----------------
 
 st.subheader("📦 Weekly Items Stock")
-st.dataframe(weekly_df, use_container_width=True)
+
+if not weekly_df.empty:
+
+    gb = GridOptionsBuilder.from_dataframe(weekly_df)
+
+    gb.configure_columns(
+        ["Item Name", "SKU", "UOM"],
+        pinned="left"
+    )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
+
+    gridOptions = gb.build()
+
+    AgGrid(
+        weekly_df,
+        gridOptions=gridOptions,
+        fit_columns_on_grid_load=True
+    )
+
+else:
+    st.warning("No Weekly Data")
 
 # =========================================================
 # DOWNLOAD
