@@ -2,14 +2,12 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
-import time
-import hashlib
 
 # =========================================================
 # PAGE CONFIG
@@ -43,7 +41,7 @@ client = get_client()
 # BRANCHES
 # =========================================================
 
-@st.cache_data(ttl=21600)
+@st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -53,68 +51,46 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET ACCESS
+# SHEET CACHE
 # =========================================================
 
 @st.cache_resource
-def get_sheet(sheet_id):
-    try:
-        return client.open_by_key(sheet_id)
-    except:
-        return None
+def get_sheets(branches):
+    cache = {}
+    for b in branches:
+        sid = b.get("SheetID")
+        if sid:
+            try:
+                cache[sid] = client.open_by_key(sid)
+            except:
+                pass
+    return cache
 
-@st.cache_resource
-def get_worksheet(sheet_id):
-    try:
-        sheet = get_sheet(sheet_id)
-        if not sheet:
-            return None
-        return sheet.worksheet("Stocks")
-    except:
-        return None
+sheet_cache = get_sheets(branches)
 
 # =========================================================
-# SAFE FETCH (RETRY + BACKOFF)
+# FETCH DATA
 # =========================================================
 
 @st.cache_data(ttl=600)
-def fetch_sheet_range(sheet_id, date_key):
-
-    ws = get_worksheet(sheet_id)
-    if not ws:
+def fetch_sheet_range(sheet_id):
+    try:
+        ws = sheet_cache[sheet_id].worksheet("Stocks")
+        return ws.get("A1:ZZ500")
+    except:
         return None
 
-    for attempt in range(3):
-        try:
-            return ws.get("A1:Z500")
-        except Exception:
-            time.sleep(1.5 * (attempt + 1))
-
-    return None
-
-# =========================================================
-# SEQUENTIAL FETCH (NO THREADPOOL)
-# =========================================================
-
-def fetch_branch(branch, date_key):
+def fetch_branch(branch):
     sid = branch.get("SheetID")
-    if not sid:
+    if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
 
-    return branch["BranchName"], fetch_sheet_range(sid, date_key)
+    return branch["BranchName"], fetch_sheet_range(sid)
 
 @st.cache_data(ttl=300)
-def load_all_data(branches, date_key):
-
-    results = []
-
-    for b in branches:
-        try:
-            results.append(fetch_branch(b, date_key))
-        except:
-            continue
-
-    return results
+def load_all_data(branches):
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        return list(ex.map(fetch_branch, branches))
 
 # =========================================================
 # DATE
@@ -127,24 +103,25 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 # BUTTONS
 # =========================================================
 
-col1 = st.columns(1)[0]
+col1, col2 = st.columns(2)
 
 with col1:
     if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
 
+with col2:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
 # =========================================================
-# LOAD DATA
+# LOAD
 # =========================================================
 
-all_data = load_all_data(branches, selected_date_str)
+all_data = load_all_data(branches)
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -160,11 +137,11 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        date_index = None
-        for i, h in enumerate(headers):
-            if h == selected_date_str:
-                date_index = i
-                break
+        # FIXED DATE MATCH
+        try:
+            date_index = headers.index(selected_date_str)
+        except:
+            date_index = None
 
         current_section = None
 
@@ -173,7 +150,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not row:
                 continue
 
-            text = " ".join(row).lower()
+            text = " ".join([str(x) for x in row]).lower()
 
             if "daily item" in text:
                 current_section = "daily"
@@ -186,9 +163,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            item = row[0].strip() if len(row) > 0 else ""
-            sku = row[1].strip() if len(row) > 1 else ""
-            uom = row[2].strip() if len(row) > 2 else ""
+            item = str(row[0]).strip() if len(row) > 0 else ""
+            sku = str(row[1]).strip() if len(row) > 1 else ""
+            uom = str(row[2]).strip() if len(row) > 2 else ""
 
             if not item:
                 continue
@@ -198,22 +175,22 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
-
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
-
                 for bn in branch_names:
                     target[key][bn] = 0
 
-            qty = 0
+            # SAFE QTY
+            qty = 0.0
             try:
                 if date_index is not None and len(row) > date_index:
-                    qty = float(row[date_index] or 0)
+                    val = row[date_index]
+                    qty = float(val) if val not in [None, ""] else 0.0
             except:
-                qty = 0
+                qty = 0.0
 
             target[key][branch_name] = qty
 
@@ -222,7 +199,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME (SAFE EMPTY FIX)
+# DATAFRAME
 # =========================================================
 
 def build_df(data_dict):
@@ -242,19 +219,13 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    df = pd.DataFrame(rows)
-
-    if df.empty:
-        df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
-        df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
-
-    return df.fillna(0)
+    return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID (🔥 FIX DUPLICATE ELEMENT ID HERE)
+# GRID
 # =========================================================
 
 def render_grid(df, title):
@@ -281,14 +252,14 @@ def render_grid(df, title):
         df,
         gridOptions=gb.build(),
         theme="streamlit",
-        key=hashlib.md5(title.encode()).hexdigest()   # ✅ FIX HERE
+        key=title
     )
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (SAFE)
+# EXCEL EXPORT
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -298,50 +269,26 @@ def create_excel(daily_df, weekly_df):
     ws = wb.active
     ws.title = "Stock Dashboard"
 
-    header_font = Font(bold=True)
-    section_font = Font(bold=True, size=14)
-    align_center = Alignment(horizontal="center")
-    zebra = PatternFill("solid", fgColor="F5F5F5")
-
     def write_section(title, df, start_row):
 
-        if df is None or df.empty:
-            df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
-            df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
-
         rows = list(dataframe_to_rows(df, index=False, header=True))
-        total_cols = max(1, len(rows[0]))
+        total_cols = len(rows[0])
 
         ws.merge_cells(start_row=start_row, start_column=1,
                        end_row=start_row, end_column=total_cols)
 
-        ws.cell(row=start_row, column=1, value=title).font = section_font
+        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
 
-        header_row = start_row + 2
+        row_start = start_row + 2
 
-        for i, val in enumerate(rows[0], 1):
-            ws.cell(row=header_row, column=i, value=val).font = header_font
-
-        data_start = header_row + 1
-
-        for r_i, row in enumerate(rows[1:]):
+        for r_i, row in enumerate(rows):
             for c_i, val in enumerate(row, 1):
-                cell = ws.cell(row=data_start + r_i, column=c_i, value=val)
-                if r_i % 2 == 1:
-                    cell.fill = zebra
+                ws.cell(row=row_start + r_i, column=c_i, value=val)
 
-        return data_start + len(rows[1:]) + 2
+        return row_start + len(rows) + 2
 
-    next_row = write_section("DAILY STOCK", daily_df, 1)
-    write_section("WEEKLY STOCK", weekly_df, next_row)
-
-    for col in range(1, ws.max_column + 1):
-        col_letter = get_column_letter(col)
-        max_len = max(
-            (len(str(ws.cell(row=r, column=col).value or "")) for r in range(1, ws.max_row + 1)),
-            default=10
-        )
-        ws.column_dimensions[col_letter].width = max_len + 2
+    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
+    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
 
     wb.save(output)
     output.seek(0)
@@ -350,7 +297,7 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report",
+    "📥 Download Stock Report (Daily + Weekly Excel)",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
