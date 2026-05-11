@@ -342,5 +342,3 @@ if st.button("⬅ Back"):
 
 
 
-
-bro inthis ineed one thing in data frame firstt three coloumns should be listed as it  is ahd next the coloumns is the data so i need that logic and rest struicklty dont change 
