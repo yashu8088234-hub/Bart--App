@@ -67,7 +67,7 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FAST FETCH
+# FETCH
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -86,18 +86,38 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (SESSION FIX - IMPORTANT)
+# LOAD DATA (ONLY ON REFRESH)
 # =========================================================
 
-@st.cache_data(ttl=300)
 def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
+# =========================================================
+# SESSION DATA (CRITICAL FIX)
+# =========================================================
+
 if "all_data" not in st.session_state:
     st.session_state.all_data = load_all_data(branches)
 
-all_data = st.session_state.all_data
+# =========================================================
+# REFRESH BUTTON (ONLY ONE THAT RELOADS DATA)
+# =========================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        st.session_state.all_data = load_all_data(branches)
+        st.success("Data refreshed!")
+
+# =========================================================
+# BACK BUTTON (GO TO APP.PY)
+# =========================================================
+
+with col2:
+    if st.button("🔙 Back to Main App"):
+        st.switch_page("app.py")
 
 # =========================================================
 # DATE
@@ -107,7 +127,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -161,7 +181,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
-
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
@@ -183,13 +202,13 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN
+# USE SESSION DATA (NO RELOAD ON AI / BACK)
 # =========================================================
 
 daily_items, weekly_items = process_stock(
-    tuple(all_data),
+    st.session_state.all_data,
     selected_date_str,
-    tuple(branch_names)
+    branch_names
 )
 
 # =========================================================
@@ -219,54 +238,14 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# SAFE WIDTH FUNCTION
-# =========================================================
-
-def get_width(series, min_width):
-
-    try:
-        series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-
-        if pd.isna(max_len):
-            return min_width
-
-        return max(min_width, int(max_len * 5 + 25))
-
-    except:
-        return min_width
-
-# =========================================================
-# AI HELP FUNCTION
-# =========================================================
-
-def find_best_item(user_input, items_dict):
-
-    keys = list(items_dict.keys())
-
-    for k in keys:
-        if user_input.lower() in k.lower():
-            return k
-
-    match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-    return match[0] if match else None
-
-# =========================================================
-# AI STATE (FIXED - NO TOGGLE BUG)
+# AI STATE (SINGLE BUTTON TOGGLE)
 # =========================================================
 
 if "ai_open" not in st.session_state:
     st.session_state.ai_open = False
 
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = True
-
-with col2:
-    if st.button("🔙 Close AI"):
-        st.session_state.ai_open = False
+if st.button("🤖 AI Assistant"):
+    st.session_state.ai_open = not st.session_state.ai_open
 
 # =========================================================
 # AI PANEL
@@ -280,50 +259,56 @@ if st.session_state.ai_open:
     combined.update(daily_items)
     combined.update(weekly_items)
 
-    if not combined:
-        st.warning("No stock data available.")
-    else:
+    user_input = st.text_input("Ask about stock...", key="ai_input")
 
-        user_input = st.text_input("Ask about stock...", key="ai_input")
+    col1, col2 = st.columns(2)
 
-        col1, col2 = st.columns(2)
+    send = col1.button("Send")
+    clear = col2.button("Clear Chat")
 
-        send = col1.button("Send")
-        clear = col2.button("Clear Chat")
+    if "chat" not in st.session_state:
+        st.session_state.chat = []
 
-        if "chat" not in st.session_state:
-            st.session_state.chat = []
+    def find_best_item(user_input, items_dict):
+        keys = list(items_dict.keys())
 
-        if clear:
-            st.session_state.chat = []
-            st.rerun()
+        for k in keys:
+            if user_input.lower() in k.lower():
+                return k
 
-        if send and user_input.strip():
+        match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
+        return match[0] if match else None
 
-            matched = find_best_item(user_input, combined)
+    if clear:
+        st.session_state.chat = []
+        st.rerun()
 
-            context = {
-                "cache_data": all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys())
-            }
+    if send and user_input.strip():
 
-            if not matched:
-                response = "❌ Item not found in stock database."
-            else:
-                with st.spinner("Analyzing stock... 🤖"):
-                    response = run_ai(user_input, context)
+        matched = find_best_item(user_input, combined)
 
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
+        context = {
+            "cache_data": st.session_state.all_data,
+            "branch_list": branch_names,
+            "master_items": list(combined.keys())
+        }
 
-            st.rerun()
+        if not matched:
+            response = "❌ Item not found in stock database."
+        else:
+            with st.spinner("Analyzing stock... 🤖"):
+                response = run_ai(user_input, context)
 
-        for role, msg in st.session_state.chat:
-            st.write(f"**{role}:** {msg}")
+        st.session_state.chat.append(("You", user_input))
+        st.session_state.chat.append(("AI", response))
+
+        st.rerun()
+
+    for role, msg in st.session_state.chat:
+        st.write(f"**{role}:** {msg}")
 
 # =========================================================
-# GRID RENDER
+# GRID
 # =========================================================
 
 def render_grid(df, title):
@@ -336,19 +321,11 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left", minWidth=120)
-    gb.configure_column("SKU", pinned="left", minWidth=60)
-    gb.configure_column("UOM", pinned="left", minWidth=60)
+    gb.configure_column("Item Name", pinned="left")
+    gb.configure_column("SKU", pinned="left")
+    gb.configure_column("UOM", pinned="left")
 
-    for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=100)
-
-    gb.configure_default_column(
-        resizable=True,
-        sortable=True,
-        filter=True
-    )
+    gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(
         df,
@@ -371,13 +348,11 @@ render_grid(weekly_df, "📦 Weekly Items Stock")
 st.download_button(
     "📥 Download Daily CSV",
     daily_df.to_csv(index=False),
-    file_name="daily_stock.csv",
-    mime="text/csv"
+    file_name="daily_stock.csv"
 )
 
 st.download_button(
     "📥 Download Weekly CSV",
     weekly_df.to_csv(index=False),
-    file_name="weekly_stock.csv",
-    mime="text/csv"
+    file_name="weekly_stock.csv"
 )
