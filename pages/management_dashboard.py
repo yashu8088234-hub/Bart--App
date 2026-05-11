@@ -9,6 +9,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 import time
+import hashlib
 
 # =========================================================
 # PAGE CONFIG
@@ -52,7 +53,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET ACCESS (CACHE FIX)
+# SAFE SHEET ACCESS
 # =========================================================
 
 @st.cache_resource
@@ -73,7 +74,7 @@ def get_worksheet(sheet_id):
         return None
 
 # =========================================================
-# SAFE FETCH WITH RETRY (🔥 FIX FOR API ERRORS)
+# SAFE FETCH (RETRY + BACKOFF)
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -86,14 +87,13 @@ def fetch_sheet_range(sheet_id, date_key):
     for attempt in range(3):
         try:
             return ws.get("A1:Z500")
-
         except Exception:
             time.sleep(1.5 * (attempt + 1))
 
     return None
 
 # =========================================================
-# SEQUENTIAL FETCH (🔥 REMOVED THREADPOOL ISSUE)
+# SEQUENTIAL FETCH (NO THREADPOOL)
 # =========================================================
 
 def fetch_branch(branch, date_key):
@@ -108,7 +108,6 @@ def load_all_data(branches, date_key):
 
     results = []
 
-    # 🔥 FIX: NO THREADPOOL (prevents API spikes)
     for b in branches:
         try:
             results.append(fetch_branch(b, date_key))
@@ -223,7 +222,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME (🔥 SAFE EMPTY FIX)
+# DATAFRAME (SAFE EMPTY FIX)
 # =========================================================
 
 def build_df(data_dict):
@@ -245,7 +244,6 @@ def build_df(data_dict):
 
     df = pd.DataFrame(rows)
 
-    # 🔥 FIX: NEVER EMPTY (prevents Excel crash)
     if df.empty:
         df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
         df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
@@ -256,12 +254,16 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# GRID (🔥 FIX DUPLICATE ELEMENT ID HERE)
 # =========================================================
 
 def render_grid(df, title):
 
     st.subheader(title)
+
+    if df is None or df.empty:
+        st.warning("No Data")
+        return
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
@@ -275,13 +277,18 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit")
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        key=hashlib.md5(title.encode()).hexdigest()   # ✅ FIX HERE
+    )
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (SAFE VERSION)
+# EXCEL EXPORT (SAFE)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -303,7 +310,6 @@ def create_excel(daily_df, weekly_df):
             df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
 
         rows = list(dataframe_to_rows(df, index=False, header=True))
-
         total_cols = max(1, len(rows[0]))
 
         ws.merge_cells(start_row=start_row, start_column=1,
@@ -314,8 +320,7 @@ def create_excel(daily_df, weekly_df):
         header_row = start_row + 2
 
         for i, val in enumerate(rows[0], 1):
-            cell = ws.cell(row=header_row, column=i, value=val)
-            cell.font = header_font
+            ws.cell(row=header_row, column=i, value=val).font = header_font
 
         data_start = header_row + 1
 
