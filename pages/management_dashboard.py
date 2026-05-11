@@ -23,7 +23,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 def show_api_error():
-    st.error("limit exceeded ")
+    st.error("")
     st.stop()
     time.sleep(2)
     
@@ -199,12 +199,17 @@ with col2:
                 all_data = load_all_data(branches)
 
                 st.session_state.last_force_refresh = time.time()
+                time.sleep(10)
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                time.sleep(10)
+                
+                if st.button("🔄 Click Now to Refresh"):
+                    st.rerun()
+                    
+        
 
-                st.rerun()
+                
 
             except:
                 show_api_error()
