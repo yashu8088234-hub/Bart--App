@@ -69,7 +69,7 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FETCH DATA
+# FETCH
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -115,7 +115,7 @@ with col2:
         st.switch_page("app.py")
 
 # =========================================================
-# LOAD
+# LOAD DATA
 # =========================================================
 
 all_data = load_all_data(branches)
@@ -137,7 +137,6 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        # FIXED DATE MATCH
         try:
             date_index = headers.index(selected_date_str)
         except:
@@ -183,7 +182,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                 for bn in branch_names:
                     target[key][bn] = 0
 
-            # SAFE QTY
             qty = 0.0
             try:
                 if date_index is not None and len(row) > date_index:
@@ -199,7 +197,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (RESTORED EXACTLY)
 # =========================================================
 
 def build_df(data_dict):
@@ -225,7 +223,22 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# WIDTH FUNCTION
+# =========================================================
+
+def get_width(series, min_width):
+
+    try:
+        series = series.fillna("").astype(str)
+        max_len = series.map(len).max()
+        if pd.isna(max_len):
+            return min_width
+        return max(int(max_len * 5 + 25), min_width)
+    except:
+        return min_width
+
+# =========================================================
+# AGGRID RENDER (RESTORED FULLY)
 # =========================================================
 
 def render_grid(df, title):
@@ -238,20 +251,25 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left")
-    gb.configure_column("SKU", pinned="left")
-    gb.configure_column("UOM", pinned="left")
+    gb.configure_column("Item Name", pinned="left", minWidth=get_width(df["Item Name"], 90))
+    gb.configure_column("SKU", pinned="left", minWidth=get_width(df["SKU"], 40))
+    gb.configure_column("UOM", pinned="left", minWidth=get_width(df["UOM"], 40))
 
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(col)
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
 
     AgGrid(
         df,
         gridOptions=gb.build(),
         theme="streamlit",
+        fit_columns_on_grid_load=False,
         key=title
     )
 
@@ -259,7 +277,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL DOWNLOAD
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
