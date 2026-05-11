@@ -304,49 +304,106 @@ def render_grid(df, title):
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
-# =========================================================
-# ⭐ WOW EXCEL DOWNLOAD (SINGLE BUTTON)
-# =========================================================
-
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
     wb = Workbook()
+    ws = wb.active
+    ws.title = "Stock Dashboard"
 
-    def add_sheet(df, name):
+    header_font = Font(bold=True, color="000000")
+    section_font = Font(bold=True, size=14)
+    align_center = Alignment(horizontal="center", vertical="center")
 
-        ws = wb.create_sheet(title=name)
+    zebra_fill = PatternFill("solid", fgColor="F5F5F5")  # light row shading
 
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill("solid", fgColor="1F4E79")
-        align = Alignment(horizontal="center")
+    def write_section(title, df, start_row):
 
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            ws.append(row)
+        rows = list(dataframe_to_rows(df, index=False, header=True))
 
-            for cell in ws[r_idx]:
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = align
+        total_cols = len(rows[0])
 
-        # Auto width
-        for col in ws.columns:
-            max_len = 0
-            col_letter = col[0].column_letter
+        # =========================
+        # SECTION TITLE
+        # =========================
+        ws.merge_cells(start_row=start_row, start_column=1,
+                       end_row=start_row, end_column=total_cols)
+        ws.cell(row=start_row, column=1, value=title).font = section_font
+        ws.cell(row=start_row, column=1).alignment = align_center
 
-            for cell in col:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
+        row_idx = start_row + 2
 
-            ws.column_dimensions[col_letter].width = max_len + 3
+        # =========================
+        # GROUP HEADERS
+        # =========================
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=3)
+        ws.cell(row=row_idx, column=1, value="Item Info").font = header_font
+        ws.cell(row=row_idx, column=1).alignment = align_center
 
-        ws.freeze_panes = "A2"
-        ws.auto_filter.ref = ws.dimensions
+        ws.merge_cells(start_row=row_idx, start_column=4, end_row=row_idx, end_column=total_cols)
+        ws.cell(row=row_idx, column=4, value="Branch Stocks").font = header_font
+        ws.cell(row=row_idx, column=4).alignment = align_center
 
-    add_sheet(daily_df, "Daily Stock")
-    add_sheet(weekly_df, "Weekly Stock")
+        # =========================
+        # COLUMN HEADERS
+        # =========================
+        header_row = row_idx + 1
 
-    wb.remove(wb["Sheet"])
+        for col_idx, value in enumerate(rows[0], 1):
+            cell = ws.cell(row=header_row, column=col_idx, value=value)
+            cell.font = header_font
+            cell.alignment = align_center
+
+        # Freeze below headers
+        ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+
+        # =========================
+        # DATA ROWS (ZEBRA STYLE)
+        # =========================
+        data_start = header_row + 1
+
+        for i, row in enumerate(rows[1:], start=0):
+            for j, value in enumerate(row, 1):
+                c = ws.cell(row=data_start + i, column=j, value=value)
+                c.alignment = align_center
+
+                if i % 2 == 1:
+                    c.fill = zebra_fill
+
+        # =========================
+        # TOTAL ROW
+        # =========================
+        total_row = data_start + len(rows[1:])
+
+        ws.cell(row=total_row, column=1, value="TOTAL").font = header_font
+
+        for col in range(4, total_cols + 1):
+            col_letter = ws.cell(row=header_row, column=col).column_letter
+            ws.cell(row=total_row, column=col,
+                    value=f"=SUM({col_letter}{data_start}:{col_letter}{total_row-1})"
+                   ).font = header_font
+
+        return total_row + 3  # spacing before next section
+
+    # =========================
+    # WRITE DAILY + WEEKLY
+    # =========================
+    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
+    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
+
+    # =========================
+    # AUTO WIDTH
+    # =========================
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+
+        ws.column_dimensions[col_letter].width = max_len + 3
+
     wb.save(output)
     output.seek(0)
 
