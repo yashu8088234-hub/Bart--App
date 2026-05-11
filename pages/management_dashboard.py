@@ -227,7 +227,7 @@ def get_width(series, min_width):
         if pd.isna(max_len) or max_len is None:
             return min_width
 
-        width = int(max_len * 8 + 25)
+        width = int(max_len * 5 + 25)
 
         return max(width, min_width)
 
