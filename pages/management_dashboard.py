@@ -411,6 +411,3 @@ st.download_button(
     file_name="weekly_stock.csv",
     mime="text/csv"
 )
-
-
-this is my code fix the issues
