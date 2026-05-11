@@ -153,8 +153,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 if st.button("⬅ Back"):
-    st.session_state.page = "mode_select"
-    st.rerun()
+    st.switch_page("pages/staff_dashboard.py")
 
 # -----------------------------
 # DATE
