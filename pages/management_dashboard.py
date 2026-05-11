@@ -7,7 +7,6 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils.dataframe import dataframe_to_rows
 
 # =========================================================
 # PAGE CONFIG
@@ -106,7 +105,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# REFRESH + BACK
+# BUTTONS
 # =========================================================
 
 col1 = st.columns(1)[0]
@@ -228,28 +227,26 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# WIDTH FUNCTION (RESTORED)
+# WIDTH FUNCTION
 # =========================================================
 
 def get_width(series, min_width):
 
     try:
         series = series.fillna("").astype(str)
-
         max_len = series.map(len).max()
 
         if pd.isna(max_len) or max_len is None:
             return min_width
 
         width = int(max_len * 5 + 25)
-
         return max(width, min_width)
 
     except:
         return min_width
 
 # =========================================================
-# AGGRID RENDER (RESTORED)
+# AGGRID RENDER
 # =========================================================
 
 def render_grid(df, title):
@@ -262,27 +259,9 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column(
-        "Item Name",
-        pinned="left",
-        minWidth=get_width(df["Item Name"], 90)
-    )
-
-    gb.configure_column(
-        "SKU",
-        pinned="left",
-        minWidth=get_width(df["SKU"], 40)
-    )
-
-    gb.configure_column(
-        "UOM",
-        pinned="left",
-        minWidth=get_width(df["UOM"], 40)
-    )
-
-    for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
+    gb.configure_column("Item Name", pinned="left")
+    gb.configure_column("SKU", pinned="left")
+    gb.configure_column("UOM", pinned="left")
 
     gb.configure_default_column(
         resizable=True,
@@ -305,7 +284,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# ⭐ SAFE SINGLE SHEET EXCEL EXPORT (NO CRASH VERSION)
+# ⭐ SINGLE SHEET EXCEL EXPORT (FINAL WOW VERSION)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -321,11 +300,9 @@ def create_excel(daily_df, weekly_df):
     title_font = Font(bold=True, size=14)
     align = Alignment(horizontal="center")
 
-    columns = list(daily_df.columns)
-
     def write_title(row, text):
         ws.merge_cells(start_row=row, start_column=1,
-                       end_row=row, end_column=len(columns))
+                       end_row=row, end_column=len(daily_df.columns))
         cell = ws.cell(row=row, column=1)
         cell.value = text
         cell.font = title_font
@@ -334,13 +311,13 @@ def create_excel(daily_df, weekly_df):
     def write_table(df, start_row):
 
         # headers
-        for c_idx, col in enumerate(columns, 1):
+        for c_idx, col in enumerate(df.columns, 1):
             cell = ws.cell(row=start_row, column=c_idx, value=col)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = align
 
-        # rows
+        # data
         for r_idx, row in enumerate(df.values, start_row + 1):
             for c_idx, value in enumerate(row, 1):
                 ws.cell(row=r_idx, column=c_idx, value=value)
@@ -351,37 +328,31 @@ def create_excel(daily_df, weekly_df):
     write_title(1, "DAILY STOCK REPORT")
     next_row = write_table(daily_df, 2)
 
-    # GAP
+    # spacing
     next_row += 1
 
     # WEEKLY
     write_title(next_row, "WEEKLY STOCK REPORT")
     write_table(weekly_df, next_row + 1)
 
-    # SAFE AUTO WIDTH (NO CRASH)
-    for col_cells in ws.columns:
+    # auto column width
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
 
-    col_letter = col_cells[0].column_letter if hasattr(col_cells[0], "column_letter") else None
-
-    if not col_letter:
-        continue
-
-    max_len = 0
-
-    for cell in col_cells:
-        try:
-            if cell.value is not None:
+        for cell in col:
+            if cell.value:
                 max_len = max(max_len, len(str(cell.value)))
-        except:
-            pass
 
-    ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
+        ws.column_dimensions[col_letter].width = max_len + 3
+
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = ws.dimensions
 
     wb.save(output)
     output.seek(0)
 
     return output
-
 
 excel_file = create_excel(daily_df, weekly_df)
 
