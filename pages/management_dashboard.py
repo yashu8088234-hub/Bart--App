@@ -394,15 +394,18 @@ def create_excel(daily_df, weekly_df):
     # =========================
     # AUTO WIDTH
     # =========================
-    for col in ws.columns:
-        max_len = 0
-        col_letter = col[0].column_letter
+    from openpyxl.utils import get_column_letter
+    for col_idx in range(1, ws.max_column + 1):
+            max_len = 0
+            col_letter = get_column_letter(col_idx)
+            for row in range(1, ws.max_row + 1):
+                cell = ws.cell(row=row, column=col_idx)
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
 
-        for cell in col:
-            if cell.value:
-                max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = max_len + 3
+        
 
-        ws.column_dimensions[col_letter].width = max_len + 3
 
     wb.save(output)
     output.seek(0)
