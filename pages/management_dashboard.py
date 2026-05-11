@@ -3,7 +3,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
-from ai_core import run_ai
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # =========================================================
@@ -35,7 +34,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCH LIST
+# BRANCHES
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -66,7 +65,7 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FAST FETCH (OPTIMIZED)
+# FAST FETCH
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -96,14 +95,14 @@ def load_all_data(branches):
 all_data = load_all_data(branches)
 
 # =========================================================
-# DATE INPUT
+# DATE
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (NO LOGIC CHANGE)
+# PROCESS STOCK (NO CHANGE)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -145,7 +144,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            # FIRST 3 COLUMNS ONLY
             item = row[0].strip() if len(row) > 0 else ""
             sku = row[1].strip() if len(row) > 1 else ""
             uom = row[2].strip() if len(row) > 2 else ""
@@ -194,9 +192,11 @@ daily_items, weekly_items = process_stock(
 # =========================================================
 
 def build_df(data_dict):
+
     rows = []
 
     for _, v in data_dict.items():
+
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
@@ -214,7 +214,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🔥 AGGRID FIXED (NO COLLAPSING + PROPER WIDTH)
+# AGGRID WITH FIXED WIDTH RULES
 # =========================================================
 
 def render_grid(df, title):
@@ -227,21 +227,20 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # Freeze first 3 columns + proper width
-    gb.configure_columns(
-        ["Item Name", "SKU", "UOM"],
-        pinned="left",
-        minWidth=180
-    )
+    # FIRST 3 COLUMNS WIDTH FIX
+    gb.configure_column("Item Name", width=160, pinned="left")
+    gb.configure_column("SKU", width=50, pinned="left")
+    gb.configure_column("UOM", width=50, pinned="left")
 
-    # IMPORTANT FIX: prevent collapsing
+    # BRANCH COLUMNS WIDTH FIX
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(col, width=80)
+
     gb.configure_default_column(
         resizable=True,
         sortable=True,
-        filter=True,
-        minWidth=130,
-        wrapText=True,
-        autoHeight=True
+        filter=True
     )
 
     gridOptions = gb.build()
@@ -249,9 +248,8 @@ def render_grid(df, title):
     AgGrid(
         df,
         gridOptions=gridOptions,
-        fit_columns_on_grid_load=False,  # IMPORTANT FIX
         theme="streamlit",
-        allow_unsafe_jscode=True
+        fit_columns_on_grid_load=False
     )
 
 # =========================================================
