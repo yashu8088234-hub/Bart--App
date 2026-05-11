@@ -16,3 +16,9 @@ gspread
 oauth2client
 groq
 streamlit-aggrid
+streamlit
+gspread
+oauth2client
+pandas
+st-aggrid
+openpyxl
