@@ -26,9 +26,11 @@ def show_api_error_screen():
             color:white;
             margin-top:60px;
         ">
-            <h1 style="color:#ff4b4b;">🚨 Server Busy / API Limit Reached</h1>
-            <h3>Please try again after 2–3 minutes</h3>
-            <p>Redirecting back to dashboard...</p>
+            <h1 style="color:#ff4b4b;">🚨 Server Busy / API Limit Reached </h1>
+            <h2 style="color:#ff4b4b;">Please try again after 2–3 minutes Redirecting back to dashboard... </h2>
+            
+           
+            <p></p>
         </div>
         """,
         unsafe_allow_html=True
