@@ -48,7 +48,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE
+# SHEET CACHE (IMPORTANT SPEED BOOST)
 # =========================================================
 
 @st.cache_resource
@@ -66,28 +66,32 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FETCH DATA
+# FAST FETCH (RANGE ONLY = BIG SPEED BOOST)
 # =========================================================
+
+@st.cache_data(ttl=600)
+def fetch_sheet_range(sheet_id):
+    try:
+        ws = sheet_cache[sheet_id].worksheet("Stocks")
+        return ws.get("A1:Z500")   # FAST instead of full sheet
+    except:
+        return None
 
 def fetch_branch(branch):
-    try:
-        sid = branch.get("SheetID")
-        if not sid or sid not in sheet_cache:
-            return branch["BranchName"], None
-
-        ws = sheet_cache[sid].worksheet("Stocks")
-        return branch["BranchName"], ws.get_all_values()
-
-    except:
+    sid = branch.get("SheetID")
+    if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
 
+    data = fetch_sheet_range(sid)
+    return branch["BranchName"], data
+
 # =========================================================
-# LOAD ALL DATA
+# LOAD ALL DATA (PARALLEL FAST)
 # =========================================================
 
 @st.cache_data(ttl=300)
 def load_all_data(branches):
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
 all_data = load_all_data(branches)
@@ -100,7 +104,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (NO CHANGE IN LOGIC)
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -116,7 +120,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        # find date column
+        # FIND DATE COLUMN
         date_index = None
         for i, h in enumerate(headers):
             if h == selected_date_str:
@@ -179,7 +183,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN
+# RUN PROCESS
 # =========================================================
 
 daily_items, weekly_items = process_stock(
@@ -189,7 +193,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAMES (NO SL NO)
+# DATAFRAME (NO SL NO)
 # =========================================================
 
 daily_rows = []
@@ -227,7 +231,7 @@ for _, v in weekly_items.items():
 weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
-# 🔥 AGGRID (FROZEN FIRST 3 COLUMNS)
+# AGGRID (FROZEN COLUMNS)
 # =========================================================
 
 st.subheader("📦 Daily Items Stock")
@@ -247,11 +251,9 @@ if not daily_df.empty:
         filter=True
     )
 
-    gridOptions = gb.build()
-
     AgGrid(
         daily_df,
-        gridOptions=gridOptions,
+        gridOptions=gb.build(),
         fit_columns_on_grid_load=True
     )
 
@@ -277,11 +279,9 @@ if not weekly_df.empty:
         filter=True
     )
 
-    gridOptions = gb.build()
-
     AgGrid(
         weekly_df,
-        gridOptions=gridOptions,
+        gridOptions=gb.build(),
         fit_columns_on_grid_load=True
     )
 
