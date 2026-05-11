@@ -9,8 +9,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 import time
-import threading
-from gspread.exceptions import APIError
 
 # =========================================================
 # PAGE CONFIG
@@ -20,50 +18,29 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# SAFE STATE (ANTI API SPAM SYSTEM)
+# COOLDOWN STATE (NEW)
 # =========================================================
 
-if "api_lock" not in st.session_state:
-    st.session_state.api_lock = False
+if "api_cooldown" not in st.session_state:
+    st.session_state.api_cooldown = False
 
-if "loading" not in st.session_state:
-    st.session_state.loading = False
+if "cooldown_end" not in st.session_state:
+    st.session_state.cooldown_end = 0
 
 if "all_data_cache" not in st.session_state:
     st.session_state.all_data_cache = None
 
 # =========================================================
-# LOADING OVERLAY
+# COOLDOWN CHECK
 # =========================================================
 
-def show_loading():
-    st.markdown(
-        """
-        <style>
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.75);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-size: 22px;
-            flex-direction: column;
-        }
-        </style>
-
-        <div class="overlay">
-            <h2>⏳ Loading fresh stock data...</h2>
-            <p>Please wait, fetching from server...</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+def cooldown_active():
+    if st.session_state.api_cooldown:
+        if time.time() >= st.session_state.cooldown_end:
+            st.session_state.api_cooldown = False
+            return False
+        return True
+    return False
 
 # =========================================================
 # GOOGLE AUTH
@@ -100,7 +77,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEETS CACHE
+# SHEET CACHE
 # =========================================================
 
 @st.cache_resource
@@ -134,7 +111,7 @@ def fetch_branch(branch):
         return branch["BranchName"], None
 
 # =========================================================
-# SAFE LOAD (ANTI SPAM API CONTROL)
+# LOAD ALL DATA (API CONTROLLED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -142,45 +119,30 @@ def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=3) as ex:
         return list(ex.map(fetch_branch, branches))
 
+# =========================================================
+# SAFE DATA LOADER
+# =========================================================
 
 def safe_load_data(branches):
-
-    if st.session_state.api_lock:
-        return st.session_state.all_data_cache
-
     try:
-        st.session_state.api_lock = True
-        st.session_state.loading = True
-
-        data = load_all_data(branches)
-
-        st.session_state.all_data_cache = data
-        st.session_state.loading = False
-        st.session_state.api_lock = False
+        if st.session_state.all_data_cache is None:
+            data = load_all_data(branches)
+            st.session_state.all_data_cache = data
+        else:
+            data = st.session_state.all_data_cache
 
         return data
 
     except Exception:
-        st.session_state.api_lock = False
-        st.session_state.loading = False
-        raise
+        st.session_state.api_cooldown = True
+        st.session_state.cooldown_end = time.time() + 180
+        return st.session_state.all_data_cache
 
 # =========================================================
-# LOADING BLOCK
+# LOAD DATA
 # =========================================================
 
-if st.session_state.loading:
-    show_loading()
-    st.stop()
-
-# =========================================================
-# INITIAL DATA LOAD (CACHE CONTROLLED)
-# =========================================================
-
-if st.session_state.all_data_cache is None:
-    all_data = safe_load_data(branches)
-else:
-    all_data = st.session_state.all_data_cache
+all_data = safe_load_data(branches)
 
 # =========================================================
 # DATE
@@ -190,23 +152,35 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS
+# BUTTONS (ONLY CHANGE HERE)
 # =========================================================
 
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("📅 Refresh Date Only"):
-        st.rerun()
+    st.button("📅 Refresh Date Only")
 
 with col2:
-    if st.button("🔄 Refresh Data (Force API)"):
-        if not st.session_state.api_lock:
-            st.session_state.all_data_cache = None
-            st.rerun()
+
+    cooling = cooldown_active()
+
+    if cooling:
+        remaining = int(st.session_state.cooldown_end - time.time())
+        st.button(f"⛔ Refresh Cooling Down ({remaining}s)", disabled=True)
+
+    else:
+        if st.button("🔄 Refresh Data (Force API)"):
+
+            try:
+                st.session_state.all_data_cache = None
+                st.rerun()
+
+            except Exception:
+                st.session_state.api_cooldown = True
+                st.session_state.cooldown_end = time.time() + 180
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 @st.cache_data(ttl=300)
