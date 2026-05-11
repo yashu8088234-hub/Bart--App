@@ -8,6 +8,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+import time
 
 # =========================================================
 # PAGE CONFIG
@@ -15,6 +16,33 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
+
+# =========================================================
+# ERROR UI + AUTO REDIRECT
+# =========================================================
+
+def show_api_error_and_redirect(message="🚨 Server/API issue detected"):
+    st.markdown(
+        f"""
+        <div style="
+            padding: 30px;
+            border-radius: 12px;
+            background-color: #ff4b4b15;
+            border: 2px solid #ff4b4b;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            color: #ff4b4b;
+        ">
+            {message}<br><br>
+            Please try again after a few minutes.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    time.sleep(2.5)
+    st.switch_page("app.py")
 
 # =========================================================
 # GOOGLE AUTH
@@ -85,7 +113,10 @@ def fetch_branch(branch):
     if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
 
-    return branch["BranchName"], fetch_sheet_range(sid)
+    try:
+        return branch["BranchName"], fetch_sheet_range(sid)
+    except:
+        return branch["BranchName"], None
 
 @st.cache_data(ttl=300)
 def load_all_data(branches):
@@ -115,10 +146,18 @@ with col2:
         st.switch_page("app.py")
 
 # =========================================================
-# LOAD DATA
+# SAFE DATA LOAD (ERROR HANDLED)
 # =========================================================
 
-all_data = load_all_data(branches)
+try:
+    all_data = load_all_data(branches)
+except Exception:
+    show_api_error_and_redirect("🚨 Facing server/API limit issue")
+    st.stop()
+
+if not all_data:
+    show_api_error_and_redirect("🚨 No data received from server")
+    st.stop()
 
 # =========================================================
 # PROCESS STOCK
@@ -197,7 +236,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME (RESTORED EXACTLY)
+# DATAFRAME
 # =========================================================
 
 def build_df(data_dict):
@@ -238,7 +277,7 @@ def get_width(series, min_width):
         return min_width
 
 # =========================================================
-# AGGRID RENDER (RESTORED FULLY)
+# AGGRID
 # =========================================================
 
 def render_grid(df, title):
