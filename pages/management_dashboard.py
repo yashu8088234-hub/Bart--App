@@ -360,14 +360,22 @@ def create_excel(daily_df, weekly_df):
 
     # SAFE AUTO WIDTH (NO CRASH)
     for col_cells in ws.columns:
-        col_letter = col_cells[0].column_letter
-        max_len = 0
 
-        for cell in col_cells:
-            if cell.value:
+    col_letter = col_cells[0].column_letter if hasattr(col_cells[0], "column_letter") else None
+
+    if not col_letter:
+        continue
+
+    max_len = 0
+
+    for cell in col_cells:
+        try:
+            if cell.value is not None:
                 max_len = max(max_len, len(str(cell.value)))
+        except:
+            pass
 
-        ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
+    ws.column_dimensions[col_letter].width = min(max_len + 3, 40)
 
     wb.save(output)
     output.seek(0)
