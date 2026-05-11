@@ -106,7 +106,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS
+# REFRESH + BACK
 # =========================================================
 
 col1 = st.columns(1)[0]
@@ -228,7 +228,28 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID
+# WIDTH FUNCTION (RESTORED)
+# =========================================================
+
+def get_width(series, min_width):
+
+    try:
+        series = series.fillna("").astype(str)
+
+        max_len = series.map(len).max()
+
+        if pd.isna(max_len) or max_len is None:
+            return min_width
+
+        width = int(max_len * 5 + 25)
+
+        return max(width, min_width)
+
+    except:
+        return min_width
+
+# =========================================================
+# AGGRID RENDER (RESTORED)
 # =========================================================
 
 def render_grid(df, title):
@@ -241,9 +262,27 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left")
-    gb.configure_column("SKU", pinned="left")
-    gb.configure_column("UOM", pinned="left")
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        minWidth=get_width(df["Item Name"], 90)
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        minWidth=get_width(df["SKU"], 40)
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        minWidth=get_width(df["UOM"], 40)
+    )
+
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(
         resizable=True,
@@ -258,14 +297,18 @@ def render_grid(df, title):
         fit_columns_on_grid_load=False
     )
 
+# =========================================================
+# DISPLAY
+# =========================================================
+
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# ⭐ WOW EXCEL EXPORT (ONLY DOWNLOAD SECTION)
+# ⭐ WOW EXCEL DOWNLOAD (SINGLE BUTTON)
 # =========================================================
 
-def make_excel(daily_df, weekly_df):
+def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
     wb = Workbook()
@@ -274,20 +317,17 @@ def make_excel(daily_df, weekly_df):
 
         ws = wb.create_sheet(title=name)
 
-        # Header style
         header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill("solid", fgColor="4F81BD")
+        header_fill = PatternFill("solid", fgColor="1F4E79")
         align = Alignment(horizontal="center")
 
         for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
             ws.append(row)
 
-            for c_idx, cell in enumerate(ws[r_idx], 1):
-
-                if r_idx == 1:
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = align
+            for cell in ws[r_idx]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = align
 
         # Auto width
         for col in ws.columns:
@@ -295,11 +335,8 @@ def make_excel(daily_df, weekly_df):
             col_letter = col[0].column_letter
 
             for cell in col:
-                try:
-                    if cell.value:
-                        max_len = max(max_len, len(str(cell.value)))
-                except:
-                    pass
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
 
             ws.column_dimensions[col_letter].width = max_len + 3
 
@@ -315,11 +352,11 @@ def make_excel(daily_df, weekly_df):
 
     return output
 
-excel_file = make_excel(daily_df, weekly_df)
+excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Excel WOW)",
+    "📥 Download Stock Report (Daily + Weekly Excel)",
     excel_file,
-    file_name="stock_report_daily_weekly.xlsx",
+    file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
