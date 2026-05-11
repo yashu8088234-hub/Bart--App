@@ -93,14 +93,6 @@ def check_timeout():
 
 check_timeout()
 
-# ---------------- FORCE LOGOUT IF BRANCH CHANGES ----------------
-if st.session_state.authenticated:
-    if st.session_state.auth_branch != st.session_state.selected_branch:
-        st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.last_activity = None
-        st.rerun()
-
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
@@ -177,10 +169,9 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
+# ---------------- PIN FIRST 3 COLUMNS ----------------
 st.markdown("""
 <style>
-/* Column 1 */
 div[data-testid="stDataFrame"] thead th:nth-child(1),
 div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     position: sticky;
@@ -189,7 +180,6 @@ div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     z-index: 3;
 }
 
-/* Column 2 */
 div[data-testid="stDataFrame"] thead th:nth-child(2),
 div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     position: sticky;
@@ -198,7 +188,6 @@ div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     z-index: 2;
 }
 
-/* Column 3 */
 div[data-testid="stDataFrame"] thead th:nth-child(3),
 div[data-testid="stDataFrame"] tbody td:nth-child(3) {
     position: sticky;
@@ -309,11 +298,18 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 cleaned = []
                 total = 0
 
-                for v in values:
+                for i, v in enumerate(values):
+
+                    # ✅ FIX: first 3 columns untouched
+                    if i < 3:
+                        cleaned.append(v)
+                        continue
+
                     try:
                         num = float(v) if v != "" else 0
                     except:
                         num = 0
+
                     cleaned.append(num)
                     total += num
 
@@ -338,7 +334,3 @@ if st.session_state.selected_branch != "-- Select Branch --":
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
-
-
-
-
