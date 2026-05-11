@@ -206,13 +206,6 @@ div[data-testid="stDataFrame"] tbody td:nth-child(3) {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- ONLY ADDITION (COLUMN ORDER FIX) ----------------
-def reorder_columns(df):
-    cols = df.columns.tolist()
-    fixed = cols[:3]
-    rest = cols[3:]
-    return df[fixed + rest]
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -332,12 +325,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     weekly.append(row_dict)
 
             st.subheader("📦 Daily Items Stock")
-            df_daily = reorder_columns(pd.DataFrame(daily))
-            st.dataframe(df_daily, use_container_width=True, height=400)
+            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
 
             st.subheader("📦 Weekly Items Stock")
-            df_weekly = reorder_columns(pd.DataFrame(weekly))
-            st.dataframe(df_weekly, use_container_width=True, height=400)
+            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
