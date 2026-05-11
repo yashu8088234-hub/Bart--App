@@ -81,7 +81,7 @@ def fetch_branch(branch):
         return branch["BranchName"], None
 
 # =========================================================
-# LOAD ALL DATA
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -92,14 +92,14 @@ def load_all_data(branches):
 all_data = load_all_data(branches)
 
 # =========================================================
-# DATE INPUT
+# DATE
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (DAILY + WEEKLY LOGIC PRESERVED)
+# PROCESS STOCK (DAILY + WEEKLY PRESERVED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -143,7 +143,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            # FIRST 3 COLUMNS FIXED
+            # FIRST 3 COLUMNS ONLY
             item = row[0].strip() if len(row) > 0 else ""
             sku = row[1].strip() if len(row) > 1 else ""
             uom = row[2].strip() if len(row) > 2 else ""
@@ -166,7 +166,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                 for bn in branch_names:
                     target[key][bn] = 0
 
-            # VALUE FROM DATE COLUMN
             qty = 0
 
             try:
@@ -180,7 +179,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN PROCESS
+# RUN
 # =========================================================
 
 daily_items, weekly_items = process_stock(
@@ -190,16 +189,15 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME (FIRST 3 FIXED COLUMNS)
+# DATAFRAME (NO SL NO)
 # =========================================================
 
 # DAILY
 daily_rows = []
 
-for i, (_, v) in enumerate(daily_items.items()):
+for _, v in daily_items.items():
 
     row = {
-        "Sl No": i + 1,
         "Item Name": v["Item Name"],
         "SKU": v["SKU"],
         "UOM": v["UOM"]
@@ -215,10 +213,9 @@ daily_df = pd.DataFrame(daily_rows)
 # WEEKLY
 weekly_rows = []
 
-for i, (_, v) in enumerate(weekly_items.items()):
+for _, v in weekly_items.items():
 
     row = {
-        "Sl No": i + 1,
         "Item Name": v["Item Name"],
         "SKU": v["SKU"],
         "UOM": v["UOM"]
