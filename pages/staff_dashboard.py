@@ -177,9 +177,10 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS ----------------
+# ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
 st.markdown("""
 <style>
+/* Column 1 */
 div[data-testid="stDataFrame"] thead th:nth-child(1),
 div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     position: sticky;
@@ -188,6 +189,7 @@ div[data-testid="stDataFrame"] tbody td:nth-child(1) {
     z-index: 3;
 }
 
+/* Column 2 */
 div[data-testid="stDataFrame"] thead th:nth-child(2),
 div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     position: sticky;
@@ -196,6 +198,7 @@ div[data-testid="stDataFrame"] tbody td:nth-child(2) {
     z-index: 2;
 }
 
+/* Column 3 */
 div[data-testid="stDataFrame"] thead th:nth-child(3),
 div[data-testid="stDataFrame"] tbody td:nth-child(3) {
     position: sticky;
@@ -238,6 +241,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # ---------------- RESET PASSWORD ----------------
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
@@ -252,6 +256,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
+    # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
@@ -271,17 +276,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
             data = ws.get_all_values()
 
             headers = data[0]
-            rows = data[1:]
+            date_columns = headers[1:]
 
             daily = []
             weekly = []
 
             current_section = None
 
-            for row in rows:
-
-                if not row or not any(row):
-                    continue
+            for row in data:
 
                 row_text = " ".join(row).strip().lower()
 
@@ -296,11 +298,31 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if current_section is None:
                     continue
 
-                # ensure row length matches headers
-                row = row + [""] * (len(headers) - len(row))
+                if not row or not row[0]:
+                    continue
 
-                # IMPORTANT FIX: keep full structure intact
-                row_dict = dict(zip(headers, row))
+                item = row[0].strip()
+
+                values = row[1:]
+                values += [""] * (len(date_columns) - len(values))
+
+                cleaned = []
+                total = 0
+
+                for v in values:
+                    try:
+                        num = float(v) if v != "" else 0
+                    except:
+                        num = 0
+                    cleaned.append(num)
+                    total += num
+
+                row_dict = {"Item": item}
+
+                for i, col in enumerate(date_columns):
+                    row_dict[col] = cleaned[i]
+
+                row_dict["Total"] = total
 
                 if current_section == "daily":
                     daily.append(row_dict)
@@ -316,3 +338,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
+
+
+
+
+
+bro inthis ineed one thing in data frame firstt three coloumns should be listed as it  is ahd next the coloumns is the data so i need that logic and rest struicklty dont change 
