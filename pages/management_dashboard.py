@@ -35,7 +35,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES
+# BRANCH LIST
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -48,7 +48,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE (IMPORTANT SPEED BOOST)
+# SHEET CACHE
 # =========================================================
 
 @st.cache_resource
@@ -66,14 +66,14 @@ def get_sheets(branches):
 sheet_cache = get_sheets(branches)
 
 # =========================================================
-# FAST FETCH (RANGE ONLY = BIG SPEED BOOST)
+# FAST FETCH (OPTIMIZED)
 # =========================================================
 
 @st.cache_data(ttl=600)
 def fetch_sheet_range(sheet_id):
     try:
         ws = sheet_cache[sheet_id].worksheet("Stocks")
-        return ws.get("A1:Z500")   # FAST instead of full sheet
+        return ws.get("A1:Z500")
     except:
         return None
 
@@ -82,11 +82,10 @@ def fetch_branch(branch):
     if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
 
-    data = fetch_sheet_range(sid)
-    return branch["BranchName"], data
+    return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA (PARALLEL FAST)
+# LOAD ALL DATA
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -104,7 +103,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK (NO LOGIC CHANGE)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -120,7 +119,6 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        # FIND DATE COLUMN
         date_index = None
         for i, h in enumerate(headers):
             if h == selected_date_str:
@@ -171,7 +169,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                     target[key][bn] = 0
 
             qty = 0
-
             try:
                 if date_index is not None and len(row) > date_index:
                     qty = float(row[date_index] or 0)
@@ -183,7 +180,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN PROCESS
+# RUN
 # =========================================================
 
 daily_items, weekly_items = process_stock(
@@ -193,100 +190,76 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME (NO SL NO)
+# DATAFRAME
 # =========================================================
 
-daily_rows = []
+def build_df(data_dict):
+    rows = []
 
-for _, v in daily_items.items():
+    for _, v in data_dict.items():
+        row = {
+            "Item Name": v["Item Name"],
+            "SKU": v["SKU"],
+            "UOM": v["UOM"]
+        }
 
-    row = {
-        "Item Name": v["Item Name"],
-        "SKU": v["SKU"],
-        "UOM": v["UOM"]
-    }
+        for b in branch_names:
+            row[b] = v.get(b, 0)
 
-    for b in branch_names:
-        row[b] = v.get(b, 0)
+        rows.append(row)
 
-    daily_rows.append(row)
+    return pd.DataFrame(rows)
 
-daily_df = pd.DataFrame(daily_rows)
-
-weekly_rows = []
-
-for _, v in weekly_items.items():
-
-    row = {
-        "Item Name": v["Item Name"],
-        "SKU": v["SKU"],
-        "UOM": v["UOM"]
-    }
-
-    for b in branch_names:
-        row[b] = v.get(b, 0)
-
-    weekly_rows.append(row)
-
-weekly_df = pd.DataFrame(weekly_rows)
+daily_df = build_df(daily_items)
+weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (FROZEN COLUMNS)
+# 🔥 AGGRID FIXED (NO COLLAPSING + PROPER WIDTH)
 # =========================================================
 
-st.subheader("📦 Daily Items Stock")
+def render_grid(df, title):
 
-if not daily_df.empty:
+    st.subheader(title)
 
-    gb = GridOptionsBuilder.from_dataframe(daily_df)
+    if df.empty:
+        st.warning("No Data")
+        return
 
+    gb = GridOptionsBuilder.from_dataframe(df)
+
+    # Freeze first 3 columns + proper width
     gb.configure_columns(
         ["Item Name", "SKU", "UOM"],
-        pinned="left"
+        pinned="left",
+        minWidth=180
     )
 
+    # IMPORTANT FIX: prevent collapsing
     gb.configure_default_column(
         resizable=True,
         sortable=True,
-        filter=True
+        filter=True,
+        minWidth=130,
+        wrapText=True,
+        autoHeight=True
     )
+
+    gridOptions = gb.build()
 
     AgGrid(
-        daily_df,
-        gridOptions=gb.build(),
-        fit_columns_on_grid_load=True
+        df,
+        gridOptions=gridOptions,
+        fit_columns_on_grid_load=False,  # IMPORTANT FIX
+        theme="streamlit",
+        allow_unsafe_jscode=True
     )
 
-else:
-    st.warning("No Daily Data")
+# =========================================================
+# DISPLAY
+# =========================================================
 
-# ---------------- WEEKLY ----------------
-
-st.subheader("📦 Weekly Items Stock")
-
-if not weekly_df.empty:
-
-    gb = GridOptionsBuilder.from_dataframe(weekly_df)
-
-    gb.configure_columns(
-        ["Item Name", "SKU", "UOM"],
-        pinned="left"
-    )
-
-    gb.configure_default_column(
-        resizable=True,
-        sortable=True,
-        filter=True
-    )
-
-    AgGrid(
-        weekly_df,
-        gridOptions=gb.build(),
-        fit_columns_on_grid_load=True
-    )
-
-else:
-    st.warning("No Weekly Data")
+render_grid(daily_df, "📦 Daily Items Stock")
+render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
 # DOWNLOAD
