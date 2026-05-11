@@ -30,7 +30,7 @@ def show_api_error_screen():
             <h2 style="color:#ff4b4b;">Please try again after 2–3 minutes Redirecting back to dashboard... </h2>
             
            
-            <p></p>
+            
         </div>
         """,
         unsafe_allow_html=True
