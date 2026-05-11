@@ -6,8 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
+from gspread.exceptions import APIError
 import time
 
 # =========================================================
@@ -18,29 +19,22 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# COOLDOWN STATE (NEW)
+# GLOBAL COOLDOWN SYSTEM (ANTI API SPAM)
 # =========================================================
 
-if "api_cooldown" not in st.session_state:
-    st.session_state.api_cooldown = False
+if "last_refresh_time" not in st.session_state:
+    st.session_state.last_refresh_time = 0
 
-if "cooldown_end" not in st.session_state:
-    st.session_state.cooldown_end = 0
+if "data_cache" not in st.session_state:
+    st.session_state.data_cache = None
 
-if "all_data_cache" not in st.session_state:
-    st.session_state.all_data_cache = None
+COOLDOWN_SECONDS = 8  # prevent API spam
 
-# =========================================================
-# COOLDOWN CHECK
-# =========================================================
+def can_refresh():
+    return time.time() - st.session_state.last_refresh_time > COOLDOWN_SECONDS
 
-def cooldown_active():
-    if st.session_state.api_cooldown:
-        if time.time() >= st.session_state.cooldown_end:
-            st.session_state.api_cooldown = False
-            return False
-        return True
-    return False
+def set_refresh_time():
+    st.session_state.last_refresh_time = time.time()
 
 # =========================================================
 # GOOGLE AUTH
@@ -64,6 +58,17 @@ def get_client():
 client = get_client()
 
 # =========================================================
+# SAFE API CALL WRAPPER
+# =========================================================
+
+def safe_api(call_func):
+    try:
+        return call_func()
+    except APIError:
+        st.error("🚨 API limit reached. Please wait 2–3 minutes before retrying.")
+        return None
+
+# =========================================================
 # BRANCHES
 # =========================================================
 
@@ -73,7 +78,7 @@ def load_branches():
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-branches = load_branches()
+branches = safe_api(load_branches) or []
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
@@ -98,51 +103,27 @@ sheet_cache = get_sheets(branches)
 # FETCH
 # =========================================================
 
+@st.cache_data(ttl=600)
+def fetch_sheet_range(sheet_id):
+    try:
+        ws = sheet_cache[sheet_id].worksheet("Stocks")
+        return ws.get("A1:Z500")
+    except:
+        return None
+
 def fetch_branch(branch):
     sid = branch.get("SheetID")
     if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
-
-    try:
-        ws = sheet_cache[sid].worksheet("Stocks")
-        data = ws.get("A1:Z500")
-        return branch["BranchName"], data
-    except:
-        return branch["BranchName"], None
+    return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA (API CONTROLLED)
+# LOAD ALL DATA (CONTROLLED)
 # =========================================================
 
-@st.cache_data(ttl=300)
-def load_all_data(branches):
-    with ThreadPoolExecutor(max_workers=3) as ex:
+def load_all_data():
+    with ThreadPoolExecutor(max_workers=8) as ex:
         return list(ex.map(fetch_branch, branches))
-
-# =========================================================
-# SAFE DATA LOADER
-# =========================================================
-
-def safe_load_data(branches):
-    try:
-        if st.session_state.all_data_cache is None:
-            data = load_all_data(branches)
-            st.session_state.all_data_cache = data
-        else:
-            data = st.session_state.all_data_cache
-
-        return data
-
-    except Exception:
-        st.session_state.api_cooldown = True
-        st.session_state.cooldown_end = time.time() + 180
-        return st.session_state.all_data_cache
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
-all_data = safe_load_data(branches)
 
 # =========================================================
 # DATE
@@ -152,35 +133,52 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (ONLY CHANGE HERE)
+# BUTTONS (CONTROLLED)
 # =========================================================
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.button("📅 Refresh Date Only")
+
+    refresh_clicked = st.button(
+        "🔄 Refresh Data (API CALL)",
+        disabled=not can_refresh()
+    )
 
 with col2:
-
-    cooling = cooldown_active()
-
-    if cooling:
-        remaining = int(st.session_state.cooldown_end - time.time())
-        st.button(f"⛔ Refresh Cooling Down ({remaining}s)", disabled=True)
-
-    else:
-        if st.button("🔄 Refresh Data (Force API)"):
-
-            try:
-                st.session_state.all_data_cache = None
-                st.rerun()
-
-            except Exception:
-                st.session_state.api_cooldown = True
-                st.session_state.cooldown_end = time.time() + 180
+    if st.button("🔙 Back"):
+        st.switch_page("app.py")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED)
+# AUTO LOAD LOGIC (CACHE FIRST)
+# =========================================================
+
+def get_data():
+
+    # use cache if exists and no forced refresh
+    if st.session_state.data_cache is not None and not refresh_clicked:
+        return st.session_state.data_cache
+
+    # block spam refresh
+    if refresh_clicked and not can_refresh():
+        st.warning("⏳ Please wait a few seconds before refreshing again.")
+        return st.session_state.data_cache
+
+    if refresh_clicked:
+        set_refresh_time()
+
+    data = safe_api(load_all_data)
+
+    if data is None:
+        return st.session_state.data_cache
+
+    st.session_state.data_cache = data
+    return data
+
+all_data = get_data()
+
+# =========================================================
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -205,9 +203,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         current_section = None
 
         for row in raw:
-
-            if not row:
-                continue
 
             text = " ".join([str(x) for x in row]).lower()
 
@@ -239,7 +234,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "SKU": sku,
                     "UOM": uom
                 }
-
                 for bn in branch_names:
                     target[key][bn] = 0
 
@@ -265,7 +259,6 @@ def build_df(data_dict):
     rows = []
 
     for _, v in data_dict.items():
-
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
@@ -283,7 +276,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# WIDTH
 # =========================================================
 
 def get_width(series, min_width):
@@ -294,6 +287,9 @@ def get_width(series, min_width):
     except:
         return min_width
 
+# =========================================================
+# GRID
+# =========================================================
 
 def render_grid(df, title):
 
@@ -315,14 +311,19 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
-
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        fit_columns_on_grid_load=False,
+        key=title
+    )
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL DOWNLOAD
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -332,20 +333,23 @@ def create_excel(daily_df, weekly_df):
     ws = wb.active
     ws.title = "Stock"
 
-    def write(df, start):
-        rows = list(dataframe_to_rows(df, index=False, header=True))
-        for r_i, row in enumerate(rows):
-            for c_i, v in enumerate(row, 1):
-                ws.cell(row=start + r_i, column=c_i, value=v)
-        return start + len(rows) + 2
+    def write(df, title, start):
 
-    next_row = write(daily_df, 1)
-    write(weekly_df, next_row)
+        rows = list(dataframe_to_rows(df, index=False, header=True))
+        ws.cell(row=start, column=1, value=title).font = Font(bold=True)
+
+        for r_i, row in enumerate(rows):
+            for c_i, val in enumerate(row, 1):
+                ws.cell(row=start + 2 + r_i, column=c_i, value=val)
+
+        return start + len(rows) + 4
+
+    next_row = write(daily_df, "DAILY STOCK", 1)
+    write(weekly_df, "WEEKLY STOCK", next_row)
 
     wb.save(output)
     output.seek(0)
     return output
-
 
 excel_file = create_excel(daily_df, weekly_df)
 
