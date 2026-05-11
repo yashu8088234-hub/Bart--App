@@ -84,7 +84,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -214,7 +214,15 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (MIN WIDTH FIXED PROPERLY)
+# 🧠 SMART AUTO WIDTH FUNCTION
+# =========================================================
+
+def get_width(series, min_width):
+    max_len = series.astype(str).map(len).max()
+    return max(min_width, max_len * 8 + 25)
+
+# =========================================================
+# AGGRID RENDER (SMART WIDTH)
 # =========================================================
 
 def render_grid(df, title):
@@ -227,15 +235,35 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # FIRST 3 COLUMNS
-    gb.configure_column("Item Name", pinned="left", minWidth=160)
-    gb.configure_column("SKU", pinned="left", minWidth=50)
-    gb.configure_column("UOM", pinned="left", minWidth=50)
+    # FIRST 3 COLUMNS (PINNED + SMART WIDTH)
+    if "Item Name" in df.columns:
+        gb.configure_column(
+            "Item Name",
+            pinned="left",
+            minWidth=get_width(df["Item Name"], 160)
+        )
 
-    # BRANCH COLUMNS
+    if "SKU" in df.columns:
+        gb.configure_column(
+            "SKU",
+            pinned="left",
+            minWidth=get_width(df["SKU"], 50)
+        )
+
+    if "UOM" in df.columns:
+        gb.configure_column(
+            "UOM",
+            pinned="left",
+            minWidth=get_width(df["UOM"], 50)
+        )
+
+    # BRANCH COLUMNS (SMART WIDTH)
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(col, minWidth=80)
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 80)
+            )
 
     gb.configure_default_column(
         resizable=True,
