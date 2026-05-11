@@ -27,7 +27,7 @@ def show_api_error():
     st.stop()
     time.sleep(2)
     
-    st.rerun()
+    
 
 # =========================================================
 # GOOGLE AUTH
@@ -202,7 +202,7 @@ with col2:
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                time.sleep(1)
+                time.sleep(5)
 
                 st.rerun()
 
