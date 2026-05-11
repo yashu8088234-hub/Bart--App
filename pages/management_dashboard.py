@@ -101,11 +101,8 @@ all_data = load_all_data(branches)
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-
-
-
 # =========================================================
-# 🔄 REFRESH + 🤖 AI + 🔙 BACK
+# 🔄 REFRESH + BACK
 # =========================================================
 
 col1, col2 = st.columns(2)
@@ -116,92 +113,11 @@ with col1:
         st.rerun()
 
 with col2:
-    # 🤖 AI TOGGLE BUTTON
-    if st.button("🤖 AI Assistant"):
-        st.session_state.ai_open = not st.session_state.ai_open
-        st.rerun()
-
-    # 🔙 BACK BUTTON (UNDER AI BUTTON)
-    if st.button("🔙 Back to Home"):
+    if st.button("🔙 Back"):
         st.switch_page("app.py")
 
 # =========================================================
-# 🤖 AI STATE
-# =========================================================
-
-if "ai_open" not in st.session_state:
-    st.session_state.ai_open = False
-
-# =========================================================
-# 🤖 AI PANEL (SAFE WRAPPER - NO LOGIC CHANGE)
-# =========================================================
-
-if st.session_state.ai_open:
-
-    st.markdown("## 🤖 Stock AI Assistant")
-
-    # combine both datasets
-    combined = {}
-    combined.update(daily_items)
-    combined.update(weekly_items)
-
-    if not combined:
-        st.warning("No stock data available for AI.")
-    else:
-
-        user_input = st.text_input("Ask about stock...", key="ai_input")
-
-        col1, col2 = st.columns(2)
-
-        send = col1.button("Send")
-        clear = col2.button("Clear Chat")
-
-        if "chat" not in st.session_state:
-            st.session_state.chat = []
-
-        if clear:
-            st.session_state.chat = []
-            st.rerun()
-
-        def find_best_item(user_input, items_dict):
-            from difflib import get_close_matches
-
-            keys = list(items_dict.keys())
-
-            for k in keys:
-                if user_input.lower() in k.lower():
-                    return k
-
-            match = get_close_matches(user_input, keys, n=1, cutoff=0.5)
-            return match[0] if match else None
-
-        if send and user_input.strip():
-
-            matched = find_best_item(user_input, combined)
-
-            context = {
-                "cache_data": all_data,
-                "branch_list": branch_names,
-                "master_items": list(combined.keys())
-            }
-
-            if not matched:
-                response = "❌ Item not found in stock database."
-            else:
-                with st.spinner("Analyzing stock... 🤖"):
-                    response = run_ai(user_input, context)
-
-            st.session_state.chat.append(("You", user_input))
-            st.session_state.chat.append(("AI", response))
-
-            st.rerun()
-
-        # chat display
-        for role, msg in st.session_state.chat:
-            st.write(f"**{role}:** {msg}")
-
-# =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -313,7 +229,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🧠 SAFE AUTO WIDTH FUNCTION (FIXED CRASH)
+# WIDTH FUNCTION
 # =========================================================
 
 def get_width(series, min_width):
@@ -347,7 +263,6 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # FIRST 3 COLUMNS
     gb.configure_column(
         "Item Name",
         pinned="left",
@@ -366,13 +281,9 @@ def render_grid(df, title):
         minWidth=get_width(df["UOM"], 40)
     )
 
-    # BRANCH COLUMNS
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(
-                col,
-                minWidth=get_width(df[col], 120)
-            )
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(
         resizable=True,
