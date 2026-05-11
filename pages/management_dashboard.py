@@ -34,7 +34,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# LOAD BRANCHES
+# BRANCH LIST
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -92,20 +92,21 @@ def load_all_data(branches):
 all_data = load_all_data(branches)
 
 # =========================================================
-# DATE SELECT
+# DATE INPUT
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (FIXED FOR YOUR SHEET)
+# PROCESS STOCK (DAILY + WEEKLY LOGIC PRESERVED)
 # =========================================================
 
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
-    stock_data = {}
+    daily = {}
+    weekly = {}
 
     for branch_name, raw in all_data:
 
@@ -121,19 +122,28 @@ def process_stock(all_data, selected_date_str, branch_names):
                 date_index = i
                 break
 
-        # PROCESS ROWS
-        for row in raw[1:]:
+        current_section = None
+
+        for row in raw:
 
             if not row:
                 continue
 
-            # skip headers inside sheet
-            if "daily item" in " ".join(row).lower():
-                continue
-            if "weekly item" in " ".join(row).lower():
+            text = " ".join(row).lower()
+
+            # KEEP ORIGINAL LOGIC
+            if "daily item" in text:
+                current_section = "daily"
                 continue
 
-            # FIRST 3 FIXED COLUMNS
+            if "weekly item" in text:
+                current_section = "weekly"
+                continue
+
+            if current_section is None:
+                continue
+
+            # FIRST 3 COLUMNS FIXED
             item = row[0].strip() if len(row) > 0 else ""
             sku = row[1].strip() if len(row) > 1 else ""
             uom = row[2].strip() if len(row) > 2 else ""
@@ -143,17 +153,20 @@ def process_stock(all_data, selected_date_str, branch_names):
 
             key = f"{item}_{sku}_{uom}"
 
-            if key not in stock_data:
+            target = daily if current_section == "daily" else weekly
 
-                stock_data[key] = {
+            if key not in target:
+
+                target[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
 
                 for bn in branch_names:
-                    stock_data[key][bn] = 0
+                    target[key][bn] = 0
 
+            # VALUE FROM DATE COLUMN
             qty = 0
 
             try:
@@ -162,27 +175,28 @@ def process_stock(all_data, selected_date_str, branch_names):
             except:
                 qty = 0
 
-            stock_data[key][branch_name] = qty
+            target[key][branch_name] = qty
 
-    return stock_data
+    return daily, weekly
 
 # =========================================================
 # RUN PROCESS
 # =========================================================
 
-stock_data = process_stock(
+daily_items, weekly_items = process_stock(
     all_data,
     selected_date_str,
     branch_names
 )
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (FIRST 3 FIXED COLUMNS)
 # =========================================================
 
-rows = []
+# DAILY
+daily_rows = []
 
-for i, (_, v) in enumerate(stock_data.items()):
+for i, (_, v) in enumerate(daily_items.items()):
 
     row = {
         "Sl No": i + 1,
@@ -194,25 +208,53 @@ for i, (_, v) in enumerate(stock_data.items()):
     for b in branch_names:
         row[b] = v.get(b, 0)
 
-    rows.append(row)
+    daily_rows.append(row)
 
-df = pd.DataFrame(rows)
+daily_df = pd.DataFrame(daily_rows)
+
+# WEEKLY
+weekly_rows = []
+
+for i, (_, v) in enumerate(weekly_items.items()):
+
+    row = {
+        "Sl No": i + 1,
+        "Item Name": v["Item Name"],
+        "SKU": v["SKU"],
+        "UOM": v["UOM"]
+    }
+
+    for b in branch_names:
+        row[b] = v.get(b, 0)
+
+    weekly_rows.append(row)
+
+weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
 # DISPLAY
 # =========================================================
 
-st.subheader("📦 Stock Report")
+st.subheader("📦 Daily Items Stock")
+st.dataframe(daily_df, use_container_width=True)
 
-st.dataframe(df, use_container_width=True)
+st.subheader("📦 Weekly Items Stock")
+st.dataframe(weekly_df, use_container_width=True)
 
 # =========================================================
 # DOWNLOAD
 # =========================================================
 
 st.download_button(
-    "📥 Download CSV",
-    df.to_csv(index=False),
-    file_name="stock_report.csv",
+    "📥 Download Daily CSV",
+    daily_df.to_csv(index=False),
+    file_name="daily_stock.csv",
+    mime="text/csv"
+)
+
+st.download_button(
+    "📥 Download Weekly CSV",
+    weekly_df.to_csv(index=False),
+    file_name="weekly_stock.csv",
     mime="text/csv"
 )
