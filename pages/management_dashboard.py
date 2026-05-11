@@ -2,13 +2,13 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
+import time
 
 # =========================================================
 # PAGE CONFIG
@@ -52,7 +52,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET FETCH (OPTIMIZED)
+# SAFE SHEET ACCESS (CACHE FIX)
 # =========================================================
 
 @st.cache_resource
@@ -62,30 +62,59 @@ def get_sheet(sheet_id):
     except:
         return None
 
-@st.cache_data(ttl=600)
-def fetch_sheet_range(sheet_id, date_key):
+@st.cache_resource
+def get_worksheet(sheet_id):
     try:
         sheet = get_sheet(sheet_id)
         if not sheet:
             return None
-        ws = sheet.worksheet("Stocks")
-        return ws.get("A1:Z500")
+        return sheet.worksheet("Stocks")
     except:
         return None
+
+# =========================================================
+# SAFE FETCH WITH RETRY (🔥 FIX FOR API ERRORS)
+# =========================================================
+
+@st.cache_data(ttl=600)
+def fetch_sheet_range(sheet_id, date_key):
+
+    ws = get_worksheet(sheet_id)
+    if not ws:
+        return None
+
+    for attempt in range(3):
+        try:
+            return ws.get("A1:Z500")
+
+        except Exception:
+            time.sleep(1.5 * (attempt + 1))
+
+    return None
+
+# =========================================================
+# SEQUENTIAL FETCH (🔥 REMOVED THREADPOOL ISSUE)
+# =========================================================
 
 def fetch_branch(branch, date_key):
     sid = branch.get("SheetID")
     if not sid:
         return branch["BranchName"], None
+
     return branch["BranchName"], fetch_sheet_range(sid, date_key)
 
 @st.cache_data(ttl=300)
 def load_all_data(branches, date_key):
+
     results = []
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        futures = [ex.submit(fetch_branch, b, date_key) for b in branches]
-        for f in futures:
-            results.append(f.result())
+
+    # 🔥 FIX: NO THREADPOOL (prevents API spikes)
+    for b in branches:
+        try:
+            results.append(fetch_branch(b, date_key))
+        except:
+            continue
+
     return results
 
 # =========================================================
@@ -110,13 +139,13 @@ with col1:
         st.switch_page("app.py")
 
 # =========================================================
-# LOAD
+# LOAD DATA
 # =========================================================
 
 all_data = load_all_data(branches, selected_date_str)
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED)
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -194,7 +223,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME (🔥 FIXED: NEVER EMPTY ISSUE)
+# DATAFRAME (🔥 SAFE EMPTY FIX)
 # =========================================================
 
 def build_df(data_dict):
@@ -216,33 +245,15 @@ def build_df(data_dict):
 
     df = pd.DataFrame(rows)
 
-    # =========================
-    # 🔥 FIX: ALWAYS VALID DF
-    # =========================
+    # 🔥 FIX: NEVER EMPTY (prevents Excel crash)
     if df.empty:
         df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
         df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
 
-    df = df.fillna(0)
-
-    return df
+    return df.fillna(0)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
-
-# =========================================================
-# WIDTH FUNCTION
-# =========================================================
-
-def get_width(series, min_width):
-    try:
-        series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-        if pd.isna(max_len):
-            return min_width
-        return max(min_width, int(max_len * 5 + 25))
-    except:
-        return min_width
 
 # =========================================================
 # GRID
@@ -254,23 +265,23 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left", minWidth=get_width(df["Item Name"], 90))
-    gb.configure_column("SKU", pinned="left", minWidth=get_width(df["SKU"], 40))
-    gb.configure_column("UOM", pinned="left", minWidth=get_width(df["UOM"], 40))
+    gb.configure_column("Item Name", pinned="left")
+    gb.configure_column("SKU", pinned="left")
+    gb.configure_column("UOM", pinned="left")
 
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
+            gb.configure_column(col)
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit", fit_columns_on_grid_load=False)
+    AgGrid(df, gridOptions=gb.build(), theme="streamlit")
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (🔥 FIXED CRASH HERE)
+# EXCEL EXPORT (SAFE VERSION)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -282,79 +293,50 @@ def create_excel(daily_df, weekly_df):
 
     header_font = Font(bold=True)
     section_font = Font(bold=True, size=14)
-    align_center = Alignment(horizontal="center", vertical="center")
-    zebra_fill = PatternFill("solid", fgColor="F5F5F5")
+    align_center = Alignment(horizontal="center")
+    zebra = PatternFill("solid", fgColor="F5F5F5")
 
     def write_section(title, df, start_row):
 
-        # =========================
-        # 🔥 FIX: SAFETY FALLBACK
-        # =========================
         if df is None or df.empty:
             df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
             df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
 
         rows = list(dataframe_to_rows(df, index=False, header=True))
 
-        if not rows or len(rows[0]) == 0:
-            return start_row + 1
-
         total_cols = max(1, len(rows[0]))
 
-        # Title
         ws.merge_cells(start_row=start_row, start_column=1,
                        end_row=start_row, end_column=total_cols)
+
         ws.cell(row=start_row, column=1, value=title).font = section_font
 
-        row_idx = start_row + 2
+        header_row = start_row + 2
 
-        # Headers grouping
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=min(3, total_cols))
-
-        if total_cols > 3:
-            ws.merge_cells(start_row=row_idx, start_column=4, end_row=row_idx, end_column=total_cols)
-
-        header_row = row_idx + 1
-
-        for col_idx, value in enumerate(rows[0], 1):
-            cell = ws.cell(row=header_row, column=col_idx, value=value)
+        for i, val in enumerate(rows[0], 1):
+            cell = ws.cell(row=header_row, column=i, value=val)
             cell.font = header_font
-            cell.alignment = align_center
-
-        ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
 
         data_start = header_row + 1
 
-        for i, row in enumerate(rows[1:]):
-            for j, value in enumerate(row, 1):
-                c = ws.cell(row=data_start + i, column=j, value=value)
-                c.alignment = align_center
-                if i % 2 == 1:
-                    c.fill = zebra_fill
+        for r_i, row in enumerate(rows[1:]):
+            for c_i, val in enumerate(row, 1):
+                cell = ws.cell(row=data_start + r_i, column=c_i, value=val)
+                if r_i % 2 == 1:
+                    cell.fill = zebra
 
-        total_row = data_start + len(rows[1:])
-        ws.cell(row=total_row, column=1, value="TOTAL").font = header_font
+        return data_start + len(rows[1:]) + 2
 
-        for col in range(4, total_cols + 1):
-            col_letter = ws.cell(row=header_row, column=col).column_letter
-            ws.cell(row=total_row, column=col,
-                    value=f"=SUM({col_letter}{data_start}:{col_letter}{total_row-1})")
+    next_row = write_section("DAILY STOCK", daily_df, 1)
+    write_section("WEEKLY STOCK", weekly_df, next_row)
 
-        return total_row + 3
-
-    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
-    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
-
-    for col_idx in range(1, ws.max_column + 1):
-        max_len = 0
-        col_letter = get_column_letter(col_idx)
-
-        for row in range(1, ws.max_row + 1):
-            cell = ws.cell(row=row, column=col_idx)
-            if cell.value:
-                max_len = max(max_len, len(str(cell.value)))
-
-        ws.column_dimensions[col_letter].width = max_len + 3
+    for col in range(1, ws.max_column + 1):
+        col_letter = get_column_letter(col)
+        max_len = max(
+            (len(str(ws.cell(row=r, column=col).value or "")) for r in range(1, ws.max_row + 1)),
+            default=10
+        )
+        ws.column_dimensions[col_letter].width = max_len + 2
 
     wb.save(output)
     output.seek(0)
