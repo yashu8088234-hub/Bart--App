@@ -102,7 +102,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (MOVED UP — FIX FOR AI)
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -178,7 +178,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
-# RUN STOCK FIRST (IMPORTANT FIX)
+# RUN STOCK
 # =========================================================
 
 daily_items, weekly_items = process_stock(
@@ -207,20 +207,20 @@ with col2:
         st.switch_page("app.py")
 
 # =========================================================
-# 🤖 AI PANEL
+# 🤖 AI PANEL (ONLY FIXED PART)
 # =========================================================
 
 if st.session_state.get("ai_open", False):
 
     st.markdown("## 🤖 Stock AI Assistant")
 
-    # SAFE COMBINE
+    # ✅ ONLY CHANGE (FIX FOR NAMEERROR)
     combined = {}
 
-    if "daily_items" in locals():
+    if "daily_items" in globals():
         combined.update(daily_items)
 
-    if "weekly_items" in locals():
+    if "weekly_items" in globals():
         combined.update(weekly_items)
 
     if not combined:
