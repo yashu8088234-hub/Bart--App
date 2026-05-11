@@ -177,7 +177,7 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS (IMPORTANT) ----------------
+# ---------------- PIN FIRST 3 COLUMNS ----------------
 st.markdown("""
 <style>
 div[data-testid="stDataFrame"] thead th:nth-child(1),
@@ -271,14 +271,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
             data = ws.get_all_values()
 
             headers = data[0]
-            date_columns = headers[1:]
+            rows = data[1:]
 
             daily = []
             weekly = []
 
             current_section = None
 
-            for row in data:
+            for row in rows:
 
                 row_text = " ".join(row).strip().lower()
 
@@ -293,31 +293,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if current_section is None:
                     continue
 
-                if not row or not row[0]:
-                    continue
-
-                item = row[0].strip()
-
-                values = row[1:]
-                values += [""] * (len(date_columns) - len(values))
-
-                cleaned = []
-                total = 0
-
-                for v in values:
-                    try:
-                        num = float(v) if v != "" else 0
-                    except:
-                        num = 0
-                    cleaned.append(num)
-                    total += num
-
-                row_dict = {"Item": item}
-
-                for i, col in enumerate(date_columns):
-                    row_dict[col] = cleaned[i]
-
-                row_dict["Total"] = total
+                # ❗ FIX: raw sheet structure preserved
+                row = row + [""] * (len(headers) - len(row))
+                row_dict = dict(zip(headers, row))
 
                 if current_section == "daily":
                     daily.append(row_dict)
