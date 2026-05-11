@@ -26,7 +26,7 @@ def show_api_error():
     st.error("🚨 Server Busy / API Limit Reached")
     st.warning("Please try again after 2-3 minutes")
     time.sleep(3)
-    st.switch_page("app.py")
+    
     st.stop()
 
 # =========================================================
@@ -149,6 +149,7 @@ remaining = REFRESH_COOLDOWN - (
 )
 
 can_force_refresh = remaining <= 0
+st.switch_page("management_dashboard.py")
 
 # =========================================================
 # DATE
