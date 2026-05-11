@@ -8,6 +8,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
 
 # =========================================================
 # PAGE CONFIG
@@ -38,10 +39,10 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES (LESS FREQUENT REFRESH)
+# BRANCHES
 # =========================================================
 
-@st.cache_data(ttl=21600)  # 6 hours
+@st.cache_data(ttl=21600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -51,7 +52,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET ACCESS (FIXED: PER SHEET CACHE, NO GLOBAL DICT)
+# SHEET FETCH (OPTIMIZED)
 # =========================================================
 
 @st.cache_resource
@@ -60,10 +61,6 @@ def get_sheet(sheet_id):
         return client.open_by_key(sheet_id)
     except:
         return None
-
-# =========================================================
-# FAST FETCH (CACHE PER SHEET + DATE)
-# =========================================================
 
 @st.cache_data(ttl=600)
 def fetch_sheet_range(sheet_id, date_key):
@@ -80,34 +77,26 @@ def fetch_branch(branch, date_key):
     sid = branch.get("SheetID")
     if not sid:
         return branch["BranchName"], None
-
     return branch["BranchName"], fetch_sheet_range(sid, date_key)
-
-# =========================================================
-# LOAD DATA (REDUCED THREAD LOAD)
-# =========================================================
 
 @st.cache_data(ttl=300)
 def load_all_data(branches, date_key):
     results = []
-
-    # safer than heavy thread pool for Google API
     with ThreadPoolExecutor(max_workers=3) as ex:
         futures = [ex.submit(fetch_branch, b, date_key) for b in branches]
         for f in futures:
             results.append(f.result())
-
     return results
 
 # =========================================================
-# DATE INPUT
+# DATE
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (SAFE RERUN CONTROL)
+# BUTTONS
 # =========================================================
 
 col1 = st.columns(1)[0]
@@ -121,13 +110,13 @@ with col1:
         st.switch_page("app.py")
 
 # =========================================================
-# SNAPSHOT (IMPORTANT: STOPS FULL REFETCH ON UI CHANGES)
+# LOAD
 # =========================================================
 
 all_data = load_all_data(branches, selected_date_str)
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC)
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -202,14 +191,10 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
-daily_items, weekly_items = process_stock(
-    all_data,
-    selected_date_str,
-    branch_names
-)
+daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (🔥 FIXED: NEVER EMPTY ISSUE)
 # =========================================================
 
 def build_df(data_dict):
@@ -229,41 +214,43 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+
+    # =========================
+    # 🔥 FIX: ALWAYS VALID DF
+    # =========================
+    if df.empty:
+        df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
+        df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
+
+    df = df.fillna(0)
+
+    return df
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# WIDTH FUNCTION (UNCHANGED)
+# WIDTH FUNCTION
 # =========================================================
 
 def get_width(series, min_width):
-
     try:
         series = series.fillna("").astype(str)
         max_len = series.map(len).max()
-
-        if pd.isna(max_len) or max_len is None:
+        if pd.isna(max_len):
             return min_width
-
-        width = int(max_len * 5 + 25)
-        return max(width, min_width)
-
+        return max(min_width, int(max_len * 5 + 25))
     except:
         return min_width
 
 # =========================================================
-# AGGRID (UNCHANGED)
+# GRID
 # =========================================================
 
 def render_grid(df, title):
 
     st.subheader(title)
-
-    if df is None or df.empty:
-        st.warning("No Data")
-        return
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
@@ -279,15 +266,11 @@ def render_grid(df, title):
 
     AgGrid(df, gridOptions=gb.build(), theme="streamlit", fit_columns_on_grid_load=False)
 
-# =========================================================
-# DISPLAY
-# =========================================================
-
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT (🔥 FIXED CRASH HERE)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -297,29 +280,39 @@ def create_excel(daily_df, weekly_df):
     ws = wb.active
     ws.title = "Stock Dashboard"
 
-    header_font = Font(bold=True, color="000000")
+    header_font = Font(bold=True)
     section_font = Font(bold=True, size=14)
     align_center = Alignment(horizontal="center", vertical="center")
     zebra_fill = PatternFill("solid", fgColor="F5F5F5")
 
     def write_section(title, df, start_row):
 
-        rows = list(dataframe_to_rows(df, index=False, header=True))
-        total_cols = len(rows[0])
+        # =========================
+        # 🔥 FIX: SAFETY FALLBACK
+        # =========================
+        if df is None or df.empty:
+            df = pd.DataFrame(columns=["Item Name", "SKU", "UOM"] + branch_names)
+            df.loc[0] = ["NO DATA", "", ""] + [0] * len(branch_names)
 
+        rows = list(dataframe_to_rows(df, index=False, header=True))
+
+        if not rows or len(rows[0]) == 0:
+            return start_row + 1
+
+        total_cols = max(1, len(rows[0]))
+
+        # Title
         ws.merge_cells(start_row=start_row, start_column=1,
                        end_row=start_row, end_column=total_cols)
-
         ws.cell(row=start_row, column=1, value=title).font = section_font
-        ws.cell(row=start_row, column=1).alignment = align_center
 
         row_idx = start_row + 2
 
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=3)
-        ws.cell(row=row_idx, column=1, value="Item Info").font = header_font
+        # Headers grouping
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=min(3, total_cols))
 
-        ws.merge_cells(start_row=row_idx, start_column=4, end_row=row_idx, end_column=total_cols)
-        ws.cell(row=row_idx, column=4, value="Branch Stocks").font = header_font
+        if total_cols > 3:
+            ws.merge_cells(start_row=row_idx, start_column=4, end_row=row_idx, end_column=total_cols)
 
         header_row = row_idx + 1
 
@@ -332,11 +325,10 @@ def create_excel(daily_df, weekly_df):
 
         data_start = header_row + 1
 
-        for i, row in enumerate(rows[1:], start=0):
+        for i, row in enumerate(rows[1:]):
             for j, value in enumerate(row, 1):
                 c = ws.cell(row=data_start + i, column=j, value=value)
                 c.alignment = align_center
-
                 if i % 2 == 1:
                     c.fill = zebra_fill
 
@@ -352,8 +344,6 @@ def create_excel(daily_df, weekly_df):
 
     next_row = write_section("📦 DAILY STOCK", daily_df, 1)
     write_section("📦 WEEKLY STOCK", weekly_df, next_row)
-
-    from openpyxl.utils import get_column_letter
 
     for col_idx in range(1, ws.max_column + 1):
         max_len = 0
@@ -373,7 +363,7 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Daily + Weekly Excel)",
+    "📥 Download Stock Report",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
