@@ -8,10 +8,35 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
-import os
-import json
-import hashlib
-from datetime import datetime, timedelta
+from gspread.exceptions import APIError
+import time
+
+# =========================================================
+# GLOBAL ERROR SCREEN (ADDED ONLY)
+# =========================================================
+
+def show_api_error_screen():
+    st.markdown(
+        """
+        <div style="
+            padding:50px;
+            text-align:center;
+            background:#111;
+            border-radius:15px;
+            color:white;
+            margin-top:60px;
+        ">
+            <h1 style="color:#ff4b4b;">🚨 Server Busy / API Limit Reached</h1>
+            <h3>Please try again after 2–3 minutes</h3>
+            <p>Redirecting back to dashboard...</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    time.sleep(3)
+    st.switch_page("app.py")
+    st.stop()
 
 # =========================================================
 # PAGE CONFIG
@@ -19,47 +44,6 @@ from datetime import datetime, timedelta
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
-
-# =========================================================
-# SMART CACHE ENGINE (ADDED ONLY)
-# =========================================================
-
-CACHE_DIR = "sheet_cache"
-CACHE_TTL_MINUTES = 15
-
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-def get_cache_key(branch):
-    sid = branch.get("SheetID", "")
-    return hashlib.md5(sid.encode()).hexdigest()
-
-def save_cache(key, data):
-    path = os.path.join(CACHE_DIR, f"{key}.json")
-    payload = {
-        "time": datetime.now().isoformat(),
-        "data": data
-    }
-    with open(path, "w") as f:
-        json.dump(payload, f)
-
-def load_cache(key):
-    path = os.path.join(CACHE_DIR, f"{key}.json")
-    if not os.path.exists(path):
-        return None
-
-    try:
-        with open(path, "r") as f:
-            payload = json.load(f)
-
-        saved_time = datetime.fromisoformat(payload["time"])
-
-        if datetime.now() - saved_time > timedelta(minutes=CACHE_TTL_MINUTES):
-            return None
-
-        return payload["data"]
-
-    except:
-        return None
 
 # =========================================================
 # GOOGLE AUTH
@@ -83,7 +67,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES
+# BRANCHES (SAFE WRAP ADDED)
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -92,11 +76,15 @@ def load_branches():
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-branches = load_branches()
+try:
+    branches = load_branches()
+except APIError:
+    show_api_error_screen()
+
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE
+# SHEET CACHE (SAFE WRAP)
 # =========================================================
 
 @st.cache_resource
@@ -111,50 +99,43 @@ def get_sheets(branches):
                 pass
     return cache
 
-sheet_cache = get_sheets(branches)
+try:
+    sheet_cache = get_sheets(branches)
+except APIError:
+    show_api_error_screen()
 
 # =========================================================
-# FETCH (ZERO API LIMIT VERSION)
+# FAST FETCH
 # =========================================================
 
 @st.cache_data(ttl=600)
 def fetch_sheet_range(sheet_id):
     try:
         ws = sheet_cache[sheet_id].worksheet("Stocks")
-        return ws.get("A1:ZZ500")
+        return ws.get("A1:Z500")
     except:
         return None
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
-    branch_name = branch["BranchName"]
-
     if not sid or sid not in sheet_cache:
-        return branch_name, None
+        return branch["BranchName"], None
 
-    key = get_cache_key(branch)
+    return branch["BranchName"], fetch_sheet_range(sid)
 
-    # 1. CHECK DISK CACHE FIRST
-    cached = load_cache(key)
-    if cached is not None:
-        return branch_name, cached
-
-    # 2. API CALL ONLY IF NOT CACHED
-    try:
-        ws = sheet_cache[sid].worksheet("Stocks")
-        data = ws.get("A1:ZZ500")
-
-        save_cache(key, data)
-
-        return branch_name, data
-
-    except:
-        return branch_name, load_cache(key)
+# =========================================================
+# LOAD DATA (SAFE WRAP)
+# =========================================================
 
 @st.cache_data(ttl=300)
 def load_all_data(branches):
     with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
+
+try:
+    all_data = load_all_data(branches)
+except APIError:
+    show_api_error_screen()
 
 # =========================================================
 # DATE
@@ -170,10 +151,7 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🔄 Refresh Data (Force API)"):
-        import shutil
-        shutil.rmtree(CACHE_DIR, ignore_errors=True)
-        os.makedirs(CACHE_DIR, exist_ok=True)
+    if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
         st.rerun()
 
@@ -182,13 +160,7 @@ with col2:
         st.switch_page("app.py")
 
 # =========================================================
-# LOAD DATA
-# =========================================================
-
-all_data = load_all_data(branches)
-
-# =========================================================
-# PROCESS STOCK (UNCHANGED)
+# PROCESS STOCK (UNCHANGED LOGIC)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -204,10 +176,11 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         headers = [str(h).strip() for h in raw[0]]
 
-        try:
-            date_index = headers.index(selected_date_str)
-        except:
-            date_index = None
+        date_index = None
+        for i, h in enumerate(headers):
+            if h == selected_date_str:
+                date_index = i
+                break
 
         current_section = None
 
@@ -250,13 +223,12 @@ def process_stock(all_data, selected_date_str, branch_names):
                 for bn in branch_names:
                     target[key][bn] = 0
 
-            qty = 0.0
+            qty = 0
             try:
                 if date_index is not None and len(row) > date_index:
-                    val = row[date_index]
-                    qty = float(val) if val not in [None, ""] else 0.0
+                    qty = float(row[date_index] or 0)
             except:
-                qty = 0.0
+                qty = 0
 
             target[key][branch_name] = qty
 
@@ -265,7 +237,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME (UNCHANGED)
+# DATAFRAME
 # =========================================================
 
 def build_df(data_dict):
@@ -295,18 +267,15 @@ weekly_df = build_df(weekly_items)
 # =========================================================
 
 def get_width(series, min_width):
-
     try:
         series = series.fillna("").astype(str)
         max_len = series.map(len).max()
-        if pd.isna(max_len):
-            return min_width
         return max(int(max_len * 5 + 25), min_width)
     except:
         return min_width
 
 # =========================================================
-# AGGRID (UNCHANGED)
+# AGGRID
 # =========================================================
 
 def render_grid(df, title):
@@ -327,11 +296,7 @@ def render_grid(df, title):
         if col in df.columns:
             gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(
-        resizable=True,
-        sortable=True,
-        filter=True
-    )
+    gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(
         df,
@@ -345,7 +310,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL DOWNLOAD (UNCHANGED)
+# EXCEL EXPORT (UNCHANGED)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
@@ -383,7 +348,7 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Daily + Weekly Excel)",
+    "📥 Download Stock Report",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
