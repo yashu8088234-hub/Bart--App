@@ -6,19 +6,17 @@ from pathlib import Path
 import pandas as pd
 import time
 
-# ---------------- PAGE CONFIG ----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- UI ----------------
+# ---------------- STYLE ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
 header {visibility:hidden;}
-[data-testid="stToolbar"] {display:none;}
-[data-testid="stSidebar"] {display:none;}
 
 .block-container {
     padding: 1rem 2rem;
@@ -38,46 +36,39 @@ h1, h2, h3 {
 
 # ---------------- HEADER ----------------
 st.markdown("""
-<div style="
-    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    margin-bottom: 20px;
-">
-<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
-<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
+<div style="background: linear-gradient(90deg,#1f1f2e,#4b6cb7);
+padding:20px;border-radius:12px;text-align:center;margin-bottom:20px;">
+<h1 style='color:white;margin:0;'>BART Staff Dashboard</h1>
+<p style='color:#e0e0e0;margin:0;'>Select Branch & Access Operations</p>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- FILES ----------------
+# ---------------- INIT FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
-
-def init_file():
-    if not FILE_NAME.exists():
-        with open(FILE_NAME, "w") as f:
-            json.dump({"admin": "admin123"}, f)
 
 def load_admin():
     with open(FILE_NAME, "r") as f:
         return json.load(f)
 
-init_file()
+if not FILE_NAME.exists():
+    with open(FILE_NAME, "w") as f:
+        json.dump({"admin": "admin123"}, f)
 
 # ---------------- SESSION ----------------
-defaults = {
-    "stage": "select_branch",
-    "authenticated": False,
-    "selected_branch": "-- Select Branch --",
-    "auth_branch": None,
-    "sheet_id": None,
-    "branch_info": None,
-    "last_activity": None
-}
+if "stage" not in st.session_state:
+    st.session_state.stage = "select_branch"
 
-for k, v in defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "selected_branch" not in st.session_state:
+    st.session_state.selected_branch = "-- Select Branch --"
+
+if "sheet_id" not in st.session_state:
+    st.session_state.sheet_id = None
+
+if "auth_branch" not in st.session_state:
+    st.session_state.auth_branch = None
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -90,7 +81,7 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- BRANCHES (cached) ----------------
+# ---------------- BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -108,7 +99,7 @@ def get_branch_info(name):
         if f"{b['BranchCode']} - {b['BranchName']}" == name
     )
 
-# ---------------- PASSWORDS (CACHED FIX) ----------------
+# ---------------- PASSWORDS ----------------
 @st.cache_data(ttl=300)
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -125,18 +116,19 @@ def load_passwords():
 passwords = load_passwords()
 
 # ---------------- BACK BUTTON ----------------
-def back_button():
-    if st.session_state.stage != "select_branch":
-        if st.button("⬅ Back"):
-            if st.session_state.stage == "login":
-                st.session_state.stage = "select_branch"
-                st.session_state.selected_branch = "-- Select Branch --"
+def back():
+    if st.button("⬅ Back"):
+        if st.session_state.stage == "login":
+            st.session_state.stage = "select_branch"
+            st.session_state.selected_branch = "-- Select Branch --"
+            st.rerun()
 
-            elif st.session_state.stage == "dashboard":
-                st.session_state.stage = "login"
-                st.session_state.authenticated = False
+        elif st.session_state.stage == "dashboard":
+            st.session_state.stage = "login"
+            st.session_state.authenticated = False
+            st.rerun()
 
-# ---------------- STEP 1: SELECT BRANCH ----------------
+# ---------------- STEP 1 ----------------
 if st.session_state.stage == "select_branch":
 
     st.subheader("Select Branch")
@@ -148,12 +140,12 @@ if st.session_state.stage == "select_branch":
             st.session_state.selected_branch = selected
             st.session_state.branch_info = get_branch_info(selected)
             st.session_state.stage = "login"
-            # ❌ NO rerun here (this was causing double reload)
+            st.rerun()   # ✔ needed (fixes “stuck feeling”)
 
-# ---------------- STEP 2: LOGIN ----------------
+# ---------------- STEP 2 ----------------
 elif st.session_state.stage == "login":
 
-    back_button()
+    back()
 
     st.subheader(f"Login: {st.session_state.selected_branch}")
 
@@ -166,18 +158,17 @@ elif st.session_state.stage == "login":
             st.session_state.authenticated = True
             st.session_state.auth_branch = st.session_state.selected_branch
             st.session_state.sheet_id = st.session_state.branch_info["SheetID"]
-            st.session_state.last_activity = time.time()
 
             st.session_state.stage = "dashboard"
-            st.rerun()   # only TRUE navigation uses rerun
+            st.rerun()   # ✔ correct use
 
         else:
             st.error("Incorrect password")
 
-# ---------------- STEP 3: DASHBOARD ----------------
+# ---------------- STEP 3 ----------------
 elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
 
-    back_button()
+    back()
 
     st.success(f"Logged in: {st.session_state.auth_branch}")
 
@@ -189,8 +180,7 @@ elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
     if col2.button("🔄 Change Branch"):
         st.session_state.stage = "select_branch"
         st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.sheet_id = None
+        st.session_state.selected_branch = "-- Select Branch --"
         st.rerun()
 
     if col3.button("🔍 Stock View"):
