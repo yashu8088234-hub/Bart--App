@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- UI (REDUCED FLICKER FIX) ----------------
+# ---------------- UI ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -26,19 +26,8 @@ header {visibility:hidden;}
     margin: auto;
 }
 
-/* smoother transitions */
 .stApp {
     background: linear-gradient(135deg,#eef2f7,#d6e4ff);
-}
-
-/* fade in to reduce “shading glitch” */
-.block-container {
-    animation: fadeIn 0.15s ease-in;
-}
-
-@keyframes fadeIn {
-    from {opacity: 0.6;}
-    to {opacity: 1;}
 }
 
 h1, h2, h3 {
@@ -61,7 +50,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- PASSWORD FILE ----------------
+# ---------------- FILES ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -75,7 +64,7 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION STATE ----------------
+# ---------------- SESSION ----------------
 defaults = {
     "stage": "select_branch",
     "authenticated": False,
@@ -101,7 +90,7 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- BRANCHES ----------------
+# ---------------- BRANCHES (cached) ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -113,7 +102,14 @@ branch_options = ["-- Select Branch --"] + [
     f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data
 ]
 
-# ---------------- PASSWORDS ----------------
+def get_branch_info(name):
+    return next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == name
+    )
+
+# ---------------- PASSWORDS (CACHED FIX) ----------------
+@st.cache_data(ttl=300)
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
@@ -128,14 +124,7 @@ def load_passwords():
 
 passwords = load_passwords()
 
-# ---------------- BRANCH INFO ----------------
-def get_branch_info(name):
-    return next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == name
-    )
-
-# ---------------- BACK BUTTON (GLOBAL) ----------------
+# ---------------- BACK BUTTON ----------------
 def back_button():
     if st.session_state.stage != "select_branch":
         if st.button("⬅ Back"):
@@ -146,8 +135,6 @@ def back_button():
             elif st.session_state.stage == "dashboard":
                 st.session_state.stage = "login"
                 st.session_state.authenticated = False
-
-            st.rerun()
 
 # ---------------- STEP 1: SELECT BRANCH ----------------
 if st.session_state.stage == "select_branch":
@@ -161,7 +148,7 @@ if st.session_state.stage == "select_branch":
             st.session_state.selected_branch = selected
             st.session_state.branch_info = get_branch_info(selected)
             st.session_state.stage = "login"
-            st.rerun()
+            # ❌ NO rerun here (this was causing double reload)
 
 # ---------------- STEP 2: LOGIN ----------------
 elif st.session_state.stage == "login":
@@ -182,7 +169,7 @@ elif st.session_state.stage == "login":
             st.session_state.last_activity = time.time()
 
             st.session_state.stage = "dashboard"
-            st.rerun()
+            st.rerun()   # only TRUE navigation uses rerun
 
         else:
             st.error("Incorrect password")
@@ -216,8 +203,7 @@ elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
         headers = data[0]
         date_columns = headers[1:]
 
-        daily = []
-        weekly = []
+        daily, weekly = [], []
         current = None
 
         for row in data:
