@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- CLEAN UI STYLE ----------------
+# ---------------- UI STYLE ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -68,18 +68,23 @@ init_file()
 defaults = {
     "authenticated": False,
     "auth_branch": None,
-    "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "branch_locked": False,   # ✅ FIX ADDED
     "last_activity": None,
     "sheet_id": None,
-    "tab_name": None,
     "branch_info": None
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ---------------- SAFE VALIDATION (IMPORTANT FIX) ----------------
+def is_fully_logged_in():
+    return (
+        st.session_state.get("authenticated", False)
+        and st.session_state.get("auth_branch") is not None
+        and st.session_state.get("sheet_id") is not None
+    )
 
 # ---------------- ACTIVITY ----------------
 def refresh_activity():
@@ -91,7 +96,7 @@ def check_timeout():
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
             st.session_state.authenticated = False
             st.session_state.auth_branch = None
-            st.session_state.last_activity = None
+            st.session_state.sheet_id = None
             st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
@@ -128,7 +133,6 @@ if st.session_state.selected_branch == "-- Select Branch --":
 
         if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
-            st.session_state.branch_locked = True   # ✅ FIX ADDED
             st.rerun()
 
 else:
@@ -138,8 +142,6 @@ else:
         st.session_state.selected_branch = "-- Select Branch --"
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
-        st.session_state.last_activity = None
-        st.session_state.branch_locked = False   # ✅ FIX ADDED
         st.session_state.sheet_id = None
         st.session_state.branch_info = None
         st.rerun()
@@ -166,19 +168,8 @@ def load_passwords():
 
     return passwords
 
-def save_passwords(branch_key, new_password):
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    for idx, row in enumerate(records, start=2):
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        if key == branch_key:
-            col_index = list(row.keys()).index("Password") + 1
-            sheet.update_cell(idx, col_index, new_password)
-            return
-
 # ---------------- MAIN ----------------
-if st.session_state.selected_branch != "-- Select Branch --" and st.session_state.branch_locked:
+if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
@@ -187,57 +178,26 @@ if st.session_state.selected_branch != "-- Select Branch --" and st.session_stat
 
         password = st.text_input("Password", type="password")
 
-        col1, col2 = st.columns(2)
+        if st.button("Login"):
 
-        with col1:
-            if st.button("Login"):
+            password = password.strip()
+            stored_password = passwords.get(st.session_state.selected_branch, "")
 
-                password = password.strip()
+            if password and stored_password == password:
 
-                stored_password = passwords.get(
-                    st.session_state.selected_branch,
-                    ""
-                )
+                st.session_state.authenticated = True
+                st.session_state.auth_branch = st.session_state.selected_branch
+                st.session_state.sheet_id = branch_info["SheetID"]
+                st.session_state.branch_info = branch_info
+                st.session_state.last_activity = time.time()
 
-                if not password:
-                    st.error("Enter password first")
+                st.rerun()
 
-                elif stored_password and password == stored_password:
-
-                    st.session_state.authenticated = True
-                    st.session_state.auth_branch = st.session_state.selected_branch
-                    st.session_state.last_activity = time.time()
-
-                    st.session_state.sheet_id = branch_info["SheetID"]
-                    st.session_state.tab_name = "Stocks"
-                    st.session_state.branch_info = branch_info
-
-                    st.rerun()
-
-                else:
-                    st.error("Incorrect password")
-
-        with col2:
-            if st.button("Reset Password"):
-                st.session_state.reset_mode = True
-
-    # ---------------- RESET PASSWORD ----------------
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password")
-
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
-
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(st.session_state.selected_branch, new_pass)
-                st.success("Password updated successfully")
-                st.session_state.reset_mode = False
             else:
-                st.error("Wrong admin password")
+                st.error("Incorrect password")
 
-    # ---------------- AFTER LOGIN ----------------
-    if st.session_state.authenticated:
+    # ---------------- AFTER LOGIN (FIXED) ----------------
+    if is_fully_logged_in():
 
         st.success(f"Logged in: {st.session_state.auth_branch}")
 
@@ -282,15 +242,12 @@ if st.session_state.selected_branch != "-- Select Branch --" and st.session_stat
                     continue
 
                 item = row[0].strip()
-
-                values = row[1:]
-                values += [""] * (len(date_columns) - len(values))
+                values = row[1:] + [""] * (len(date_columns) - len(row[1:]))
 
                 cleaned = []
                 total = 0
 
                 for i, v in enumerate(values):
-
                     if i < 3:
                         cleaned.append(v)
                         continue
