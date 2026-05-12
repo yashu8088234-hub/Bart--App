@@ -70,7 +70,8 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None
+    "last_activity": None,
+    "keep_branch_name": None  # 🔥 FIX STORAGE
 }
 
 for k, v in defaults.items():
@@ -172,7 +173,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    # 🔥 FIX APPLIED HERE (IMPORTANT)
+    # 🔥 FIXED LOGIN CONDITION
     if (
         not st.session_state.authenticated
         or st.session_state.auth_branch != st.session_state.selected_branch
@@ -225,8 +226,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
+        # 🔥 FIX: preserve branch name for next page
         if col1.button("📦 Stock Record"):
             refresh_activity()
+
+            # SAVE branch name BEFORE reset
+            st.session_state.keep_branch_name = st.session_state.selected_branch
 
             st.session_state.selected_branch = "-- Select Branch --"
             st.session_state.reset_mode = False
