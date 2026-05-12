@@ -4,11 +4,12 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 from pathlib import Path
 import pandas as pd
-import time
+import time   # 🔴 ADDED
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
+# 🔴 ADDED: SESSION TIMEOUT (2 minutes)
 SESSION_TIMEOUT = 2 * 60
 
 # ---------------- CLEAN UI STYLE ----------------
@@ -50,7 +51,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- PASSWORD FILE ----------------
+# ---------------- ADMIN PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -70,6 +71,7 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
+    # 🔴 ADDED
     "last_activity": None
 }
 
@@ -77,17 +79,22 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+# 🔴 ADDED: ACTIVITY REFRESH FUNCTION
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
+# 🔴 ADDED: AUTO LOGOUT CHECK
 def check_timeout():
-    if st.session_state.authenticated and st.session_state.last_activity:
-        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
-            st.session_state.authenticated = False
-            st.session_state.auth_branch = None
-            st.session_state.last_activity = None
-            st.warning("⏱️ Logged out due to inactivity.")
-            st.rerun()
+    if st.session_state.get("authenticated"):
+        last = st.session_state.get("last_activity")
+
+        if last is not None:
+            if time.time() - last > SESSION_TIMEOUT:
+                st.session_state.authenticated = False
+                st.session_state.auth_branch = None
+                st.session_state.last_activity = None
+                st.warning("⏱️ Logged out due to 2 minutes of inactivity.")
+                st.rerun()
 
 check_timeout()
 
@@ -127,8 +134,9 @@ if st.session_state.selected_branch == "-- Select Branch --":
 else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
 
-    if st.button("🔄 REFRESH OR CHANGE BRANCH"):
+    if st.button("🔄 Change Branch"):
         st.session_state.selected_branch = "-- Select Branch --"
+        # 🔴 ADDED RESET
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
@@ -167,62 +175,6 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- FIXED FREEZE CSS (IMPORTANT) ----------------
-st.markdown("""
-<style>
-
-/* container scroll */
-div[data-testid="stDataFrame"] {
-    overflow-x: auto;
-}
-
-/* table base */
-div[data-testid="stDataFrame"] table {
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-/* FIRST COLUMN */
-div[data-testid="stDataFrame"] th:nth-child(1),
-div[data-testid="stDataFrame"] td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white !important;
-    z-index: 5;
-    min-width: 120px;
-}
-
-/* SECOND COLUMN */
-div[data-testid="stDataFrame"] th:nth-child(2),
-div[data-testid="stDataFrame"] td:nth-child(2) {
-    position: sticky;
-    left: 120px;
-    background: white !important;
-    z-index: 4;
-    min-width: 120px;
-}
-
-/* THIRD COLUMN */
-div[data-testid="stDataFrame"] th:nth-child(3),
-div[data-testid="stDataFrame"] td:nth-child(3) {
-    position: sticky;
-    left: 240px;
-    background: white !important;
-    z-index: 3;
-    min-width: 120px;
-}
-
-/* header top freeze */
-div[data-testid="stDataFrame"] thead th {
-    position: sticky;
-    top: 0;
-    background: #f2f2f2 !important;
-    z-index: 10;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -238,9 +190,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
         with col1:
             if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
-
                     st.session_state.authenticated = True
-                    st.session_state.auth_branch = st.session_state.selected_branch
+
+                    # 🔴 ADDED
                     st.session_state.last_activity = time.time()
 
                     st.session_state.sheet_id = branch_info["SheetID"]
@@ -255,6 +207,21 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+    # ---------------- RESET PASSWORD ----------------
+    if st.session_state.reset_mode:
+        st.subheader("Reset Password")
+
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
+
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                save_passwords(st.session_state.selected_branch, new_pass)
+                st.success("Password updated successfully")
+                st.session_state.reset_mode = False
+            else:
+                st.error("Wrong admin password")
+
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
@@ -262,7 +229,19 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
+        if col1.button("📦 Stock Record"):
+            # 🔴 ADDED
+            refresh_activity()
+            st.switch_page("pages/stock_consumption.py")
+
+        if col2.button("🆕 New Stock Record"):
+            # 🔴 ADDED
+            refresh_activity()
+            st.switch_page("pages/new_stock.py")
+
+        # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
+            # 🔴 ADDED
             refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -299,7 +278,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 item = row[0].strip()
 
                 values = row[1:]
-                values += [""] * (len(date_columns) - len(values))
+                values = values + [""] * (len(date_columns) - len(values))
 
                 cleaned = []
                 total = 0
