@@ -172,7 +172,11 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    if not st.session_state.authenticated:
+    # 🔥 FIX APPLIED HERE (IMPORTANT)
+    if (
+        not st.session_state.authenticated
+        or st.session_state.auth_branch != st.session_state.selected_branch
+    ):
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -221,11 +225,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
-        # 🔥 ONLY CHANGE (YOUR REQUEST)
         if col1.button("📦 Stock Record"):
             refresh_activity()
 
-            # ONLY reset branch selection (authentication preserved)
             st.session_state.selected_branch = "-- Select Branch --"
             st.session_state.reset_mode = False
 
