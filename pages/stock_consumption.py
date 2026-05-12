@@ -153,7 +153,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+    st.switch_page("pages/stock_consumption.py")
 
 # -----------------------------
 # DATE
