@@ -23,22 +23,32 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.markdown("""
 <style>
 
-/* Hide full top toolbar (Deploy, Settings, etc.) */
-[data-testid="stToolbar"] {
+/* Hide Deploy button ONLY */
+.stDeployButton {
     display: none !important;
 }
 
-/* Hide header buttons area */
-[data-testid="stHeader"] {
+/* Hide top toolbar buttons BUT keep menu (3 dots) */
+[data-testid="stToolbar"] > div {
+    display: none !important;
+}
+
+/* Re-enable last element (menu / kebab) */
+[data-testid="stToolbar"] > div:last-child {
+    display: block !important;
+}
+
+/* Clean header look */
+header[data-testid="stHeader"] {
     background: transparent;
 }
 
-/* Optional: remove footer */
+/* Hide footer */
 footer {
     visibility: hidden;
 }
 
-/* Optional: remove hamburger menu extra clutter */
+/* Optional: hide hamburger menu (left side Streamlit menu) */
 #MainMenu {
     visibility: hidden;
 }
