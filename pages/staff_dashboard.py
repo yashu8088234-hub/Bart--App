@@ -1,3 +1,9 @@
+ok now i want you to make some change ini this code like 
+user gets into the staff dashboard and choose the branch and let it show the password secttion and when user type the passwword give one button login then navigate tto a another page show him tthe stock record butotn and stock view and when he click thte stock record open the staock page as it is and when he clicks sttock view give him the stock view ok go me ask annyh questtions beore doing anythiign and dont change design and any other logics like stock view wchange  or any design or any modfcation other than whwat o have todl you 
+
+
+
+
 import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -70,8 +76,7 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None,
-    "page": "login"
+    "last_activity": None
 }
 
 for k, v in defaults.items():
@@ -89,7 +94,6 @@ def check_timeout():
             st.session_state.authenticated = False
             st.session_state.auth_branch = None
             st.session_state.last_activity = None
-            st.session_state.page = "login"
             st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
@@ -136,7 +140,6 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
-        st.session_state.page = "login"
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -172,13 +175,41 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
+# ---------------- PIN FIRST 3 COLUMNS ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
     if not st.session_state.authenticated:
-
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -197,7 +228,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
 
-                    st.session_state.page = "menu"
                     st.rerun()
                 else:
                     st.error("Incorrect password")
@@ -226,30 +256,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        # ---------------- MENU ----------------
-        if st.session_state.page == "menu":
+        col1, col2, col3 = st.columns(3)
 
-            st.subheader("Dashboard Menu")
+        if col1.button("📦 Stock Record"):
+            refresh_activity()
+            st.switch_page("pages/stock_consumption.py")
 
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.button("📦 Stock Record"):
-                    refresh_activity()
-                    st.switch_page("pages/stock_consumption.py")
-
-            with col2:
-                if st.button("🔍 Stock View"):
-                    refresh_activity()
-                    st.session_state.page = "stock_view"
-                    st.rerun()
-
-        # ---------------- STOCK VIEW ----------------
-        elif st.session_state.page == "stock_view":
-
-            if st.button("⬅ Back to Menu"):
-                st.session_state.page = "menu"
-                st.rerun()
+        if col3.button("🔍 Stock View"):
+            refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
             ws = sheet.worksheet("Stocks")
@@ -292,6 +306,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
+                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
@@ -325,3 +340,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
+
+
+
+
