@@ -125,7 +125,7 @@ if st.session_state.page == "mode_select":
     st.session_state.show_success = False
 
     st.markdown("## Select Option")
-    c1, c2  = st.columns(2)
+    c1, c2, c3  = st.columns(3)
 
     if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
@@ -141,7 +141,9 @@ if st.session_state.page == "mode_select":
         st.switch_page("pages/staff_dashboard.py")
         st.rerun()
 
-    
+    if st.button("⬅ Back to Staff"):
+        st.switch_page("pages/staff_dashboard.py")
+        st.rerun()
         
     
     
