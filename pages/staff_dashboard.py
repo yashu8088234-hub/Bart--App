@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- UI ----------------
+# ---------------- UI (REDUCED FLICKER FIX) ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -26,8 +26,19 @@ header {visibility:hidden;}
     margin: auto;
 }
 
+/* smoother transitions */
 .stApp {
     background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
+
+/* fade in to reduce “shading glitch” */
+.block-container {
+    animation: fadeIn 0.15s ease-in;
+}
+
+@keyframes fadeIn {
+    from {opacity: 0.6;}
+    to {opacity: 1;}
 }
 
 h1, h2, h3 {
@@ -50,7 +61,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- INIT ----------------
+# ---------------- PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -64,9 +75,9 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION ----------------
+# ---------------- SESSION STATE ----------------
 defaults = {
-    "stage": "select_branch",   # 🔥 MAIN FIX
+    "stage": "select_branch",
     "authenticated": False,
     "selected_branch": "-- Select Branch --",
     "auth_branch": None,
@@ -97,11 +108,13 @@ def load_branches():
     return sheet.get_all_records()
 
 branch_data = load_branches()
+
 branch_options = ["-- Select Branch --"] + [
     f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data
 ]
 
-def get_passwords():
+# ---------------- PASSWORDS ----------------
+def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
 
@@ -113,18 +126,30 @@ def get_passwords():
 
     return passwords
 
-passwords = get_passwords()
+passwords = load_passwords()
 
-# ---------------- GET BRANCH INFO ----------------
-def get_branch_info(branch_name):
+# ---------------- BRANCH INFO ----------------
+def get_branch_info(name):
     return next(
         b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == branch_name
+        if f"{b['BranchCode']} - {b['BranchName']}" == name
     )
 
-# ---------------- FLOW CONTROL ----------------
+# ---------------- BACK BUTTON (GLOBAL) ----------------
+def back_button():
+    if st.session_state.stage != "select_branch":
+        if st.button("⬅ Back"):
+            if st.session_state.stage == "login":
+                st.session_state.stage = "select_branch"
+                st.session_state.selected_branch = "-- Select Branch --"
 
-# ========== STEP 1: SELECT BRANCH ==========
+            elif st.session_state.stage == "dashboard":
+                st.session_state.stage = "login"
+                st.session_state.authenticated = False
+
+            st.rerun()
+
+# ---------------- STEP 1: SELECT BRANCH ----------------
 if st.session_state.stage == "select_branch":
 
     st.subheader("Select Branch")
@@ -138,8 +163,10 @@ if st.session_state.stage == "select_branch":
             st.session_state.stage = "login"
             st.rerun()
 
-# ========== STEP 2: LOGIN ==========
+# ---------------- STEP 2: LOGIN ----------------
 elif st.session_state.stage == "login":
+
+    back_button()
 
     st.subheader(f"Login: {st.session_state.selected_branch}")
 
@@ -160,12 +187,10 @@ elif st.session_state.stage == "login":
         else:
             st.error("Incorrect password")
 
-    if st.button("Change Branch"):
-        st.session_state.stage = "select_branch"
-        st.rerun()
-
-# ========== STEP 3: DASHBOARD ==========
+# ---------------- STEP 3: DASHBOARD ----------------
 elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
+
+    back_button()
 
     st.success(f"Logged in: {st.session_state.auth_branch}")
 
@@ -243,16 +268,7 @@ elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
                 weekly.append(row_dict)
 
         st.subheader("Daily Stock")
-        st.dataframe(pd.DataFrame(daily))
+        st.dataframe(pd.DataFrame(daily), use_container_width=True)
 
         st.subheader("Weekly Stock")
-        st.dataframe(pd.DataFrame(weekly))
-
-# ---------------- TIMEOUT ----------------
-def check_timeout():
-    if st.session_state.authenticated and st.session_state.last_activity:
-        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
-            st.session_state.clear()
-            st.rerun()
-
-check_timeout()
+        st.dataframe(pd.DataFrame(weekly), use_container_width=True)
