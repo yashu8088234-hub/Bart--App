@@ -222,4 +222,4 @@ if st.session_state.authenticated and st.session_state.active_branch:
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
-    st.switch_page("staff_dashboard.py")
+    st.switch_page("pages/staff_dashboard.py")
