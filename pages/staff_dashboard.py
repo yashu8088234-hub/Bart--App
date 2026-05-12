@@ -70,12 +70,24 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None
+    "last_activity": None,
+    "sheet_id": None,
+    "tab_name": None,
+    "branch_info": None
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ---------------- SAFE SESSION VALIDATION ----------------
+def is_session_valid():
+    return (
+        st.session_state.get("authenticated", False)
+        and st.session_state.get("auth_branch") is not None
+        and st.session_state.get("selected_branch") == st.session_state.get("auth_branch")
+        and st.session_state.get("sheet_id") is not None
+    )
 
 # ---------------- ACTIVITY ----------------
 def refresh_activity():
@@ -134,6 +146,8 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
+        st.session_state.sheet_id = None
+        st.session_state.branch_info = None
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -169,35 +183,6 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -220,12 +205,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     ""
                 )
 
-                # ---------------- FIXED LOGIN LOGIC ----------------
                 if not password:
-                    st.error("Please enter password")
-                elif not stored_password:
-                    st.error("No password set for this branch")
-                elif password == stored_password:
+                    st.error("Enter password first")
+
+                elif stored_password and password == stored_password:
 
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
@@ -259,10 +242,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # ---------------- AFTER LOGIN ----------------
-    if st.session_state.authenticated:
+    # ---------------- AFTER LOGIN (FIXED VALIDATION) ----------------
+    if is_session_valid():
 
-        st.success(f"Logged in: {st.session_state.selected_branch}")
+        st.success(f"Logged in: {st.session_state.auth_branch}")
 
         col1, col2, col3 = st.columns(3)
 
