@@ -70,7 +70,7 @@ except:
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET FETCH (NO OVER-CACHING)
+# SAFE SHEET FETCH
 # =========================================================
 
 @st.cache_resource
@@ -98,7 +98,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA (CACHED FOR NORMAL USE)
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -106,11 +106,11 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# FORCE REFRESH CONTROL (IMPORTANT FIX)
+# FORCE REFRESH CONTROL
 # =========================================================
 
 if "force_refresh" not in st.session_state:
-    st.session_state.force_refresh = True  # FIRST LOAD MUST BE FRESH
+    st.session_state.force_refresh = True
 
 REFRESH_COOLDOWN = 90
 
@@ -119,7 +119,6 @@ if "last_force_refresh" not in st.session_state:
 
 remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
 can_force_refresh = remaining <= 0
-
 
 # =========================================================
 # DATE
@@ -154,8 +153,6 @@ with col2:
 
             try:
                 st.cache_data.clear()
-
-                # 🔥 FORCE LIVE FETCH
                 all_data = [fetch_branch(b) for b in branches]
 
                 st.session_state.force_refresh = False
@@ -172,15 +169,13 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# FIRST LOAD LOGIC (FIXED)
+# FIRST LOAD
 # =========================================================
 
 if st.session_state.force_refresh:
-    # 🔥 FIRST TIME ALWAYS FRESH
     all_data = [fetch_branch(b) for b in branches]
     st.session_state.force_refresh = False
 else:
-    # ⚡ NORMAL CACHE LOAD
     all_data = load_all_data(branches)
 
 # =========================================================
@@ -201,7 +196,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(h).strip() for h in raw[0]]
 
         date_index = None
-
         for i, h in enumerate(headers):
             if str(h).strip() == selected_date_str:
                 date_index = i
@@ -239,7 +233,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
-
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
@@ -295,21 +288,16 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# WIDTH FUNCTION
+# GRID FIX (ONLY CHANGE IS HERE)
 # =========================================================
 
 def get_width(series, min_width):
-
     try:
         series = series.fillna("").astype(str)
         max_len = series.map(len).max()
         return max(int(max_len * 5 + 25), min_width)
     except:
         return min_width
-
-# =========================================================
-# AGGRID
-# =========================================================
 
 def render_grid(df, title):
 
@@ -321,15 +309,23 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left", minWidth=get_width(df["Item Name"], 90))
-    gb.configure_column("SKU", pinned="left", minWidth=get_width(df["SKU"], 40))
-    gb.configure_column("UOM", pinned="left", minWidth=get_width(df["UOM"], 40))
+    # ✅ FIXED: ALL 3 PINNED PROPERLY + MOBILE STABILITY
+    gb.configure_column("Item Name", pinned="left", minWidth=140, flex=0)
+    gb.configure_column("SKU", pinned="left", minWidth=80, flex=0)
+    gb.configure_column("UOM", pinned="left", minWidth=70, flex=0)
 
     for col in branch_names:
         if col in df.columns:
             gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
+
+    # ✅ FIX: prevents mobile unpin glitch
+    gb.configure_grid_options(
+        domLayout='normal',
+        suppressColumnVirtualisation=True,
+        suppressHorizontalScroll=False
+    )
 
     AgGrid(
         df,
