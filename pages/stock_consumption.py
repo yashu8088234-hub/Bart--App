@@ -158,6 +158,7 @@ st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
+    st.rerun()
     st.session_state.mode = None
     st.rerun()
     
