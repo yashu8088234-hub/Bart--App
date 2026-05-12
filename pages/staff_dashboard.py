@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- UI STYLE ----------------
+# ---------------- UI ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -50,7 +50,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- PASSWORD FILE ----------------
+# ---------------- INIT ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -64,43 +64,20 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION STATE ----------------
+# ---------------- SESSION ----------------
 defaults = {
+    "stage": "select_branch",   # 🔥 MAIN FIX
     "authenticated": False,
-    "auth_branch": None,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None,
+    "auth_branch": None,
     "sheet_id": None,
-    "branch_info": None
+    "branch_info": None,
+    "last_activity": None
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
-
-# ---------------- SAFE VALIDATION (IMPORTANT FIX) ----------------
-def is_fully_logged_in():
-    return (
-        st.session_state.get("authenticated", False)
-        and st.session_state.get("auth_branch") is not None
-        and st.session_state.get("sheet_id") is not None
-    )
-
-# ---------------- ACTIVITY ----------------
-def refresh_activity():
-    st.session_state.last_activity = time.time()
-
-# ---------------- TIMEOUT ----------------
-def check_timeout():
-    if st.session_state.authenticated and st.session_state.last_activity:
-        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
-            st.session_state.authenticated = False
-            st.session_state.auth_branch = None
-            st.session_state.sheet_id = None
-            st.warning("⏱️ Logged out due to inactivity.")
-            st.rerun()
-
-check_timeout()
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -113,50 +90,18 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- LOAD BRANCHES ----------------
+# ---------------- BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     return sheet.get_all_records()
 
 branch_data = load_branches()
-branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
-branch_options = ["-- Select Branch --"] + branches
+branch_options = ["-- Select Branch --"] + [
+    f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data
+]
 
-# ---------------- BRANCH SELECT ----------------
-st.subheader("Select Branch")
-
-if st.session_state.selected_branch == "-- Select Branch --":
-
-    with st.popover("Choose Branch"):
-        selected_branch = st.radio("Branch List", branch_options, index=0)
-
-        if selected_branch != "-- Select Branch --":
-            st.session_state.selected_branch = selected_branch
-            st.rerun()
-
-else:
-    st.success(f"Selected Branch: {st.session_state.selected_branch}")
-
-    if st.button("🔄 REFRESH OR CHANGE BRANCH"):
-        st.session_state.selected_branch = "-- Select Branch --"
-        st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.sheet_id = None
-        st.session_state.branch_info = None
-        st.rerun()
-
-# ---------------- BRANCH INFO ----------------
-branch_info = None
-
-if st.session_state.selected_branch != "-- Select Branch --":
-    branch_info = next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
-    )
-
-# ---------------- PASSWORD SYSTEM ----------------
-def load_passwords():
+def get_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
 
@@ -168,116 +113,146 @@ def load_passwords():
 
     return passwords
 
-# ---------------- MAIN ----------------
-if st.session_state.selected_branch != "-- Select Branch --":
+passwords = get_passwords()
 
-    passwords = load_passwords()
+# ---------------- GET BRANCH INFO ----------------
+def get_branch_info(branch_name):
+    return next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == branch_name
+    )
 
-    if not st.session_state.authenticated:
-        st.subheader("Branch Login")
+# ---------------- FLOW CONTROL ----------------
 
-        password = st.text_input("Password", type="password")
+# ========== STEP 1: SELECT BRANCH ==========
+if st.session_state.stage == "select_branch":
 
-        if st.button("Login"):
+    st.subheader("Select Branch")
 
-            password = password.strip()
-            stored_password = passwords.get(st.session_state.selected_branch, "")
+    with st.popover("Choose Branch"):
+        selected = st.radio("Branches", branch_options, index=0)
 
-            if password and stored_password == password:
+        if selected != "-- Select Branch --":
+            st.session_state.selected_branch = selected
+            st.session_state.branch_info = get_branch_info(selected)
+            st.session_state.stage = "login"
+            st.rerun()
 
-                st.session_state.authenticated = True
-                st.session_state.auth_branch = st.session_state.selected_branch
-                st.session_state.sheet_id = branch_info["SheetID"]
-                st.session_state.branch_info = branch_info
-                st.session_state.last_activity = time.time()
+# ========== STEP 2: LOGIN ==========
+elif st.session_state.stage == "login":
 
-                st.rerun()
+    st.subheader(f"Login: {st.session_state.selected_branch}")
 
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+
+        if password == passwords.get(st.session_state.selected_branch, ""):
+
+            st.session_state.authenticated = True
+            st.session_state.auth_branch = st.session_state.selected_branch
+            st.session_state.sheet_id = st.session_state.branch_info["SheetID"]
+            st.session_state.last_activity = time.time()
+
+            st.session_state.stage = "dashboard"
+            st.rerun()
+
+        else:
+            st.error("Incorrect password")
+
+    if st.button("Change Branch"):
+        st.session_state.stage = "select_branch"
+        st.rerun()
+
+# ========== STEP 3: DASHBOARD ==========
+elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
+
+    st.success(f"Logged in: {st.session_state.auth_branch}")
+
+    col1, col2, col3 = st.columns(3)
+
+    if col1.button("📦 Stock Record"):
+        st.switch_page("pages/stock_consumption.py")
+
+    if col2.button("🔄 Change Branch"):
+        st.session_state.stage = "select_branch"
+        st.session_state.authenticated = False
+        st.session_state.auth_branch = None
+        st.session_state.sheet_id = None
+        st.rerun()
+
+    if col3.button("🔍 Stock View"):
+
+        sheet = client.open_by_key(st.session_state.sheet_id)
+        ws = sheet.worksheet("Stocks")
+
+        data = ws.get_all_values()
+
+        headers = data[0]
+        date_columns = headers[1:]
+
+        daily = []
+        weekly = []
+        current = None
+
+        for row in data:
+
+            txt = " ".join(row).lower()
+
+            if "daily item" in txt:
+                current = "daily"
+                continue
+
+            if "weekly item" in txt:
+                current = "weekly"
+                continue
+
+            if current is None or not row or not row[0]:
+                continue
+
+            item = row[0]
+            values = row[1:] + [""] * (len(date_columns) - len(row[1:]))
+
+            cleaned = []
+            total = 0
+
+            for i, v in enumerate(values):
+
+                if i < 3:
+                    cleaned.append(v)
+                    continue
+
+                try:
+                    num = float(v) if v != "" else 0
+                except:
+                    num = 0
+
+                cleaned.append(num)
+                total += num
+
+            row_dict = {"Item": item}
+
+            for i, col in enumerate(date_columns):
+                row_dict[col] = cleaned[i]
+
+            row_dict["Total"] = total
+
+            if current == "daily":
+                daily.append(row_dict)
             else:
-                st.error("Incorrect password")
+                weekly.append(row_dict)
 
-    # ---------------- AFTER LOGIN (FIXED) ----------------
-    if is_fully_logged_in():
+        st.subheader("Daily Stock")
+        st.dataframe(pd.DataFrame(daily))
 
-        st.success(f"Logged in: {st.session_state.auth_branch}")
+        st.subheader("Weekly Stock")
+        st.dataframe(pd.DataFrame(weekly))
 
-        col1, col2, col3 = st.columns(3)
+# ---------------- TIMEOUT ----------------
+def check_timeout():
+    if st.session_state.authenticated and st.session_state.last_activity:
+        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
+            st.session_state.clear()
+            st.rerun()
 
-        if col1.button("📦 Stock Record"):
-            refresh_activity()
-            st.switch_page("pages/stock_consumption.py")
-
-        if col3.button("🔍 Stock View"):
-            refresh_activity()
-
-            sheet = client.open_by_key(branch_info["SheetID"])
-            ws = sheet.worksheet("Stocks")
-
-            data = ws.get_all_values()
-
-            headers = data[0]
-            date_columns = headers[1:]
-
-            daily = []
-            weekly = []
-
-            current_section = None
-
-            for row in data:
-
-                row_text = " ".join(row).strip().lower()
-
-                if "daily item" in row_text:
-                    current_section = "daily"
-                    continue
-
-                if "weekly item" in row_text:
-                    current_section = "weekly"
-                    continue
-
-                if current_section is None:
-                    continue
-
-                if not row or not row[0]:
-                    continue
-
-                item = row[0].strip()
-                values = row[1:] + [""] * (len(date_columns) - len(row[1:]))
-
-                cleaned = []
-                total = 0
-
-                for i, v in enumerate(values):
-                    if i < 3:
-                        cleaned.append(v)
-                        continue
-
-                    try:
-                        num = float(v) if v != "" else 0
-                    except:
-                        num = 0
-
-                    cleaned.append(num)
-                    total += num
-
-                row_dict = {"Item": item}
-
-                for i, col in enumerate(date_columns):
-                    row_dict[col] = cleaned[i]
-
-                row_dict["Total"] = total
-
-                if current_section == "daily":
-                    daily.append(row_dict)
-                else:
-                    weekly.append(row_dict)
-
-            st.subheader("📦 Daily Items Stock")
-            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
-
-            st.subheader("📦 Weekly Items Stock")
-            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
-
-# ---------------- BACK ----------------
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
+check_timeout()
