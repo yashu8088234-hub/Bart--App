@@ -70,6 +70,7 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
+    "branch_locked": False,   # ✅ FIX ADDED
     "last_activity": None,
     "sheet_id": None,
     "tab_name": None,
@@ -79,15 +80,6 @@ defaults = {
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
-
-# ---------------- SAFE SESSION CHECK ----------------
-def is_logged_in():
-    return (
-        st.session_state.get("authenticated", False)
-        and st.session_state.get("auth_branch") is not None
-        and st.session_state.get("selected_branch") != "-- Select Branch --"
-        and st.session_state.get("sheet_id") is not None
-    )
 
 # ---------------- ACTIVITY ----------------
 def refresh_activity():
@@ -136,6 +128,7 @@ if st.session_state.selected_branch == "-- Select Branch --":
 
         if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
+            st.session_state.branch_locked = True   # ✅ FIX ADDED
             st.rerun()
 
 else:
@@ -146,6 +139,7 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
+        st.session_state.branch_locked = False   # ✅ FIX ADDED
         st.session_state.sheet_id = None
         st.session_state.branch_info = None
         st.rerun()
@@ -184,7 +178,7 @@ def save_passwords(branch_key, new_password):
             return
 
 # ---------------- MAIN ----------------
-if st.session_state.selected_branch != "-- Select Branch --":
+if st.session_state.selected_branch != "-- Select Branch --" and st.session_state.branch_locked:
 
     passwords = load_passwords()
 
@@ -242,8 +236,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # ---------------- AFTER LOGIN (FIXED DISPLAY BUG) ----------------
-    if is_logged_in():
+    # ---------------- AFTER LOGIN ----------------
+    if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.auth_branch}")
 
