@@ -4,12 +4,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 from pathlib import Path
 import pandas as pd
-import time   # 🔴 ADDED
+import time
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
-# 🔴 ADDED: SESSION TIMEOUT (2 minutes)
 SESSION_TIMEOUT = 2 * 60
 
 # ---------------- CLEAN UI STYLE ----------------
@@ -51,7 +50,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- ADMIN PASSWORD FILE ----------------
+# ---------------- PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 def init_file():
@@ -71,7 +70,6 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    # 🔴 ADDED
     "last_activity": None
 }
 
@@ -79,22 +77,19 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# 🔴 ADDED: ACTIVITY REFRESH FUNCTION
+# ---------------- ACTIVITY ----------------
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
-# 🔴 ADDED: AUTO LOGOUT CHECK
+# ---------------- TIMEOUT ----------------
 def check_timeout():
-    if st.session_state.get("authenticated"):
-        last = st.session_state.get("last_activity")
-
-        if last is not None:
-            if time.time() - last > SESSION_TIMEOUT:
-                st.session_state.authenticated = False
-                st.session_state.auth_branch = None
-                st.session_state.last_activity = None
-                st.warning("⏱️ Logged out due to 2 minutes of inactivity.")
-                st.rerun()
+    if st.session_state.authenticated and st.session_state.last_activity:
+        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
+            st.session_state.authenticated = False
+            st.session_state.auth_branch = None
+            st.session_state.last_activity = None
+            st.warning("⏱️ Logged out due to inactivity.")
+            st.rerun()
 
 check_timeout()
 
@@ -136,7 +131,6 @@ else:
 
     if st.button("🔄 REFRESH OR CHANGE BRANCH"):
         st.session_state.selected_branch = "-- Select Branch --"
-        # 🔴 ADDED RESET
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
@@ -175,6 +169,35 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
+# ---------------- PIN FIRST 3 COLUMNS ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -190,9 +213,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
         with col1:
             if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
-                    st.session_state.authenticated = True
 
-                    # 🔴 ADDED
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.last_activity = time.time()
 
                     st.session_state.sheet_id = branch_info["SheetID"]
@@ -227,17 +250,13 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1,col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
-            # 🔴 ADDED
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
-        
-        # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
-            # 🔴 ADDED
             refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
@@ -274,16 +293,23 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 item = row[0].strip()
 
                 values = row[1:]
-                values = values + [""] * (len(date_columns) - len(values))
+                values += [""] * (len(date_columns) - len(values))
 
                 cleaned = []
                 total = 0
 
-                for v in values:
+                for i, v in enumerate(values):
+
+                    # ✅ FIX: first 3 columns untouched
+                    if i < 3:
+                        cleaned.append(v)
+                        continue
+
                     try:
                         num = float(v) if v != "" else 0
                     except:
                         num = 0
+
                     cleaned.append(num)
                     total += num
 
