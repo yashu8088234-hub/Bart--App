@@ -153,7 +153,7 @@ else:
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 if st.button("⬅ Back"):
-    st.rerun()
+    st.session_state.page == "mode_select"
 
 # -----------------------------
 # DATE
