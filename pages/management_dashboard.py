@@ -119,6 +119,7 @@ if "last_force_refresh" not in st.session_state:
 
 remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
 can_force_refresh = remaining <= 0
+st.rerun()
 
 # =========================================================
 # DATE
