@@ -119,11 +119,12 @@ branch_options = ["-- Select Branch --"] + branches
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
+    
     st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.branch_info = None
-        st.session_state.client = None
-        st.session_state.last_activity = None
+    st.session_state.auth_branch = None
+    st.session_state.branch_info = None
+    st.session_state.client = None
+    st.session_state.last_activity = None
 
     with st.popover("Choose Branch"):
         selected_branch = st.radio("Branch List", branch_options, index=0)
