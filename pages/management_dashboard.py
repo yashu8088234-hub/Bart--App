@@ -23,22 +23,27 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.markdown("""
 <style>
 
-/* Hide Deploy button ONLY */
+/* Hide Deploy button */
 .stDeployButton {
     display: none !important;
 }
 
-/* Hide top toolbar buttons BUT keep menu (3 dots) */
+/* Hide entire toolbar except the last item (3 dots menu) */
+[data-testid="stToolbar"] {
+    visibility: visible;
+}
+
+/* Hide all toolbar children */
 [data-testid="stToolbar"] > div {
     display: none !important;
 }
 
-/* Re-enable last element (menu / kebab) */
+/* Force show ONLY last item (3 dots menu) */
 [data-testid="stToolbar"] > div:last-child {
-    display: block !important;
+    display: flex !important;
 }
 
-/* Clean header look */
+/* Keep header clean */
 header[data-testid="stHeader"] {
     background: transparent;
 }
@@ -48,7 +53,7 @@ footer {
     visibility: hidden;
 }
 
-/* Optional: hide hamburger menu (left side Streamlit menu) */
+/* Optional: hide left hamburger menu */
 #MainMenu {
     visibility: hidden;
 }
