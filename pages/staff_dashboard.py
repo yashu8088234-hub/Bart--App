@@ -169,35 +169,6 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -221,6 +192,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.sheet_id = branch_info["SheetID"]
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
+                    st.session_state.client = client
 
                     st.rerun()
                 else:
@@ -247,89 +219,236 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
-
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1, col2, col3 = st.columns(3)
+        st.info("Use navigation to access modules")
 
-        if col1.button("📦 Stock Record"):
-            refresh_activity()
-            st.switch_page("pages/stock_consumption.py")
+# ---------------- BACK ----------------
+if st.button("⬅ Back"):
+    st.switch_page("app.py")import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import json
+from pathlib import Path
+import pandas as pd
+import time
 
-        if col3.button("🔍 Stock View"):
-            refresh_activity()
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
-            sheet = client.open_by_key(branch_info["SheetID"])
-            ws = sheet.worksheet("Stocks")
+SESSION_TIMEOUT = 2 * 60
 
-            data = ws.get_all_values()
+# ---------------- CLEAN UI STYLE ----------------
+st.markdown("""
+<style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
-            headers = data[0]
-            date_columns = headers[1:]
+.block-container {
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: auto;
+}
 
-            daily = []
-            weekly = []
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
 
-            current_section = None
+h1, h2, h3 {
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
 
-            for row in data:
+# ---------------- HEADER ----------------
+st.markdown("""
+<div style="
+    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+">
+<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
+<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
+</div>
+""", unsafe_allow_html=True)
 
-                row_text = " ".join(row).strip().lower()
+# ---------------- PASSWORD FILE ----------------
+FILE_NAME = Path(__file__).parent / "passwords.json"
 
-                if "daily item" in row_text:
-                    current_section = "daily"
-                    continue
+def init_file():
+    if not FILE_NAME.exists():
+        with open(FILE_NAME, "w") as f:
+            json.dump({"admin": "admin123"}, f)
 
-                if "weekly item" in row_text:
-                    current_section = "weekly"
-                    continue
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
 
-                if current_section is None:
-                    continue
+init_file()
 
-                if not row or not row[0]:
-                    continue
+# ---------------- SESSION STATE ----------------
+defaults = {
+    "authenticated": False,
+    "auth_branch": None,
+    "reset_mode": False,
+    "selected_branch": "-- Select Branch --",
+    "last_activity": None
+}
 
-                item = row[0].strip()
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-                values = row[1:]
-                values += [""] * (len(date_columns) - len(values))
+# ---------------- ACTIVITY ----------------
+def refresh_activity():
+    st.session_state.last_activity = time.time()
 
-                cleaned = []
-                total = 0
+# ---------------- TIMEOUT ----------------
+def check_timeout():
+    if st.session_state.authenticated and st.session_state.last_activity:
+        if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
+            st.session_state.authenticated = False
+            st.session_state.auth_branch = None
+            st.session_state.last_activity = None
+            st.warning("⏱️ Logged out due to inactivity.")
+            st.rerun()
 
-                for i, v in enumerate(values):
+check_timeout()
 
-                    # ✅ FIX: first 3 columns untouched
-                    if i < 3:
-                        cleaned.append(v)
-                        continue
+# ---------------- GOOGLE SHEETS ----------------
+creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
-                    try:
-                        num = float(v) if v != "" else 0
-                    except:
-                        num = 0
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
-                    cleaned.append(num)
-                    total += num
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
 
-                row_dict = {"Item": item}
+# ---------------- LOAD BRANCHES ----------------
+@st.cache_data(ttl=600)
+def load_branches():
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    return sheet.get_all_records()
 
-                for i, col in enumerate(date_columns):
-                    row_dict[col] = cleaned[i]
+branch_data = load_branches()
+branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
+branch_options = ["-- Select Branch --"] + branches
 
-                row_dict["Total"] = total
+# ---------------- BRANCH SELECT ----------------
+st.subheader("Select Branch")
 
-                if current_section == "daily":
-                    daily.append(row_dict)
+if st.session_state.selected_branch == "-- Select Branch --":
+
+    with st.popover("Choose Branch"):
+        selected_branch = st.radio("Branch List", branch_options, index=0)
+
+        if selected_branch != "-- Select Branch --":
+            st.session_state.selected_branch = selected_branch
+            st.rerun()
+
+else:
+    st.success(f"Selected Branch: {st.session_state.selected_branch}")
+
+    if st.button("🔄 REFRESH OR CHANGE BRANCH"):
+        st.session_state.selected_branch = "-- Select Branch --"
+        st.session_state.authenticated = False
+        st.session_state.auth_branch = None
+        st.session_state.last_activity = None
+        st.rerun()
+
+# ---------------- BRANCH INFO ----------------
+branch_info = None
+
+if st.session_state.selected_branch != "-- Select Branch --":
+    branch_info = next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
+    )
+
+# ---------------- PASSWORD SYSTEM ----------------
+def load_passwords():
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    records = sheet.get_all_records()
+
+    passwords = {"admin": load_admin()["admin"]}
+
+    for row in records:
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        passwords[key] = row.get("Password", "")
+
+    return passwords
+
+def save_passwords(branch_key, new_password):
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    records = sheet.get_all_records()
+
+    for idx, row in enumerate(records, start=2):
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        if key == branch_key:
+            col_index = list(row.keys()).index("Password") + 1
+            sheet.update_cell(idx, col_index, new_password)
+            return
+
+# ---------------- MAIN ----------------
+if st.session_state.selected_branch != "-- Select Branch --":
+
+    passwords = load_passwords()
+
+    if not st.session_state.authenticated:
+        st.subheader("Branch Login")
+
+        password = st.text_input("Password", type="password")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Login"):
+                if passwords.get(st.session_state.selected_branch, "") == password:
+
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = st.session_state.selected_branch
+                    st.session_state.last_activity = time.time()
+
+                    st.session_state.sheet_id = branch_info["SheetID"]
+                    st.session_state.tab_name = "Stocks"
+                    st.session_state.branch_info = branch_info
+                    st.session_state.client = client
+
+                    st.rerun()
                 else:
-                    weekly.append(row_dict)
+                    st.error("Incorrect password")
 
-            st.subheader("📦 Daily Items Stock")
-            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
+        with col2:
+            if st.button("Reset Password"):
+                st.session_state.reset_mode = True
 
-            st.subheader("📦 Weekly Items Stock")
-            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
+    # ---------------- RESET PASSWORD ----------------
+    if st.session_state.reset_mode:
+        st.subheader("Reset Password")
+
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
+
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                save_passwords(st.session_state.selected_branch, new_pass)
+                st.success("Password updated successfully")
+                st.session_state.reset_mode = False
+            else:
+                st.error("Wrong admin password")
+
+    # ---------------- AFTER LOGIN ----------------
+    if st.session_state.authenticated:
+        st.success(f"Logged in: {st.session_state.selected_branch}")
+
+        st.info("Use navigation to access modules")
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
