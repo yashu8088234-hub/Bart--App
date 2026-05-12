@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
@@ -71,35 +70,24 @@ except:
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET FETCH (FIXED - NO CACHE RESOURCE)
+# SAFE SHEET FETCH (NO OVER-CACHING)
 # =========================================================
 
-def get_sheets(branches):
-    cache = {}
-    for b in branches:
-        sid = b.get("SheetID")
-        if sid:
-            try:
-                cache[sid] = client.open_by_key(sid)
-            except Exception as e:
-                st.warning(f"Sheet load failed: {sid} -> {e}")
-    return cache
-
-try:
-    sheet_cache = get_sheets(branches)
-except:
-    show_api_error()
-
-# =========================================================
-# FETCH SHEETS (FIXED - NO GLOBAL DEPENDENCY ISSUE)
-# =========================================================
+@st.cache_resource
+def get_spreadsheet(sheet_id):
+    try:
+        return client.open_by_key(sheet_id)
+    except:
+        return None
 
 def fetch_sheet_range(sheet_id):
     try:
-        ws = client.open_by_key(sheet_id).worksheet("Stocks")
-        data = ws.get("A1:ZZ1000")
-        return data
-    except Exception:
+        ss = get_spreadsheet(sheet_id)
+        if not ss:
+            return None
+        ws = ss.worksheet("Stocks")
+        return ws.get_all_values()
+    except:
         return None
 
 def fetch_branch(branch):
@@ -110,29 +98,26 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (FIXED - REMOVED THREADPOOL FOR STABILITY)
+# LOAD ALL DATA (CACHED FOR NORMAL USE)
 # =========================================================
 
 @st.cache_data(ttl=600)
 def load_all_data(branches):
-    results = []
-    for b in branches:
-        results.append(fetch_branch(b))
-    return results
+    return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# SMART REFRESH CONTROL
+# FORCE REFRESH CONTROL (IMPORTANT FIX)
 # =========================================================
+
+if "force_refresh" not in st.session_state:
+    st.session_state.force_refresh = True  # FIRST LOAD MUST BE FRESH
 
 REFRESH_COOLDOWN = 90
 
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
 
-remaining = REFRESH_COOLDOWN - (
-    time.time() - st.session_state.last_force_refresh
-)
-
+remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
 can_force_refresh = remaining <= 0
 
 # =========================================================
@@ -160,10 +145,7 @@ with col2:
         else f"⏳ Wait {int(remaining)} sec"
     )
 
-    refresh_clicked = st.button(
-        refresh_text,
-        disabled=not can_force_refresh
-    )
+    refresh_clicked = st.button(refresh_text, disabled=not can_force_refresh)
 
     if refresh_clicked:
 
@@ -172,34 +154,33 @@ with col2:
             try:
                 st.cache_data.clear()
 
-                client = get_client()
-                branches = load_branches()
+                # 🔥 FORCE LIVE FETCH
+                all_data = [fetch_branch(b) for b in branches]
 
-                sheet_cache = get_sheets(branches)
-
-                all_data = load_all_data(branches)
-
+                st.session_state.force_refresh = False
                 st.session_state.last_force_refresh = time.time()
-                time.sleep(2)
 
                 st.success("✅ Latest stock data loaded successfully")
 
-            except:
-                show_api_error()
-                st.rerun()
+            except Exception as e:
+                st.error(e)
+                st.stop()
 
 with col3:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
 # =========================================================
-# FIRST LOAD
+# FIRST LOAD LOGIC (FIXED)
 # =========================================================
 
-try:
+if st.session_state.force_refresh:
+    # 🔥 FIRST TIME ALWAYS FRESH
+    all_data = [fetch_branch(b) for b in branches]
+    st.session_state.force_refresh = False
+else:
+    # ⚡ NORMAL CACHE LOAD
     all_data = load_all_data(branches)
-except:
-    show_api_error()
 
 # =========================================================
 # PROCESS STOCK
