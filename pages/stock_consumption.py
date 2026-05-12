@@ -125,7 +125,7 @@ if st.session_state.page == "mode_select":
     st.session_state.show_success = False
 
     st.markdown("## Select Option")
-    st.button("⬅ Back")
+    st.button("⬅ Back to Staff")
     
 
     c1, c2, c3  = st.columns(3)
