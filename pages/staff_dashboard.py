@@ -334,4 +334,3 @@ if st.session_state.selected_branch != "-- Select Branch --":
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
-
