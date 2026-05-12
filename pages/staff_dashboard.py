@@ -234,11 +234,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
-        if col2.button("🆕 New Stock Record"):
-            # 🔴 ADDED
-            refresh_activity()
-            st.switch_page("pages/new_stock.py")
-
         # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
             # 🔴 ADDED
