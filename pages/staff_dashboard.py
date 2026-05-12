@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import pandas as pd
 import time
+import uuid
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
@@ -50,6 +51,38 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# =========================================================
+# 🔥 PRODUCTION SESSION LAYER (ADDED - NO UI CHANGE)
+# =========================================================
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+
+if "session_store" not in st.session_state:
+    st.session_state.session_store = {}
+
+def save_session():
+    st.session_state.session_store[st.session_state.session_id] = {
+        "authenticated": st.session_state.get("authenticated", False),
+        "auth_branch": st.session_state.get("auth_branch"),
+        "selected_branch": st.session_state.get("selected_branch"),
+        "active_branch": st.session_state.get("active_branch"),
+        "last_activity": st.session_state.get("last_activity")
+    }
+
+def load_session():
+    data = st.session_state.session_store.get(st.session_state.session_id)
+
+    if data:
+        st.session_state.authenticated = data["authenticated"]
+        st.session_state.auth_branch = data["auth_branch"]
+        st.session_state.selected_branch = data["selected_branch"]
+        st.session_state.active_branch = data["active_branch"]
+        st.session_state.last_activity = data["last_activity"]
+
+# restore session on every refresh
+load_session()
+
 # ---------------- PASSWORD FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
@@ -64,14 +97,14 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION STATE (FIX APPLIED HERE) ----------------
+# ---------------- SESSION DEFAULTS ----------------
 defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
     "last_activity": None,
-    "active_branch": None   # 🔥 FIX: REQUIRED FOR PAGE SWITCH
+    "active_branch": None
 }
 
 for k, v in defaults.items():
@@ -81,6 +114,7 @@ for k, v in defaults.items():
 # ---------------- ACTIVITY ----------------
 def refresh_activity():
     st.session_state.last_activity = time.time()
+    save_session()
 
 # ---------------- TIMEOUT ----------------
 def check_timeout():
@@ -90,6 +124,7 @@ def check_timeout():
             st.session_state.auth_branch = None
             st.session_state.active_branch = None
             st.session_state.last_activity = None
+            save_session()
             st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
@@ -128,12 +163,12 @@ if st.session_state.selected_branch == "-- Select Branch --":
 
             st.session_state.selected_branch = selected_branch
 
-            # 🔥 FIX: ensure branch is ALWAYS stored for next page
             st.session_state.active_branch = next(
                 b for b in branch_data
                 if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
             )
 
+            save_session()
             st.rerun()
 
 else:
@@ -145,6 +180,7 @@ else:
         st.session_state.auth_branch = None
         st.session_state.active_branch = None
         st.session_state.last_activity = None
+        save_session()
         st.rerun()
 
 branch_info = st.session_state.active_branch
@@ -211,12 +247,11 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.last_activity = time.time()
+                    st.session_state.active_branch = branch_info
 
-                    st.session_state.sheet_id = branch_info["SheetID"]
-                    st.session_state.tab_name = "Stocks"
-                    st.session_state.branch_info = branch_info
-
+                    save_session()
                     st.rerun()
+
                 else:
                     st.error("Incorrect password")
 
@@ -233,7 +268,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         if st.button("Update Password"):
             if admin_pass == load_admin()["admin"]:
-                # (unchanged logic)
                 sheet = client.open("MASTERBRANCHSHEET").sheet1
                 records = sheet.get_all_records()
 
@@ -246,6 +280,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 st.success("Password updated successfully")
                 st.session_state.reset_mode = False
+                save_session()
             else:
                 st.error("Wrong admin password")
 
@@ -258,14 +293,13 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         if col1.button("📦 Stock Record"):
             refresh_activity()
-
-            # 🔥 FIX: ensure persistence before page switch
             st.session_state.active_branch = branch_info
-
+            save_session()
             st.switch_page("pages/stock_consumption.py")
 
         if col3.button("🔍 Stock View"):
             refresh_activity()
+            save_session()
             st.switch_page("pages/stock_view.py")
 
 # ---------------- BACK ----------------
