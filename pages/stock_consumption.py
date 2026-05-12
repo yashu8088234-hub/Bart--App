@@ -141,8 +141,13 @@ if st.session_state.page == "mode_select":
         st.switch_page("pages/staff_dashboard.py")
         st.rerun()
 
-    st.button("⬅ Back to Staff")
-    st.switch_page("pages/staff_dashboard.py")
+    if st.button("⬅ Back to Staff"):
+        st.switch_page("pages/staff_dashboard.py")
+        st.rerun()
+        
+    
+    
+    
         
 
     st.stop()
