@@ -5,11 +5,10 @@ import json
 from pathlib import Path
 import pandas as pd
 import time
+import uuid
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
-
-SESSION_TIMEOUT = 2 * 60
 
 # ---------------- UI ----------------
 st.markdown("""
@@ -54,7 +53,7 @@ def load_admin():
     with open(FILE_NAME, "r") as f:
         return json.load(f)
 
-# ---------------- SESSION ----------------
+# ---------------- SESSION STATE ----------------
 defaults = {
     "stage": "select_branch",
     "authenticated": False,
@@ -62,7 +61,7 @@ defaults = {
     "auth_branch": None,
     "sheet_id": None,
     "branch_info": None,
-    "last_activity": None
+    "auth_token": None,   # 🔥 IMPORTANT FIX
 }
 
 for k, v in defaults.items():
@@ -114,12 +113,12 @@ def load_passwords():
 
 passwords = load_passwords()
 
-# ---------------- SAFE AUTH CHECK ----------------
+# ---------------- AUTH CHECK ----------------
 def is_authenticated():
     return (
-        st.session_state.get("authenticated", False)
+        st.session_state.get("authenticated") is True
+        and st.session_state.get("auth_token") is not None
         and st.session_state.get("sheet_id") is not None
-        and st.session_state.get("auth_branch") is not None
     )
 
 # ---------------- BACK BUTTON ----------------
@@ -133,9 +132,10 @@ def back():
         elif st.session_state.stage == "dashboard":
             st.session_state.stage = "login"
             st.session_state.authenticated = False
+            st.session_state.auth_token = None
             st.rerun()
 
-# ---------------- STEP 1 ----------------
+# ---------------- STEP 1: SELECT BRANCH ----------------
 if st.session_state.stage == "select_branch":
 
     st.subheader("Select Branch")
@@ -149,7 +149,7 @@ if st.session_state.stage == "select_branch":
             st.session_state.stage = "login"
             st.rerun()
 
-# ---------------- STEP 2 ----------------
+# ---------------- STEP 2: LOGIN ----------------
 elif st.session_state.stage == "login":
 
     back()
@@ -162,25 +162,24 @@ elif st.session_state.stage == "login":
 
         if password == passwords.get(st.session_state.selected_branch, ""):
 
-            # 🔥 FULL SESSION SET BEFORE ANY NAVIGATION
+            # 🔥 FULL AUTH SET + TOKEN (CRITICAL FIX)
             st.session_state.authenticated = True
             st.session_state.auth_branch = st.session_state.selected_branch
             st.session_state.sheet_id = st.session_state.branch_info["SheetID"]
-            st.session_state.last_activity = time.time()
+            st.session_state.auth_token = str(uuid.uuid4())  # 🔥 KEY FIX
 
             st.session_state.stage = "dashboard"
-
             st.rerun()
 
         else:
             st.error("Incorrect password")
 
-# ---------------- STEP 3 ----------------
+# ---------------- STEP 3: DASHBOARD ----------------
 elif st.session_state.stage == "dashboard":
 
-    # 🔥 HARD SAFETY GATE
+    # 🔥 HARD SAFETY GATE (FIXES SESSION EXPIRY ISSUE)
     if not is_authenticated():
-        st.warning("Session expired. Please login again.")
+        st.error("Session expired. Please login again.")
         st.session_state.stage = "login"
         st.rerun()
 
@@ -190,13 +189,13 @@ elif st.session_state.stage == "dashboard":
 
     col1, col2, col3 = st.columns(3)
 
-    # ---------------- STOCK RECORD (FIXED) ----------------
+    # ---------------- STOCK PAGE FIX ----------------
     if col1.button("📦 Stock Record"):
 
         if is_authenticated():
             st.switch_page("pages/stock_consumption.py")
         else:
-            st.warning("Session not ready. Please login again.")
+            st.error("Session invalid. Please login again.")
             st.session_state.stage = "login"
             st.rerun()
 
@@ -204,6 +203,7 @@ elif st.session_state.stage == "dashboard":
     if col2.button("🔄 Change Branch"):
         st.session_state.stage = "select_branch"
         st.session_state.authenticated = False
+        st.session_state.auth_token = None
         st.session_state.auth_branch = None
         st.session_state.sheet_id = None
         st.rerun()
