@@ -80,12 +80,12 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ---------------- SAFE SESSION VALIDATION ----------------
-def is_session_valid():
+# ---------------- SAFE SESSION CHECK ----------------
+def is_logged_in():
     return (
         st.session_state.get("authenticated", False)
         and st.session_state.get("auth_branch") is not None
-        and st.session_state.get("selected_branch") == st.session_state.get("auth_branch")
+        and st.session_state.get("selected_branch") != "-- Select Branch --"
         and st.session_state.get("sheet_id") is not None
     )
 
@@ -242,8 +242,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
-    # ---------------- AFTER LOGIN (FIXED VALIDATION) ----------------
-    if is_session_valid():
+    # ---------------- AFTER LOGIN (FIXED DISPLAY BUG) ----------------
+    if is_logged_in():
 
         st.success(f"Logged in: {st.session_state.auth_branch}")
 
