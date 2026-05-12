@@ -11,7 +11,7 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- UI STYLE ----------------
+# ---------------- CLEAN UI STYLE ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -64,7 +64,7 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION STATE DEFAULTS ----------------
+# ---------------- SESSION STATE ----------------
 defaults = {
     "authenticated": False,
     "auth_branch": None,
@@ -87,8 +87,7 @@ def check_timeout():
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
             st.session_state.authenticated = False
             st.session_state.auth_branch = None
-            st.session_state.branch_info = None
-            st.session_state.client = None
+            st.session_state.last_activity = None
             st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
@@ -119,12 +118,6 @@ branch_options = ["-- Select Branch --"] + branches
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
-    
-    st.session_state.authenticated = False
-    st.session_state.auth_branch = None
-    st.session_state.branch_info = None
-    st.session_state.client = None
-    st.session_state.last_activity = None
 
     with st.popover("Choose Branch"):
         selected_branch = st.radio("Branch List", branch_options, index=0)
@@ -140,8 +133,6 @@ else:
         st.session_state.selected_branch = "-- Select Branch --"
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
-        st.session_state.branch_info = None
-        st.session_state.client = None
         st.session_state.last_activity = None
         st.rerun()
 
@@ -178,89 +169,34 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# =========================
-# 📦 STOCK FEATURES (SAVED - NOT IN UI)
-# =========================
+# ---------------- PIN FIRST 3 COLUMNS ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
 
-def stock_record_button():
-    if st.button("📦 Stock Record"):
-        refresh_activity()
-        st.switch_page("pages/stock_consumption.py")
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
 
-
-def stock_view_logic():
-    refresh_activity()
-
-    sheet = client.open_by_key(branch_info["SheetID"])
-    ws = sheet.worksheet("Stocks")
-
-    data = ws.get_all_values()
-
-    headers = data[0]
-    date_columns = headers[1:]
-
-    daily = []
-    weekly = []
-
-    current_section = None
-
-    for row in data:
-
-        row_text = " ".join(row).strip().lower()
-
-        if "daily item" in row_text:
-            current_section = "daily"
-            continue
-
-        if "weekly item" in row_text:
-            current_section = "weekly"
-            continue
-
-        if current_section is None:
-            continue
-
-        if not row or not row[0]:
-            continue
-
-        item = row[0].strip()
-
-        values = row[1:]
-        values += [""] * (len(date_columns) - len(values))
-
-        cleaned = []
-        total = 0
-
-        for i, v in enumerate(values):
-
-            if i < 3:
-                cleaned.append(v)
-                continue
-
-            try:
-                num = float(v) if v != "" else 0
-            except:
-                num = 0
-
-            cleaned.append(num)
-            total += num
-
-        row_dict = {"Item": item}
-
-        for i, col in enumerate(date_columns):
-            row_dict[col] = cleaned[i]
-
-        row_dict["Total"] = total
-
-        if current_section == "daily":
-            daily.append(row_dict)
-        else:
-            weekly.append(row_dict)
-
-    st.subheader("📦 Daily Items Stock")
-    st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
-
-    st.subheader("📦 Weekly Items Stock")
-    st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
@@ -268,7 +204,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
     passwords = load_passwords()
 
     if not st.session_state.authenticated:
-
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -277,20 +212,17 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         with col1:
             if st.button("Login"):
-
                 if passwords.get(st.session_state.selected_branch, "") == password:
 
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.last_activity = time.time()
 
-                    # IMPORTANT FIX
                     st.session_state.sheet_id = branch_info["SheetID"]
+                    st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
-                    st.session_state.client = client
 
                     st.rerun()
-
                 else:
                     st.error("Incorrect password")
 
@@ -300,7 +232,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
     # ---------------- RESET PASSWORD ----------------
     if st.session_state.reset_mode:
-
         st.subheader("Reset Password")
 
         admin_pass = st.text_input("Admin Password", type="password")
@@ -318,7 +249,87 @@ if st.session_state.selected_branch != "-- Select Branch --":
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
-        st.info("Navigate to modules from other pages")
+
+        col1, col2, col3 = st.columns(3)
+
+        if col1.button("📦 Stock Record"):
+            refresh_activity()
+            st.switch_page("pages/stock_consumption.py")
+
+        if col3.button("🔍 Stock View"):
+            refresh_activity()
+
+            sheet = client.open_by_key(branch_info["SheetID"])
+            ws = sheet.worksheet("Stocks")
+
+            data = ws.get_all_values()
+
+            headers = data[0]
+            date_columns = headers[1:]
+
+            daily = []
+            weekly = []
+
+            current_section = None
+
+            for row in data:
+
+                row_text = " ".join(row).strip().lower()
+
+                if "daily item" in row_text:
+                    current_section = "daily"
+                    continue
+
+                if "weekly item" in row_text:
+                    current_section = "weekly"
+                    continue
+
+                if current_section is None:
+                    continue
+
+                if not row or not row[0]:
+                    continue
+
+                item = row[0].strip()
+
+                values = row[1:]
+                values += [""] * (len(date_columns) - len(values))
+
+                cleaned = []
+                total = 0
+
+                for i, v in enumerate(values):
+
+                    # ✅ FIX: first 3 columns untouched
+                    if i < 3:
+                        cleaned.append(v)
+                        continue
+
+                    try:
+                        num = float(v) if v != "" else 0
+                    except:
+                        num = 0
+
+                    cleaned.append(num)
+                    total += num
+
+                row_dict = {"Item": item}
+
+                for i, col in enumerate(date_columns):
+                    row_dict[col] = cleaned[i]
+
+                row_dict["Total"] = total
+
+                if current_section == "daily":
+                    daily.append(row_dict)
+                else:
+                    weekly.append(row_dict)
+
+            st.subheader("📦 Daily Items Stock")
+            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
+
+            st.subheader("📦 Weekly Items Stock")
+            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
