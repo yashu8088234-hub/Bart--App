@@ -70,8 +70,7 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None,
-    "keep_branch_name": None  # 🔥 FIX STORAGE
+    "last_activity": None
 }
 
 for k, v in defaults.items():
@@ -132,7 +131,9 @@ else:
 
     if st.button("🔄 REFRESH OR CHANGE BRANCH"):
         st.session_state.selected_branch = "-- Select Branch --"
-        st.session_state.reset_mode = False
+        st.session_state.authenticated = False
+        st.session_state.auth_branch = None
+        st.session_state.last_activity = None
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -168,16 +169,41 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
+# ---------------- PIN FIRST 3 COLUMNS ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
-    # 🔥 FIXED LOGIN CONDITION
-    if (
-        not st.session_state.authenticated
-        or st.session_state.auth_branch != st.session_state.selected_branch
-    ):
+    if not st.session_state.authenticated:
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -226,16 +252,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
-        # 🔥 FIX: preserve branch name for next page
         if col1.button("📦 Stock Record"):
             refresh_activity()
-
-            # SAVE branch name BEFORE reset
-            st.session_state.keep_branch_name = st.session_state.selected_branch
-
-            st.session_state.selected_branch = "-- Select Branch --"
-            st.session_state.reset_mode = False
-
             st.switch_page("pages/stock_consumption.py")
 
         if col3.button("🔍 Stock View"):
@@ -273,6 +291,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     continue
 
                 item = row[0].strip()
+
                 values = row[1:]
                 values += [""] * (len(date_columns) - len(values))
 
@@ -281,6 +300,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
+                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
