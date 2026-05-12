@@ -220,7 +220,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     ""
                 )
 
-                if password and stored_password and password == stored_password:
+                # ---------------- FIXED LOGIN LOGIC ----------------
+                if not password:
+                    st.error("Please enter password")
+                elif not stored_password:
+                    st.error("No password set for this branch")
+                elif password == stored_password:
 
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
@@ -309,7 +314,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
-                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
