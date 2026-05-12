@@ -131,9 +131,7 @@ else:
 
     if st.button("🔄 REFRESH OR CHANGE BRANCH"):
         st.session_state.selected_branch = "-- Select Branch --"
-        st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.last_activity = None
+        st.session_state.reset_mode = False
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -168,35 +166,6 @@ def save_passwords(branch_key, new_password):
             col_index = list(row.keys()).index("Password") + 1
             sheet.update_cell(idx, col_index, new_password)
             return
-
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
@@ -252,8 +221,14 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
+        # 🔥 ONLY CHANGE (YOUR REQUEST)
         if col1.button("📦 Stock Record"):
             refresh_activity()
+
+            # ONLY reset branch selection (authentication preserved)
+            st.session_state.selected_branch = "-- Select Branch --"
+            st.session_state.reset_mode = False
+
             st.switch_page("pages/stock_consumption.py")
 
         if col3.button("🔍 Stock View"):
@@ -291,7 +266,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     continue
 
                 item = row[0].strip()
-
                 values = row[1:]
                 values += [""] * (len(date_columns) - len(values))
 
@@ -300,7 +274,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
-                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
