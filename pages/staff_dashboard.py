@@ -52,55 +52,59 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# 🔥 SAFE SESSION SYSTEM (FIX ONLY - NO UI CHANGE)
+# 🔥 SESSION + SAFE NAVIGATION SYSTEM (PRODUCTION FIX)
 # =========================================================
 
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+# ---------------- SESSION DEFAULTS ----------------
+defaults = {
+    "authenticated": False,
+    "auth_branch": None,
+    "reset_mode": False,
+    "selected_branch": "-- Select Branch --",
+    "last_activity": None,
+    "active_branch": None
+}
 
-if "active_branch" not in st.session_state:
-    st.session_state.active_branch = None
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
-if "selected_branch" not in st.session_state:
-    st.session_state.selected_branch = "-- Select Branch --"
+# ---------------- SAFE NAVIGATION FUNCTION ----------------
+def safe_switch(page):
+    """
+    Clears ONLY temporary session state before navigation
+    (NOT cache, NOT auth, NOT branch data)
+    """
+    temp_keys = [
+        "last_activity",
+        "reset_mode"
+    ]
 
-if "last_activity" not in st.session_state:
-    st.session_state.last_activity = None
+    for k in temp_keys:
+        if k in st.session_state:
+            del st.session_state[k]
 
-# ---------------- SESSION VALIDATION ----------------
-def is_session_valid():
-    if not st.session_state.authenticated:
-        return False
+    st.switch_page(page)
 
-    if not st.session_state.active_branch:
-        return False
+# ---------------- ACTIVITY ----------------
+def refresh_activity():
+    st.session_state.last_activity = time.time()
 
-    if st.session_state.last_activity:
+# ---------------- TIMEOUT ----------------
+def check_timeout():
+    if st.session_state.authenticated and st.session_state.last_activity:
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
-            return False
+            st.session_state.authenticated = False
+            st.session_state.auth_branch = None
+            st.session_state.active_branch = None
+            st.session_state.last_activity = None
+            st.warning("⏱️ Logged out due to inactivity.")
+            st.rerun()
 
-    return True
-
-# auto logout if invalid
-if not is_session_valid():
-    st.session_state.authenticated = False
-
-# ---------------- PASSWORD FILE ----------------
-FILE_NAME = Path(__file__).parent / "passwords.json"
-
-def init_file():
-    if not FILE_NAME.exists():
-        with open(FILE_NAME, "w") as f:
-            json.dump({"admin": "admin123"}, f)
-
-def load_admin():
-    with open(FILE_NAME, "r") as f:
-        return json.load(f)
-
-init_file()
+check_timeout()
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -123,7 +127,7 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- HEADER CONTROL ----------------
+# ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
@@ -155,6 +159,12 @@ else:
 branch_info = st.session_state.active_branch
 
 # ---------------- PASSWORD SYSTEM ----------------
+FILE_NAME = Path(__file__).parent / "passwords.json"
+
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
+
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
@@ -169,9 +179,7 @@ def load_passwords():
 
 passwords = load_passwords()
 
-# ---------------- LOGIN (FIXED GATE) ----------------
-
-# 🔥 THIS FIX PREVENTS “AUTO LOGGED IN UI BUG”
+# ---------------- LOGIN ----------------
 show_login = (
     not st.session_state.authenticated
     or not st.session_state.active_branch
@@ -193,8 +201,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 if passwords.get(st.session_state.selected_branch, "") == password:
 
                     st.session_state.authenticated = True
-                    st.session_state.last_activity = time.time()
+                    st.session_state.auth_branch = st.session_state.selected_branch
                     st.session_state.active_branch = branch_info
+                    st.session_state.last_activity = time.time()
 
                     st.rerun()
 
@@ -205,6 +214,31 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+# ---------------- RESET PASSWORD ----------------
+if st.session_state.reset_mode:
+    st.subheader("Reset Password")
+
+    admin_pass = st.text_input("Admin Password", type="password")
+    new_pass = st.text_input("New Password", type="password")
+
+    if st.button("Update Password"):
+        if admin_pass == load_admin()["admin"]:
+
+            sheet = client.open("MASTERBRANCHSHEET").sheet1
+            records = sheet.get_all_records()
+
+            for idx, row in enumerate(records, start=2):
+                key = f"{row['BranchCode']} - {row['BranchName']}"
+                if key == st.session_state.selected_branch:
+                    col_index = list(row.keys()).index("Password") + 1
+                    sheet.update_cell(idx, col_index, new_pass)
+                    break
+
+            st.success("Password updated successfully")
+            st.session_state.reset_mode = False
+        else:
+            st.error("Wrong admin password")
+
 # ---------------- AFTER LOGIN ----------------
 if st.session_state.authenticated and st.session_state.active_branch:
 
@@ -213,13 +247,13 @@ if st.session_state.authenticated and st.session_state.active_branch:
     col1, col2, col3 = st.columns(3)
 
     if col1.button("📦 Stock Record"):
-        st.session_state.last_activity = time.time()
-        st.switch_page("pages/stock_consumption.py")
+        refresh_activity()
+        safe_switch("pages/stock_consumption.py")
 
     if col3.button("🔍 Stock View"):
-        st.session_state.last_activity = time.time()
-        st.switch_page("pages/stock_view.py")
+        refresh_activity()
+        safe_switch("pages/stock_view.py")
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
-    st.switch_page("app.py")
+    safe_switch("staff_dashboard.py")
