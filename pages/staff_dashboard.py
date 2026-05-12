@@ -70,7 +70,8 @@ defaults = {
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None
+    "last_activity": None,
+    "page": "login"
 }
 
 for k, v in defaults.items():
@@ -88,6 +89,7 @@ def check_timeout():
             st.session_state.authenticated = False
             st.session_state.auth_branch = None
             st.session_state.last_activity = None
+            st.session_state.page = "login"
             st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
@@ -134,6 +136,7 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
+        st.session_state.page = "login"
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
@@ -169,41 +172,13 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
     if not st.session_state.authenticated:
+
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -222,6 +197,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
 
+                    st.session_state.page = "menu"
                     st.rerun()
                 else:
                     st.error("Incorrect password")
@@ -250,14 +226,30 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1, col2, col3 = st.columns(3)
+        # ---------------- MENU ----------------
+        if st.session_state.page == "menu":
 
-        if col1.button("📦 Stock Record"):
-            refresh_activity()
-            st.switch_page("pages/stock_consumption.py")
+            st.subheader("Dashboard Menu")
 
-        if col3.button("🔍 Stock View"):
-            refresh_activity()
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("📦 Stock Record"):
+                    refresh_activity()
+                    st.switch_page("pages/stock_consumption.py")
+
+            with col2:
+                if st.button("🔍 Stock View"):
+                    refresh_activity()
+                    st.session_state.page = "stock_view"
+                    st.rerun()
+
+        # ---------------- STOCK VIEW ----------------
+        elif st.session_state.page == "stock_view":
+
+            if st.button("⬅ Back to Menu"):
+                st.session_state.page = "menu"
+                st.rerun()
 
             sheet = client.open_by_key(branch_info["SheetID"])
             ws = sheet.worksheet("Stocks")
@@ -300,7 +292,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
-                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
