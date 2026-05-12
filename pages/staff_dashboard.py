@@ -42,7 +42,7 @@ padding:20px;border-radius:12px;text-align:center;margin-bottom:20px;">
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- INIT ----------------
+# ---------------- INIT FILE ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
 
 if not FILE_NAME.exists():
@@ -56,12 +56,13 @@ def load_admin():
 # ---------------- SESSION STATE ----------------
 defaults = {
     "stage": "select_branch",
-    "authenticated": False,
     "selected_branch": "-- Select Branch --",
+    "branch_info": None,
+
+    # AUTH CORE
+    "auth_key": None,
     "auth_branch": None,
     "sheet_id": None,
-    "branch_info": None,
-    "auth_token": None,   # 🔥 IMPORTANT FIX
 }
 
 for k, v in defaults.items():
@@ -113,13 +114,14 @@ def load_passwords():
 
 passwords = load_passwords()
 
-# ---------------- AUTH CHECK ----------------
+# ---------------- AUTH SYSTEM ----------------
+def set_login(branch, sheet_id):
+    st.session_state.auth_key = str(uuid.uuid4())  # 🔥 SINGLE SOURCE OF TRUTH
+    st.session_state.auth_branch = branch
+    st.session_state.sheet_id = sheet_id
+
 def is_authenticated():
-    return (
-        st.session_state.get("authenticated") is True
-        and st.session_state.get("auth_token") is not None
-        and st.session_state.get("sheet_id") is not None
-    )
+    return st.session_state.get("auth_key") is not None
 
 # ---------------- BACK BUTTON ----------------
 def back():
@@ -131,8 +133,9 @@ def back():
 
         elif st.session_state.stage == "dashboard":
             st.session_state.stage = "login"
-            st.session_state.authenticated = False
-            st.session_state.auth_token = None
+            st.session_state.auth_key = None
+            st.session_state.auth_branch = None
+            st.session_state.sheet_id = None
             st.rerun()
 
 # ---------------- STEP 1: SELECT BRANCH ----------------
@@ -162,11 +165,11 @@ elif st.session_state.stage == "login":
 
         if password == passwords.get(st.session_state.selected_branch, ""):
 
-            # 🔥 FULL AUTH SET + TOKEN (CRITICAL FIX)
-            st.session_state.authenticated = True
-            st.session_state.auth_branch = st.session_state.selected_branch
-            st.session_state.sheet_id = st.session_state.branch_info["SheetID"]
-            st.session_state.auth_token = str(uuid.uuid4())  # 🔥 KEY FIX
+            # 🔥 SAFE LOGIN
+            set_login(
+                st.session_state.selected_branch,
+                st.session_state.branch_info["SheetID"]
+            )
 
             st.session_state.stage = "dashboard"
             st.rerun()
@@ -177,7 +180,7 @@ elif st.session_state.stage == "login":
 # ---------------- STEP 3: DASHBOARD ----------------
 elif st.session_state.stage == "dashboard":
 
-    # 🔥 HARD SAFETY GATE (FIXES SESSION EXPIRY ISSUE)
+    # 🔥 HARD AUTH CHECK (IMPORTANT)
     if not is_authenticated():
         st.error("Session expired. Please login again.")
         st.session_state.stage = "login"
@@ -189,21 +192,20 @@ elif st.session_state.stage == "dashboard":
 
     col1, col2, col3 = st.columns(3)
 
-    # ---------------- STOCK PAGE FIX ----------------
+    # ---------------- STOCK PAGE ----------------
     if col1.button("📦 Stock Record"):
 
         if is_authenticated():
             st.switch_page("pages/stock_consumption.py")
         else:
-            st.error("Session invalid. Please login again.")
+            st.error("Session expired. Please login again.")
             st.session_state.stage = "login"
             st.rerun()
 
     # ---------------- CHANGE BRANCH ----------------
     if col2.button("🔄 Change Branch"):
         st.session_state.stage = "select_branch"
-        st.session_state.authenticated = False
-        st.session_state.auth_token = None
+        st.session_state.auth_key = None
         st.session_state.auth_branch = None
         st.session_state.sheet_id = None
         st.rerun()
