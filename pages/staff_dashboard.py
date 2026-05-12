@@ -123,17 +123,6 @@ if st.session_state.selected_branch == "-- Select Branch --":
         selected_branch = st.radio("Branch List", branch_options, index=0)
 
         if selected_branch != "-- Select Branch --":
-
-            # ✅ FIX: RESET SESSION ON BRANCH CHANGE
-            st.session_state.authenticated = False
-            st.session_state.auth_branch = None
-            st.session_state.last_activity = None
-
-            if "sheet_id" in st.session_state:
-                st.session_state.sheet_id = None
-            if "tab_name" in st.session_state:
-                st.session_state.tab_name = None
-
             st.session_state.selected_branch = selected_branch
             st.rerun()
 
@@ -311,6 +300,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
                 for i, v in enumerate(values):
 
+                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
@@ -344,3 +334,4 @@ if st.session_state.selected_branch != "-- Select Branch --":
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
+
