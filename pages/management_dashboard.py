@@ -17,6 +17,37 @@ import time
 # =========================================================
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
+
+# =========================================================
+# HIDE STREAMLIT TOP RIGHT ITEMS
+# =========================================================
+
+st.markdown("""
+<style>
+
+/* Hide deploy button */
+.stDeployButton {
+    display: none;
+}
+
+/* Hide toolbar buttons except 3 dots */
+[data-testid="stToolbar"] > div:not(:last-child) {
+    display: none !important;
+}
+
+/* Clean transparent header */
+header[data-testid="stHeader"] {
+    background: transparent;
+}
+
+/* Hide footer */
+footer {
+    visibility: hidden;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
@@ -107,7 +138,6 @@ def fetch_sheet_range(sheet_id):
     try:
         ws = sheet_cache[sheet_id].worksheet("Stocks")
 
-        # BIG RANGE
         data = ws.get("A1:ZZ1000")
 
         return data
@@ -198,13 +228,10 @@ with col2:
                 all_data = load_all_data(branches)
 
                 st.session_state.last_force_refresh = time.time()
+
                 time.sleep(5)
 
                 st.success("✅ Latest stock data loaded successfully")
-                
-
-                
-                    
 
             except:
                 show_api_error()
