@@ -24,9 +24,8 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 def show_api_error():
-    st.error("")
+    st.error("API Error Occurred")
     st.stop()
-    time.sleep(2)
 
 # =========================================================
 # GOOGLE AUTH
@@ -72,24 +71,18 @@ except:
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE
+# SHEET FETCH (FIXED - NO CACHE RESOURCE)
 # =========================================================
 
-@st.cache_resource
 def get_sheets(branches):
-
     cache = {}
-
     for b in branches:
-
         sid = b.get("SheetID")
-
         if sid:
             try:
                 cache[sid] = client.open_by_key(sid)
-            except:
-                pass
-
+            except Exception as e:
+                st.warning(f"Sheet load failed: {sid} -> {e}")
     return cache
 
 try:
@@ -98,41 +91,34 @@ except:
     show_api_error()
 
 # =========================================================
-# FETCH SHEETS
+# FETCH SHEETS (FIXED - NO GLOBAL DEPENDENCY ISSUE)
 # =========================================================
 
-@st.cache_data(ttl=600)
 def fetch_sheet_range(sheet_id):
-
     try:
-        ws = sheet_cache[sheet_id].worksheet("Stocks")
-
-        # BIG RANGE
+        ws = client.open_by_key(sheet_id).worksheet("Stocks")
         data = ws.get("A1:ZZ1000")
-
         return data
-
-    except:
+    except Exception:
         return None
 
 def fetch_branch(branch):
-
     sid = branch.get("SheetID")
-
-    if not sid or sid not in sheet_cache:
+    if not sid:
         return branch["BranchName"], None
 
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA (FIXED - REMOVED THREADPOOL FOR STABILITY)
 # =========================================================
 
 @st.cache_data(ttl=600)
 def load_all_data(branches):
-
-    with ThreadPoolExecutor(max_workers=5) as ex:
-        return list(ex.map(fetch_branch, branches))
+    results = []
+    for b in branches:
+        results.append(fetch_branch(b))
+    return results
 
 # =========================================================
 # SMART REFRESH CONTROL
@@ -163,7 +149,6 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-
     if st.button("🔄 Refresh Date Only"):
         st.rerun()
 
@@ -185,12 +170,9 @@ with col2:
         with st.spinner("Fetching latest stock data from all branches..."):
 
             try:
-
                 st.cache_data.clear()
-                st.cache_resource.clear()
 
                 client = get_client()
-
                 branches = load_branches()
 
                 sheet_cache = get_sheets(branches)
@@ -198,20 +180,15 @@ with col2:
                 all_data = load_all_data(branches)
 
                 st.session_state.last_force_refresh = time.time()
-                time.sleep(5)
+                time.sleep(2)
 
                 st.success("✅ Latest stock data loaded successfully")
-                
-
-                
-                    
 
             except:
                 show_api_error()
                 st.rerun()
 
 with col3:
-
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
@@ -244,8 +221,7 @@ def process_stock(all_data, selected_date_str, branch_names):
         date_index = None
 
         for i, h in enumerate(headers):
-
-            if h == selected_date_str:
+            if str(h).strip() == selected_date_str:
                 date_index = i
                 break
 
@@ -294,16 +270,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             qty = 0
 
             try:
-
                 if date_index is not None and len(row) > date_index:
-
                     val = row[date_index]
-
-                    if val in ["", None]:
-                        qty = 0
-                    else:
-                        qty = float(val)
-
+                    qty = float(val) if val not in ["", None] else 0
             except:
                 qty = 0
 
@@ -338,14 +307,7 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    if not rows:
-        return pd.DataFrame(columns=[
-            "Item Name",
-            "SKU",
-            "UOM"
-        ] + branch_names)
-
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
@@ -357,18 +319,9 @@ weekly_df = build_df(weekly_items)
 def get_width(series, min_width):
 
     try:
-
         series = series.fillna("").astype(str)
-
         max_len = series.map(len).max()
-
-        if pd.isna(max_len) or max_len is None:
-            return min_width
-
-        width = int(max_len * 5 + 25)
-
-        return max(width, min_width)
-
+        return max(int(max_len * 5 + 25), min_width)
     except:
         return min_width
 
@@ -386,37 +339,15 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column(
-        "Item Name",
-        pinned="left",
-        minWidth=get_width(df["Item Name"], 90)
-    )
-
-    gb.configure_column(
-        "SKU",
-        pinned="left",
-        minWidth=get_width(df["SKU"], 40)
-    )
-
-    gb.configure_column(
-        "UOM",
-        pinned="left",
-        minWidth=get_width(df["UOM"], 40)
-    )
+    gb.configure_column("Item Name", pinned="left", minWidth=get_width(df["Item Name"], 90))
+    gb.configure_column("SKU", pinned="left", minWidth=get_width(df["SKU"], 40))
+    gb.configure_column("UOM", pinned="left", minWidth=get_width(df["UOM"], 40))
 
     for col in branch_names:
-
         if col in df.columns:
-            gb.configure_column(
-                col,
-                minWidth=get_width(df[col], 120)
-            )
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(
-        resizable=True,
-        sortable=True,
-        filter=True
-    )
+    gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(
         df,
@@ -434,143 +365,70 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL EXPORT (UNCHANGED)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
-
     wb = Workbook()
-
     ws = wb.active
-
     ws.title = "Stock Dashboard"
 
     header_font = Font(bold=True)
-
-    align_center = Alignment(
-        horizontal="center",
-        vertical="center"
-    )
-
-    zebra_fill = PatternFill(
-        "solid",
-        fgColor="F5F5F5"
-    )
+    align_center = Alignment(horizontal="center", vertical="center")
+    zebra_fill = PatternFill("solid", fgColor="F5F5F5")
 
     def write_section(title, df, start_row):
 
-        rows = list(
-            dataframe_to_rows(
-                df,
-                index=False,
-                header=True
-            )
-        )
+        rows = list(dataframe_to_rows(df, index=False, header=True))
 
         if not rows:
             return start_row + 2
 
-        total_cols = len(rows[0])
+        total_cols = len(rows[0]) or 1
 
-        if total_cols <= 0:
-            total_cols = 1
+        ws.merge_cells(start_row=start_row, start_column=1,
+                       end_row=start_row, end_column=total_cols)
 
-        ws.merge_cells(
-            start_row=start_row,
-            start_column=1,
-            end_row=start_row,
-            end_column=total_cols
-        )
-
-        ws.cell(
-            row=start_row,
-            column=1,
-            value=title
-        ).font = Font(
-            bold=True,
-            size=14
-        )
+        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True, size=14)
 
         row_idx = start_row + 2
 
         for r_i, row in enumerate(rows):
-
             for c_i, val in enumerate(row, 1):
 
-                c = ws.cell(
-                    row=row_idx + r_i,
-                    column=c_i,
-                    value=val
-                )
-
+                c = ws.cell(row=row_idx + r_i, column=c_i, value=val)
                 c.alignment = align_center
 
                 if r_i == 0:
                     c.font = header_font
-
                 elif r_i % 2 == 0:
                     c.fill = zebra_fill
 
         return row_idx + len(rows) + 3
 
-    next_row = write_section(
-        "📦 DAILY STOCK",
-        daily_df,
-        1
-    )
-
-    write_section(
-        "📦 WEEKLY STOCK",
-        weekly_df,
-        next_row
-    )
-
-    # =========================================================
-    # AUTO WIDTH FIXED
-    # =========================================================
+    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
+    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
 
     for col in ws.columns:
-
-        max_length = 0
-
         try:
             column = get_column_letter(col[0].column)
         except:
             continue
 
+        max_length = 0
         for cell in col:
+            if cell.value:
+                max_length = max(max_length, len(str(cell.value)))
 
-            try:
-
-                if cell.value:
-                    max_length = max(
-                        max_length,
-                        len(str(cell.value))
-                    )
-
-            except:
-                pass
-
-        adjusted_width = max_length + 3
-
-        ws.column_dimensions[column].width = adjusted_width
+        ws.column_dimensions[column].width = max_length + 3
 
     wb.save(output)
-
     output.seek(0)
-
     return output
 
-excel_file = create_excel(
-    daily_df,
-    weekly_df
-)
-
-# =========================================================
-# DOWNLOAD BUTTON
-# =========================================================
+excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
     "📥 Download Stock Report (Daily + Weekly Excel)",
