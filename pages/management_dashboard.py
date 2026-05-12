@@ -198,10 +198,10 @@ with col2:
                 all_data = load_all_data(branches)
 
                 st.session_state.last_force_refresh = time.time()
-                time.sleep(3)
+                time.sleep(5)
 
                 st.success("✅ Latest stock data loaded successfully")
-                st.rerun()
+                
 
                 
                     
