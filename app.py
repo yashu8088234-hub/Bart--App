@@ -63,11 +63,21 @@ st.markdown("""
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* Sidebar */
+/* 🔥 FULL SIDEBAR HIDE (ONLY CHANGE) */
 [data-testid="stSidebar"] {
-    visibility: visible !important;
-    display: block !important;
-    width: 320px !important;
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Hide sidebar collapse button */
+[data-testid="collapsedControl"] {
+    display: none !important;
+}
+
+/* App spacing fix when sidebar removed */
+section.main > div {
+    padding-left: 2rem;
+    padding-right: 2rem;
 }
 
 /* Hero */
@@ -168,6 +178,7 @@ if st.session_state.show_mgmt_password:
 
 # =========================================================
 # SIDE BAR AI
+# (still exists but will be hidden by CSS)
 # =========================================================
 with st.sidebar:
 
