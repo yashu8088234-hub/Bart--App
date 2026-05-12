@@ -220,6 +220,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
         st.success(f"Logged in: {st.session_state.selected_branch}")
+        st.switchpage("pages/branch_dashboard.py")
 
         st.info("Use navigation to access modules")
 
