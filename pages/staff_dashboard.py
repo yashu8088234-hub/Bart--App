@@ -6,12 +6,12 @@ from pathlib import Path
 import pandas as pd
 import time
 
-# ---------------- CONFIG ----------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- STYLE ----------------
+# ---------------- UI ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -43,32 +43,31 @@ padding:20px;border-radius:12px;text-align:center;margin-bottom:20px;">
 </div>
 """, unsafe_allow_html=True)
 
-# ---------------- INIT FILE ----------------
+# ---------------- INIT ----------------
 FILE_NAME = Path(__file__).parent / "passwords.json"
-
-def load_admin():
-    with open(FILE_NAME, "r") as f:
-        return json.load(f)
 
 if not FILE_NAME.exists():
     with open(FILE_NAME, "w") as f:
         json.dump({"admin": "admin123"}, f)
 
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
+
 # ---------------- SESSION ----------------
-if "stage" not in st.session_state:
-    st.session_state.stage = "select_branch"
+defaults = {
+    "stage": "select_branch",
+    "authenticated": False,
+    "selected_branch": "-- Select Branch --",
+    "auth_branch": None,
+    "sheet_id": None,
+    "branch_info": None,
+    "last_activity": None
+}
 
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if "selected_branch" not in st.session_state:
-    st.session_state.selected_branch = "-- Select Branch --"
-
-if "sheet_id" not in st.session_state:
-    st.session_state.sheet_id = None
-
-if "auth_branch" not in st.session_state:
-    st.session_state.auth_branch = None
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ---------------- GOOGLE SHEETS ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -115,6 +114,14 @@ def load_passwords():
 
 passwords = load_passwords()
 
+# ---------------- SAFE AUTH CHECK ----------------
+def is_authenticated():
+    return (
+        st.session_state.get("authenticated", False)
+        and st.session_state.get("sheet_id") is not None
+        and st.session_state.get("auth_branch") is not None
+    )
+
 # ---------------- BACK BUTTON ----------------
 def back():
     if st.button("⬅ Back"):
@@ -140,7 +147,7 @@ if st.session_state.stage == "select_branch":
             st.session_state.selected_branch = selected
             st.session_state.branch_info = get_branch_info(selected)
             st.session_state.stage = "login"
-            st.rerun()   # ✔ needed (fixes “stuck feeling”)
+            st.rerun()
 
 # ---------------- STEP 2 ----------------
 elif st.session_state.stage == "login":
@@ -155,18 +162,27 @@ elif st.session_state.stage == "login":
 
         if password == passwords.get(st.session_state.selected_branch, ""):
 
+            # 🔥 FULL SESSION SET BEFORE ANY NAVIGATION
             st.session_state.authenticated = True
             st.session_state.auth_branch = st.session_state.selected_branch
             st.session_state.sheet_id = st.session_state.branch_info["SheetID"]
+            st.session_state.last_activity = time.time()
 
             st.session_state.stage = "dashboard"
-            st.rerun()   # ✔ correct use
+
+            st.rerun()
 
         else:
             st.error("Incorrect password")
 
 # ---------------- STEP 3 ----------------
-elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
+elif st.session_state.stage == "dashboard":
+
+    # 🔥 HARD SAFETY GATE
+    if not is_authenticated():
+        st.warning("Session expired. Please login again.")
+        st.session_state.stage = "login"
+        st.rerun()
 
     back()
 
@@ -174,15 +190,25 @@ elif st.session_state.stage == "dashboard" and st.session_state.authenticated:
 
     col1, col2, col3 = st.columns(3)
 
+    # ---------------- STOCK RECORD (FIXED) ----------------
     if col1.button("📦 Stock Record"):
-        st.switch_page("pages/stock_consumption.py")
 
+        if is_authenticated():
+            st.switch_page("pages/stock_consumption.py")
+        else:
+            st.warning("Session not ready. Please login again.")
+            st.session_state.stage = "login"
+            st.rerun()
+
+    # ---------------- CHANGE BRANCH ----------------
     if col2.button("🔄 Change Branch"):
         st.session_state.stage = "select_branch"
         st.session_state.authenticated = False
-        st.session_state.selected_branch = "-- Select Branch --"
+        st.session_state.auth_branch = None
+        st.session_state.sheet_id = None
         st.rerun()
 
+    # ---------------- STOCK VIEW ----------------
     if col3.button("🔍 Stock View"):
 
         sheet = client.open_by_key(st.session_state.sheet_id)
