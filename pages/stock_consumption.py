@@ -138,6 +138,8 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
+    if st.button("⬅ Back"):
+
     st.stop()
 
 # -----------------------------
