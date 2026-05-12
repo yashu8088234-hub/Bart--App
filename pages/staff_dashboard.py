@@ -11,33 +11,86 @@ st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- INIT SESSION STATE ----------------
-def init_session():
-    defaults = {
-        "authenticated": False,
-        "selected_branch": "-- Select Branch --",
-        "auth_branch": None,
-        "active_branch": None,
-        "last_activity": None,
-        "reset_mode": False
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+# ---------------- CLEAN UI STYLE (UNCHANGED) ----------------
+st.markdown("""
+<style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stSidebar"] {display:none;}
 
-init_session()
+.block-container {
+    padding: 1rem 2rem;
+    max-width: 1200px;
+    margin: auto;
+}
+
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
+
+h1, h2, h3 {
+    text-align: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- HEADER (UNCHANGED) ----------------
+st.markdown("""
+<div style="
+    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+">
+<h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
+<p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- PASSWORD FILE ----------------
+FILE_NAME = Path(__file__).parent / "passwords.json"
+
+def init_file():
+    if not FILE_NAME.exists():
+        with open(FILE_NAME, "w") as f:
+            json.dump({"admin": "admin123"}, f)
+
+def load_admin():
+    with open(FILE_NAME, "r") as f:
+        return json.load(f)
+
+init_file()
+
+# ---------------- SESSION STATE (FIX APPLIED HERE) ----------------
+defaults = {
+    "authenticated": False,
+    "auth_branch": None,
+    "reset_mode": False,
+    "selected_branch": "-- Select Branch --",
+    "last_activity": None,
+    "active_branch": None   # 🔥 FIX: REQUIRED FOR PAGE SWITCH
+}
+
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ---------------- ACTIVITY ----------------
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
+# ---------------- TIMEOUT ----------------
 def check_timeout():
     if st.session_state.authenticated and st.session_state.last_activity:
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
             st.session_state.authenticated = False
             st.session_state.auth_branch = None
             st.session_state.active_branch = None
-            st.warning("⏱️ Session expired due to inactivity")
+            st.session_state.last_activity = None
+            st.warning("⏱️ Logged out due to inactivity.")
             st.rerun()
 
 check_timeout()
@@ -63,43 +116,40 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- UI ----------------
-st.title("BART Staff Dashboard")
+# ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
-# ---------------- BRANCH SELECT ----------------
 if st.session_state.selected_branch == "-- Select Branch --":
 
-    selected = st.selectbox("Choose Branch", branch_options)
+    with st.popover("Choose Branch"):
+        selected_branch = st.radio("Branch List", branch_options, index=0)
 
-    if selected != "-- Select Branch --":
+        if selected_branch != "-- Select Branch --":
 
-        st.session_state.selected_branch = selected
+            st.session_state.selected_branch = selected_branch
 
-        st.session_state.active_branch = next(
-            b for b in branch_data
-            if f"{b['BranchCode']} - {b['BranchName']}" == selected
-        )
+            # 🔥 FIX: ensure branch is ALWAYS stored for next page
+            st.session_state.active_branch = next(
+                b for b in branch_data
+                if f"{b['BranchCode']} - {b['BranchName']}" == selected_branch
+            )
 
-        st.rerun()
+            st.rerun()
 
 else:
-    st.success(f"Branch: {st.session_state.selected_branch}")
+    st.success(f"Selected Branch: {st.session_state.selected_branch}")
 
-    if st.button("🔄 Change Branch"):
+    if st.button("🔄 REFRESH OR CHANGE BRANCH"):
         st.session_state.selected_branch = "-- Select Branch --"
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.active_branch = None
+        st.session_state.last_activity = None
         st.rerun()
 
 branch_info = st.session_state.active_branch
 
-# ---------------- PASSWORD ----------------
-def load_admin():
-    file = Path(__file__).parent / "passwords.json"
-    return json.load(open(file))
-
+# ---------------- PASSWORD SYSTEM ----------------
 def load_passwords():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     records = sheet.get_all_records()
@@ -112,10 +162,39 @@ def load_passwords():
 
     return passwords
 
-passwords = load_passwords()
+# ---------------- PIN STYLE (UNCHANGED) ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
 
-# ---------------- LOGIN ----------------
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
+
+    passwords = load_passwords()
 
     if not st.session_state.authenticated:
 
@@ -123,32 +202,72 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         password = st.text_input("Password", type="password")
 
-        if st.button("Login"):
+        col1, col2 = st.columns(2)
 
-            if passwords.get(st.session_state.selected_branch) == password:
+        with col1:
+            if st.button("Login"):
+                if passwords.get(st.session_state.selected_branch, "") == password:
 
-                st.session_state.authenticated = True
-                st.session_state.auth_branch = st.session_state.selected_branch
-                st.session_state.active_branch = branch_info
-                st.session_state.last_activity = time.time()
+                    st.session_state.authenticated = True
+                    st.session_state.auth_branch = st.session_state.selected_branch
+                    st.session_state.last_activity = time.time()
 
-                st.success("Login successful")
-                st.rerun()
+                    st.session_state.sheet_id = branch_info["SheetID"]
+                    st.session_state.tab_name = "Stocks"
+                    st.session_state.branch_info = branch_info
 
+                    st.rerun()
+                else:
+                    st.error("Incorrect password")
+
+        with col2:
+            if st.button("Reset Password"):
+                st.session_state.reset_mode = True
+
+    # ---------------- RESET PASSWORD ----------------
+    if st.session_state.reset_mode:
+        st.subheader("Reset Password")
+
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
+
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                # (unchanged logic)
+                sheet = client.open("MASTERBRANCHSHEET").sheet1
+                records = sheet.get_all_records()
+
+                for idx, row in enumerate(records, start=2):
+                    key = f"{row['BranchCode']} - {row['BranchName']}"
+                    if key == st.session_state.selected_branch:
+                        col_index = list(row.keys()).index("Password") + 1
+                        sheet.update_cell(idx, col_index, new_pass)
+                        break
+
+                st.success("Password updated successfully")
+                st.session_state.reset_mode = False
             else:
-                st.error("Incorrect password")
+                st.error("Wrong admin password")
 
-# ---------------- AFTER LOGIN ----------------
-if st.session_state.authenticated:
+    # ---------------- AFTER LOGIN ----------------
+    if st.session_state.authenticated:
 
-    st.success(f"Logged in: {st.session_state.selected_branch}")
+        st.success(f"Logged in: {st.session_state.selected_branch}")
 
-    col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
-    if col1.button("📦 Stock Record"):
-        refresh_activity()
-        st.switch_page("pages/stock_consumption.py")
+        if col1.button("📦 Stock Record"):
+            refresh_activity()
 
-    if col2.button("🔍 Stock View"):
-        refresh_activity()
-        st.info("Stock view page here")
+            # 🔥 FIX: ensure persistence before page switch
+            st.session_state.active_branch = branch_info
+
+            st.switch_page("pages/stock_consumption.py")
+
+        if col3.button("🔍 Stock View"):
+            refresh_activity()
+            st.switch_page("pages/stock_view.py")
+
+# ---------------- BACK ----------------
+if st.button("⬅ Back"):
+    st.switch_page("staff_dashboard.py")
