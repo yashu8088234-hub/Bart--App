@@ -154,7 +154,7 @@ def load_passwords():
 
     for row in records:
         key = f"{row['BranchCode']} - {row['BranchName']}"
-        passwords[key] = row.get("Password", "")
+        passwords[key] = str(row.get("Password", "")).strip()
 
     return passwords
 
@@ -212,7 +212,15 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         with col1:
             if st.button("Login"):
-                if passwords.get(st.session_state.selected_branch, "") == password:
+
+                password = password.strip()
+
+                stored_password = passwords.get(
+                    st.session_state.selected_branch,
+                    ""
+                )
+
+                if password and stored_password and password == stored_password:
 
                     st.session_state.authenticated = True
                     st.session_state.auth_branch = st.session_state.selected_branch
@@ -223,6 +231,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.branch_info = branch_info
 
                     st.rerun()
+
                 else:
                     st.error("Incorrect password")
 
