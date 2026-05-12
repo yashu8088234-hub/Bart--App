@@ -1,8 +1,3 @@
-ok now i want you to make some change ini this code like 
-user gets into the staff dashboard and choose the branch and let it show the password secttion and when user type the passwword give one button login then navigate tto a another page show him tthe stock record butotn and stock view and when he click thte stock record open the staock page as it is and when he clicks sttock view give him the stock view ok go me ask annyh questtions beore doing anythiign and dont change design and any other logics like stock view wchange  or any design or any modfcation other than whwat o have todl you 
-
-
-
 
 import streamlit as st
 import gspread
