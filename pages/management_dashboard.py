@@ -198,12 +198,13 @@ with col2:
                 all_data = load_all_data(branches)
 
                 st.session_state.last_force_refresh = time.time()
-                time.sleep(10)
+                time.sleep(3)
 
                 st.success("✅ Latest stock data loaded successfully")
+                st.rerun()
 
-                if st.button("🔄 Click Now to Refresh"):
-                    st.rerun()
+                
+                    
 
             except:
                 show_api_error()
