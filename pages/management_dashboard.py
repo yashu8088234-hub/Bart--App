@@ -28,24 +28,19 @@ st.markdown("""
     display: none !important;
 }
 
-/* Hide entire toolbar except the last item (3 dots menu) */
-[data-testid="stToolbar"] {
-    visibility: visible;
-}
-
-/* Hide all toolbar children */
-[data-testid="stToolbar"] > div {
+/* Hide everything in toolbar */
+[data-testid="stToolbar"] button {
     display: none !important;
 }
 
-/* Force show ONLY last item (3 dots menu) */
-[data-testid="stToolbar"] > div:last-child {
-    display: flex !important;
+/* Re-enable ONLY the menu (3 dots) button */
+[data-testid="stToolbar"] [data-testid="stMainMenu"] {
+    display: block !important;
 }
 
-/* Keep header clean */
-header[data-testid="stHeader"] {
-    background: transparent;
+/* Also ensure toolbar stays visible */
+[data-testid="stToolbar"] {
+    visibility: visible !important;
 }
 
 /* Hide footer */
@@ -53,7 +48,7 @@ footer {
     visibility: hidden;
 }
 
-/* Optional: hide left hamburger menu */
+/* Hide Streamlit menu (optional left hamburger - remove this if you want settings menu) */
 #MainMenu {
     visibility: hidden;
 }
