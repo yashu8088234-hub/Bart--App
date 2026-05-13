@@ -5,9 +5,8 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 import time
 
@@ -19,7 +18,7 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# 🔥 LIVE TIMER (UNCHANGED)
+# 🔥 LIVE TIMER
 # =========================================================
 
 from streamlit_autorefresh import st_autorefresh
@@ -27,7 +26,6 @@ st_autorefresh(interval=10000, key="live_timer")
 
 # =========================================================
 # API ERROR SCREEN
-# (ONLY CHANGE: show real error)
 # =========================================================
 
 def show_api_error(e):
@@ -54,7 +52,6 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-# ONLY ERROR FIX HERE
 try:
     client = get_client()
 except Exception as e:
@@ -87,25 +84,49 @@ branch_names = [b["BranchName"] for b in branches]
 def get_spreadsheet(sheet_id):
     try:
         return client.open_by_key(sheet_id)
-    except:
+    except Exception as e:
+        print(f"Spreadsheet Open Error: {e}")
         return None
 
-def fetch_sheet_range(sheet_id):
+# =========================================================
+# ONLY DEBUG FIX FOR 21ST BRANCH
+# =========================================================
+
+def fetch_sheet_range(sheet_id, branch_name="Unknown"):
+
     try:
+
         ss = get_spreadsheet(sheet_id)
+
         if not ss:
+            print(f"{branch_name}: Spreadsheet not found")
             return None
+
         ws = ss.worksheet("Stocks")
-        return ws.get_all_values()
-    except:
+
+        data = ws.get_all_values()
+
+        print(f"{branch_name}: SUCCESS")
+
+        return data
+
+    except Exception as e:
+
+        print(f"{branch_name}: ERROR -> {e}")
+
         return None
 
 def fetch_branch(branch):
+
     sid = branch.get("SheetID")
+
     if not sid:
         return branch["BranchName"], None
 
-    return branch["BranchName"], fetch_sheet_range(sid)
+    return branch["BranchName"], fetch_sheet_range(
+        sid,
+        branch["BranchName"]
+    )
 
 # =========================================================
 # LOAD DATA
@@ -116,7 +137,7 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# REFRESH CONTROL (UNCHANGED)
+# REFRESH CONTROL
 # =========================================================
 
 if "last_force_refresh" not in st.session_state:
@@ -125,7 +146,10 @@ if "last_force_refresh" not in st.session_state:
 REFRESH_COOLDOWN = 40
 
 now = time.time()
-remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
+remaining = REFRESH_COOLDOWN - (
+    now - st.session_state.last_force_refresh
+)
+
 remaining = max(0, int(remaining))
 can_force_refresh = remaining <= 0
 
@@ -137,7 +161,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (UNCHANGED)
+# BUTTONS
 # =========================================================
 
 col1, col2, col3 = st.columns(3)
@@ -156,13 +180,20 @@ with col2:
 
     if st.button(refresh_text, disabled=not can_force_refresh):
 
-        with st.spinner("Fetching latest stock data from all branches..."):
+        with st.spinner(
+            "Fetching latest stock data from all branches..."
+        ):
 
             try:
+
                 st.cache_data.clear()
+
                 st.session_state.last_force_refresh = time.time()
 
-                st.success("✅ Latest stock data loaded successfully")
+                st.success(
+                    "✅ Latest stock data loaded successfully"
+                )
+
                 st.rerun()
 
             except Exception as e:
@@ -174,7 +205,7 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# LIVE TIMER DISPLAY (UNCHANGED)
+# LIVE TIMER DISPLAY
 # =========================================================
 
 st.info(f"⏳ Refresh available in: {remaining} seconds")
@@ -203,7 +234,9 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(h).strip() for h in raw[0]]
 
         date_index = None
+
         for i, h in enumerate(headers):
+
             if str(h).strip() == selected_date_str:
                 date_index = i
                 break
@@ -215,7 +248,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not row:
                 continue
 
-            text = " ".join([str(x) for x in row]).lower()
+            text = " ".join(
+                [str(x) for x in row]
+            ).lower()
 
             if "daily item" in text:
                 current_section = "daily"
@@ -229,16 +264,30 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             item = str(row[0]).strip()
-            sku = str(row[1]).strip() if len(row) > 1 else ""
-            uom = str(row[2]).strip() if len(row) > 2 else ""
+
+            sku = (
+                str(row[1]).strip()
+                if len(row) > 1 else ""
+            )
+
+            uom = (
+                str(row[2]).strip()
+                if len(row) > 2 else ""
+            )
 
             if not item:
                 continue
 
             key = f"{item}_{sku}_{uom}"
-            target = daily if current_section == "daily" else weekly
+
+            target = (
+                daily
+                if current_section == "daily"
+                else weekly
+            )
 
             if key not in target:
+
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
@@ -249,10 +298,22 @@ def process_stock(all_data, selected_date_str, branch_names):
                     target[key][bn] = 0
 
             qty = 0
+
             try:
-                if date_index is not None and len(row) > date_index:
+
+                if (
+                    date_index is not None
+                    and len(row) > date_index
+                ):
+
                     val = row[date_index]
-                    qty = float(val) if val not in ["", None] else 0
+
+                    qty = (
+                        float(val)
+                        if val not in ["", None]
+                        else 0
+                    )
+
             except:
                 qty = 0
 
@@ -287,7 +348,11 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    return (
+        pd.DataFrame(rows)
+        if rows
+        else pd.DataFrame()
+    )
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
@@ -297,10 +362,18 @@ weekly_df = build_df(weekly_items)
 # =========================================================
 
 def get_width(series, min_width):
+
     try:
+
         series = series.fillna("").astype(str)
+
         max_len = series.map(len).max()
-        return max(int(max_len * 5 + 25), min_width)
+
+        return max(
+            int(max_len * 5 + 25),
+            min_width
+        )
+
     except:
         return min_width
 
@@ -314,22 +387,50 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left", minWidth=140)
-    gb.configure_column("SKU", pinned="left", minWidth=80)
-    gb.configure_column("UOM", pinned="left", minWidth=70)
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        minWidth=140
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        minWidth=80
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        minWidth=70
+    )
 
     for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+        if col in df.columns:
+
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 120)
+            )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
 
     gb.configure_grid_options(
         domLayout='normal',
         suppressHorizontalScroll=False
     )
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        key=title
+    )
 
 # =========================================================
 # DISPLAY
@@ -345,40 +446,77 @@ render_grid(weekly_df, "📦 Weekly Items Stock")
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
+
     wb = Workbook()
+
     ws = wb.active
+
     ws.title = "Stock Dashboard"
 
     def write_section(title, df, start_row):
 
-        rows = list(dataframe_to_rows(df, index=False, header=True))
+        rows = list(
+            dataframe_to_rows(
+                df,
+                index=False,
+                header=True
+            )
+        )
 
         if not rows:
             return start_row + 2
 
         total_cols = len(rows[0])
 
-        ws.merge_cells(start_row=start_row, start_column=1,
-                       end_row=start_row, end_column=total_cols)
+        ws.merge_cells(
+            start_row=start_row,
+            start_column=1,
+            end_row=start_row,
+            end_column=total_cols
+        )
 
-        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
+        ws.cell(
+            row=start_row,
+            column=1,
+            value=title
+        ).font = Font(bold=True)
 
         r0 = start_row + 2
 
         for r_i, row in enumerate(rows):
+
             for c_i, val in enumerate(row, 1):
-                ws.cell(row=r0 + r_i, column=c_i, value=val)
+
+                ws.cell(
+                    row=r0 + r_i,
+                    column=c_i,
+                    value=val
+                )
 
         return r0 + len(rows) + 3
 
-    next_row = write_section("DAILY STOCK", daily_df, 1)
-    write_section("WEEKLY STOCK", weekly_df, next_row)
+    next_row = write_section(
+        "DAILY STOCK",
+        daily_df,
+        1
+    )
+
+    write_section(
+        "WEEKLY STOCK",
+        weekly_df,
+        next_row
+    )
 
     wb.save(output)
+
     output.seek(0)
+
     return output
 
-excel_file = create_excel(daily_df, weekly_df)
+excel_file = create_excel(
+    daily_df,
+    weekly_df
+)
 
 st.download_button(
     "📥 Download Stock Report",
