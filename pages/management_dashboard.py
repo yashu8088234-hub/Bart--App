@@ -23,7 +23,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=1000, key="live_timer")
+st_autorefresh(interval=10000, key="live_timer")
 
 # =========================================================
 # API ERROR SCREEN
