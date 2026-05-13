@@ -19,7 +19,7 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# API ERROR SCREEN
+# API ERROR
 # =========================================================
 
 def show_api_error():
@@ -51,6 +51,13 @@ except:
     show_api_error()
 
 # =========================================================
+# VERSION CONTROL (🔥 KEY FIX FOR LIVE DATA)
+# =========================================================
+
+if "data_version" not in st.session_state:
+    st.session_state.data_version = 0
+
+# =========================================================
 # BRANCHES
 # =========================================================
 
@@ -70,7 +77,7 @@ except:
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET FETCH
+# SAFE SHEET FETCH (VERSIONED FOR LIVE REFRESH)
 # =========================================================
 
 @st.cache_resource
@@ -80,7 +87,7 @@ def get_spreadsheet(sheet_id):
     except:
         return None
 
-def fetch_sheet_range(sheet_id):
+def fetch_sheet_range(sheet_id, version):
     try:
         ss = get_spreadsheet(sheet_id)
         if not ss:
@@ -90,27 +97,24 @@ def fetch_sheet_range(sheet_id):
     except:
         return None
 
-def fetch_branch(branch):
+def fetch_branch(branch, version):
     sid = branch.get("SheetID")
     if not sid:
         return branch["BranchName"], None
 
-    return branch["BranchName"], fetch_sheet_range(sid)
+    return branch["BranchName"], fetch_sheet_range(sid, version)
 
 # =========================================================
-# LOAD DATA
+# LOAD ALL DATA (VERSION CONTROLLED)
 # =========================================================
 
 @st.cache_data(ttl=600)
-def load_all_data(branches):
-    return [fetch_branch(b) for b in branches]
+def load_all_data(branches, version):
+    return [fetch_branch(b, version) for b in branches]
 
 # =========================================================
-# FORCE REFRESH CONTROL
+# REFRESH CONTROL
 # =========================================================
-
-if "force_refresh" not in st.session_state:
-    st.session_state.force_refresh = True
 
 REFRESH_COOLDOWN = 90
 
@@ -145,20 +149,18 @@ with col2:
         else f"⏳ Wait {int(remaining)} sec"
     )
 
-    refresh_clicked = st.button(refresh_text, disabled=not can_force_refresh)
+    if st.button(refresh_text, disabled=not can_force_refresh):
 
-    if refresh_clicked:
-
-        with st.spinner("Fetching latest stock data from all branches..."):
+        with st.spinner("Fetching LIVE stock data from all branches..."):
 
             try:
-                st.cache_data.clear()
-                all_data = [fetch_branch(b) for b in branches]
-
-                st.session_state.force_refresh = False
+                # 🔥 CRITICAL FIX: force new dataset version
+                st.session_state.data_version += 1
                 st.session_state.last_force_refresh = time.time()
 
-                st.success("✅ Latest stock data loaded successfully")
+                st.success("✅ Live stock data refreshed")
+
+                st.rerun()
 
             except Exception as e:
                 st.error(e)
@@ -169,21 +171,17 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# FIRST LOAD
+# FIRST LOAD / LIVE LOAD
 # =========================================================
 
-if st.session_state.force_refresh:
-    all_data = [fetch_branch(b) for b in branches]
-    st.session_state.force_refresh = False
-else:
-    all_data = load_all_data(branches)
+all_data = load_all_data(branches, st.session_state.data_version)
 
 # =========================================================
-# PROCESS STOCK
+# STOCK PROCESSING (VERSION SAFE CACHE)
 # =========================================================
 
 @st.cache_data(ttl=300)
-def process_stock(all_data, selected_date_str, branch_names):
+def process_stock(all_data, selected_date_str, branch_names, version):
 
     daily = {}
     weekly = {}
@@ -229,7 +227,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             key = f"{item}_{sku}_{uom}"
-
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
@@ -256,13 +253,14 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 daily_items, weekly_items = process_stock(
-    all_data,
+    tuple(all_data),
     selected_date_str,
-    branch_names
+    tuple(branch_names),
+    st.session_state.data_version
 )
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME BUILDER
 # =========================================================
 
 def build_df(data_dict):
@@ -288,7 +286,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID FIX (ONLY CHANGE IS HERE)
+# GRID (UNCHANGED UI)
 # =========================================================
 
 def get_width(series, min_width):
@@ -309,7 +307,6 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # ✅ FIXED: ALL 3 PINNED PROPERLY + MOBILE STABILITY
     gb.configure_column("Item Name", pinned="left", minWidth=140, flex=0)
     gb.configure_column("SKU", pinned="left", minWidth=80, flex=0)
     gb.configure_column("UOM", pinned="left", minWidth=70, flex=0)
@@ -320,7 +317,6 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    # ✅ FIX: prevents mobile unpin glitch
     gb.configure_grid_options(
         domLayout='normal',
         suppressColumnVirtualisation=True,
@@ -332,7 +328,7 @@ def render_grid(df, title):
         gridOptions=gb.build(),
         theme="streamlit",
         fit_columns_on_grid_load=False,
-        key=title
+        key=title + str(st.session_state.data_version)
     )
 
 # =========================================================
