@@ -16,7 +16,7 @@ st.title("🧪 STOCK TEST (PostgreSQL Check)")
 
 try:
     conn = psycopg2.connect(
-        dbname="mydatabase",
+        dbname="my database",
         user="postgres",
         host="localhost",
         port=5432
