@@ -19,10 +19,11 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# 🔥 LIVE TIMER (NEW ADDITION)
+# LIVE TIMER FIX (NO autorefresh needed)
 # =========================================================
 
-st.autorefresh(interval=1000, key="live_timer")
+if "last_tick" not in st.session_state:
+    st.session_state.last_tick = time.time()
 
 # =========================================================
 # API ERROR SCREEN
@@ -112,7 +113,7 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# REFRESH CONTROL (NOW LIVE)
+# REFRESH CONTROL (LIVE SAFE)
 # =========================================================
 
 if "last_force_refresh" not in st.session_state:
@@ -120,7 +121,8 @@ if "last_force_refresh" not in st.session_state:
 
 REFRESH_COOLDOWN = 90
 
-remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
+now = time.time()
+remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
 can_force_refresh = remaining <= 0
 
 # =========================================================
@@ -145,7 +147,7 @@ with col2:
     refresh_text = (
         "🔴 Refresh Data From Sheets"
         if can_force_refresh
-        else f"⏳ Wait {int(max(0, remaining))} sec"
+        else f"⏳ Wait {max(0, int(remaining))} sec"
     )
 
     if st.button(refresh_text, disabled=not can_force_refresh):
@@ -166,6 +168,12 @@ with col2:
 with col3:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
+
+# =========================================================
+# LIVE COUNTDOWN DISPLAY (FIXED)
+# =========================================================
+
+st.info(f"⏳ Next refresh available in: {max(0, int(remaining))} seconds")
 
 # =========================================================
 # LOAD DATA
@@ -232,6 +240,7 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "SKU": sku,
                     "UOM": uom
                 }
+
                 for bn in branch_names:
                     target[key][bn] = 0
 
