@@ -21,4 +21,8 @@ gspread
 oauth2client
 pandas
 openpyxl
-
+streamlit
+pandas
+psycopg2-binary
+openpyxl
+streamlit-aggrid
