@@ -122,7 +122,7 @@ def load_all_data(branches):
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
 
-REFRESH_COOLDOWN = 90
+REFRESH_COOLDOWN = 60
 
 now = time.time()
 remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
