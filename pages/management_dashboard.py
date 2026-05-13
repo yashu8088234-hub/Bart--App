@@ -19,11 +19,11 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# LIVE TIMER FIX (NO autorefresh needed)
+# 🔥 LIVE TIMER (FIXED FOR STREAMLIT CLOUD)
 # =========================================================
 
-if "last_tick" not in st.session_state:
-    st.session_state.last_tick = time.time()
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=1000, key="live_timer")
 
 # =========================================================
 # API ERROR SCREEN
@@ -123,6 +123,7 @@ REFRESH_COOLDOWN = 90
 
 now = time.time()
 remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
+remaining = max(0, int(remaining))
 can_force_refresh = remaining <= 0
 
 # =========================================================
@@ -147,7 +148,7 @@ with col2:
     refresh_text = (
         "🔴 Refresh Data From Sheets"
         if can_force_refresh
-        else f"⏳ Wait {max(0, int(remaining))} sec"
+        else f"⏳ Wait {remaining} sec"
     )
 
     if st.button(refresh_text, disabled=not can_force_refresh):
@@ -170,10 +171,10 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# LIVE COUNTDOWN DISPLAY (FIXED)
+# LIVE TIMER DISPLAY
 # =========================================================
 
-st.info(f"⏳ Next refresh available in: {max(0, int(remaining))} seconds")
+st.info(f"⏳ Refresh available in: {remaining} seconds")
 
 # =========================================================
 # LOAD DATA
