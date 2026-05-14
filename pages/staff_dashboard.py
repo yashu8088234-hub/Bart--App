@@ -5,13 +5,54 @@ import json
 from pathlib import Path
 import pandas as pd
 import time
+import smtplib
+from email.mime.text import MIMEText
+import datetime
+
+# ---------------- EMAIL CONFIG ----------------
+ADMIN_EMAIL = "yash2002anitha@gmail.com"
+SMTP_EMAIL = "yash2002anitha@gmail.com"
+SMTP_PASSWORD = "lhzl fyvw aorj akzf"  # IMPORTANT
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+
+
+def send_submission_email(name, email, branch, timestamp, details=""):
+    subject = f"📦 Staff Submission - {branch}"
+
+    body = f"""
+NEW SUBMISSION
+
+Name: {name}
+Email: {email}
+Branch: {branch}
+Time: {timestamp}
+
+Details:
+{details}
+"""
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = SMTP_EMAIL
+    msg["To"] = ADMIN_EMAIL
+
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.sendmail(SMTP_EMAIL, ADMIN_EMAIL, msg.as_string())
+        server.quit()
+    except Exception as e:
+        st.error(f"Email failed: {e}")
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Staff Dashboard")
 
 SESSION_TIMEOUT = 2 * 60
 
-# ---------------- CLEAN UI STYLE ----------------
+# ---------------- UI STYLE ----------------
 st.markdown("""
 <style>
 #MainMenu {visibility:hidden;}
@@ -64,24 +105,25 @@ def load_admin():
 
 init_file()
 
-# ---------------- SESSION STATE ----------------
+# ---------------- SESSION ----------------
 defaults = {
     "authenticated": False,
     "auth_branch": None,
     "reset_mode": False,
     "selected_branch": "-- Select Branch --",
-    "last_activity": None
+    "last_activity": None,
+    "submit_popup": False
 }
 
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ---------------- ACTIVITY ----------------
+
 def refresh_activity():
     st.session_state.last_activity = time.time()
 
-# ---------------- TIMEOUT ----------------
+
 def check_timeout():
     if st.session_state.authenticated and st.session_state.last_activity:
         if time.time() - st.session_state.last_activity > SESSION_TIMEOUT:
@@ -104,7 +146,7 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- LOAD BRANCHES ----------------
+# ---------------- BRANCHES ----------------
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
@@ -114,30 +156,17 @@ branch_data = load_branches()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
 
-# ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
-    st.session_state.authenticated = False
-    st.session_state.auth_branch = None
-    st.session_state.last_activity = None
-
     with st.popover("Choose Branch"):
         selected_branch = st.radio("Branch List", branch_options, index=0)
 
         if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
             st.rerun()
-
 else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
-
-    if st.button("🔄 REFRESH OR CHANGE BRANCH"):
-        st.session_state.selected_branch = "-- Select Branch --"
-        st.session_state.authenticated = False
-        st.session_state.auth_branch = None
-        st.session_state.last_activity = None
-        st.rerun()
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
@@ -161,46 +190,6 @@ def load_passwords():
 
     return passwords
 
-def save_passwords(branch_key, new_password):
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    for idx, row in enumerate(records, start=2):
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        if key == branch_key:
-            col_index = list(row.keys()).index("Password") + 1
-            sheet.update_cell(idx, col_index, new_password)
-            return
-
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
@@ -222,7 +211,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.last_activity = time.time()
 
                     st.session_state.sheet_id = branch_info["SheetID"]
-                    st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
 
                     st.rerun()
@@ -233,21 +221,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
-    # ---------------- RESET PASSWORD ----------------
-    if st.session_state.reset_mode:
-        st.subheader("Reset Password")
-
-        admin_pass = st.text_input("Admin Password", type="password")
-        new_pass = st.text_input("New Password", type="password")
-
-        if st.button("Update Password"):
-            if admin_pass == load_admin()["admin"]:
-                save_passwords(st.session_state.selected_branch, new_pass)
-                st.success("Password updated successfully")
-                st.session_state.reset_mode = False
-            else:
-                st.error("Wrong admin password")
-
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
@@ -255,10 +228,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         col1, col2, col3 = st.columns(3)
 
-        if col1.button("📦 Stock Record"):
-            refresh_activity()
-            st.switch_page("pages/stock_consumption.py")
-
+        # ---------------- STOCK VIEW ----------------
         if col3.button("🔍 Stock View"):
             refresh_activity()
 
@@ -272,12 +242,11 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
             daily = []
             weekly = []
-
             current_section = None
 
             for row in data:
 
-                row_text = " ".join(row).strip().lower()
+                row_text = " ".join(row).lower()
 
                 if "daily item" in row_text:
                     current_section = "daily"
@@ -287,14 +256,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     current_section = "weekly"
                     continue
 
-                if current_section is None:
-                    continue
-
-                if not row or not row[0]:
+                if current_section is None or not row or not row[0]:
                     continue
 
                 item = row[0].strip()
-
                 values = row[1:]
                 values += [""] * (len(date_columns) - len(values))
 
@@ -302,8 +267,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 total = 0
 
                 for i, v in enumerate(values):
-
-                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
@@ -328,11 +291,51 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 else:
                     weekly.append(row_dict)
 
-            st.subheader("📦 Daily Items Stock")
-            st.dataframe(pd.DataFrame(daily), use_container_width=True, height=400)
+            st.subheader("Daily Stock")
+            st.dataframe(pd.DataFrame(daily), use_container_width=True)
 
-            st.subheader("📦 Weekly Items Stock")
-            st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
+            st.subheader("Weekly Stock")
+            st.dataframe(pd.DataFrame(weekly), use_container_width=True)
+
+        # ---------------- SUBMIT BUTTON ----------------
+        if st.button("Submit Data"):
+            st.session_state.submit_popup = True
+
+# ---------------- POPUP ----------------
+if st.session_state.submit_popup:
+
+    st.subheader("Confirm Submission")
+
+    with st.form("submit_form"):
+
+        name = st.text_input("Name")
+        email = st.text_input("Email")
+
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        st.info(f"Time: {timestamp}")
+
+        submit = st.form_submit_button("Confirm Submit")
+
+        if submit:
+
+            if name and email:
+
+                send_submission_email(
+                    name=name,
+                    email=email,
+                    branch=st.session_state.selected_branch,
+                    timestamp=timestamp,
+                    details="Stock submission from dashboard"
+                )
+
+                st.success("Submitted & Email Sent!")
+
+                st.session_state.submit_popup = False
+                st.rerun()
+
+            else:
+                st.error("Please enter name and email")
 
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
