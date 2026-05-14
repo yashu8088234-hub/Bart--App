@@ -75,7 +75,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCH LOADER (ONLY USED ON SYNC)
+# BRANCH LOADER
 # =========================================================
 
 def load_branches_live():
@@ -84,7 +84,7 @@ def load_branches_live():
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 # =========================================================
-# SHEET FETCH (UNCHANGED)
+# SHEET FETCH
 # =========================================================
 
 def fetch_sheet(sheet_id):
@@ -96,102 +96,7 @@ def fetch_sheet(sheet_id):
         return None
 
 # =========================================================
-# SYNC LOCK LOGIC
-# =========================================================
-
-now = time.time()
-can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
-remaining = int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0)))
-remaining = max(0, remaining)
-
-# =========================================================
-# TOP BUTTONS (AS REQUESTED)
-# =========================================================
-
-col1, col2, col3 = st.columns(3)
-
-# ---------------------------
-# REFRESH DATE ONLY
-# ---------------------------
-with col1:
-    if st.button("🔄 Refresh Date Only"):
-        st.rerun()
-
-# ---------------------------
-# SYNC DATA (FULL FETCH)
-# ---------------------------
-with col2:
-    if st.button("🔄 SYNC DATA (Fetch All Branches)"):
-
-        if not can_sync:
-            st.warning(f"⏳ Please wait {remaining} seconds before syncing again")
-            st.stop()
-
-        with st.spinner("Fetching all 28 branches..."):
-
-            try:
-                branches = load_branches_live()
-                branch_names = [b["BranchName"] for b in branches]
-
-                selected_date_str = st.date_input("📅 Select Date").strftime("%Y-%m-%d")
-
-                all_data = [
-                    (b["BranchName"], fetch_sheet(b["SheetID"]))
-                    for b in branches
-                ]
-
-                daily_items, weekly_items = process_stock(
-                    all_data,
-                    selected_date_str,
-                    branch_names
-                )
-
-                cache_data = {
-                    "branches": branches,
-                    "branch_names": branch_names,
-                    "daily": daily_items,
-                    "weekly": weekly_items
-                }
-
-                save_cache(cache_data)
-
-                sync_meta["last_sync"] = now
-                save_sync(sync_meta)
-
-                st.success("✅ Sync Completed")
-                st.rerun()
-
-            except APIError as e:
-                st.error(e)
-
-                old = load_cache()
-                if old:
-                    st.info("⚠️ Loaded previous cached data")
-
-# ---------------------------
-# BACK BUTTON
-# ---------------------------
-with col3:
-    if st.button("🔙 Back"):
-        st.switch_page("app.py")
-
-# =========================================================
-# LOAD CACHE (DEFAULT VIEW)
-# =========================================================
-
-cache = load_cache()
-
-if not cache:
-    st.warning("No data found. Please click SYNC DATA.")
-    st.stop()
-
-branches = cache["branches"]
-branch_names = cache["branch_names"]
-daily_items = cache["daily"]
-weekly_items = cache["weekly"]
-
-# =========================================================
-# PROCESS STOCK (UNCHANGED FUNCTION REQUIRED)
+# PROCESS STOCK (FIXED - NO NAME ERROR)
 # =========================================================
 
 def process_stock(all_data, selected_date_str, branch_names):
@@ -266,6 +171,91 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # =========================================================
+# SYNC LOCK
+# =========================================================
+
+now = time.time()
+can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
+remaining = max(0, int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0))))
+
+# =========================================================
+# BUTTONS
+# =========================================================
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("🔄 Refresh Date Only"):
+        st.rerun()
+
+with col2:
+    if st.button("🔄 SYNC DATA (Fetch All Branches)"):
+
+        if not can_sync:
+            st.error(f"⛔ Sync locked. Wait {remaining} sec")
+            st.stop()
+
+        with st.spinner("Fetching all branches..."):
+
+            try:
+                branches = load_branches_live()
+                branch_names = [b["BranchName"] for b in branches]
+
+                selected_date_str = st.date_input("📅 Select Date").strftime("%Y-%m-%d")
+
+                all_data = [
+                    (b["BranchName"], fetch_sheet(b["SheetID"]))
+                    for b in branches
+                ]
+
+                daily_items, weekly_items = process_stock(
+                    all_data,
+                    selected_date_str,
+                    branch_names
+                )
+
+                cache_data = {
+                    "branches": branches,
+                    "branch_names": branch_names,
+                    "daily": daily_items,
+                    "weekly": weekly_items
+                }
+
+                save_cache(cache_data)
+
+                sync_meta["last_sync"] = now
+                save_sync(sync_meta)
+
+                st.success("✅ Sync Completed")
+                st.rerun()
+
+            except APIError as e:
+                st.error(e)
+
+                old = load_cache()
+                if old:
+                    st.info("⚠️ Loaded cached data")
+
+with col3:
+    if st.button("🔙 Back"):
+        st.switch_page("app.py")
+
+# =========================================================
+# LOAD CACHE
+# =========================================================
+
+cache = load_cache()
+
+if not cache:
+    st.warning("No cached data. Please click SYNC DATA.")
+    st.stop()
+
+branches = cache["branches"]
+branch_names = cache["branch_names"]
+daily_items = cache["daily"]
+weekly_items = cache["weekly"]
+
+# =========================================================
 # DATAFRAME (UNCHANGED)
 # =========================================================
 
@@ -292,7 +282,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (ORIGINAL FIXED VERSION RESTORED)
+# AGGRID (YOUR ORIGINAL STYLE RESTORED)
 # =========================================================
 
 def get_width(series, min_width):
@@ -307,7 +297,7 @@ def render_grid(df, title):
 
     st.subheader(title)
 
-    if df is None or df.empty:
+    if df.empty:
         st.warning("No Data")
         return
 
@@ -331,15 +321,11 @@ def render_grid(df, title):
         fit_columns_on_grid_load=False
     )
 
-# =========================================================
-# DISPLAY
-# =========================================================
-
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
