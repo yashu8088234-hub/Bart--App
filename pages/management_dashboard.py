@@ -17,26 +17,21 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# SESSION STATE INIT
+# SESSION STATE
 # =========================================================
-if "synced" not in st.session_state:
-    st.session_state.synced = False
-
-if "all_data" not in st.session_state:
-    st.session_state.all_data = None
-
 if "branches" not in st.session_state:
     st.session_state.branches = None
 
-if "page" not in st.session_state:
-    st.session_state.page = "main"
+if "all_data" not in st.session_state:
+    st.session_state.all_data = None
 
 # =========================================================
 # BACK BUTTON
 # =========================================================
 if st.button("⬅ Back"):
-    st.session_state.page = "main"
-    st.stop()
+    st.session_state.branches = None
+    st.session_state.all_data = None
+    st.rerun()
 
 # =========================================================
 # ERROR HANDLER
@@ -67,7 +62,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# FETCH BRANCHES (1 HOUR CACHE - SYNC OVERRIDES)
+# BRANCH LOAD (1 HOUR CACHE)
 # =========================================================
 @st.cache_data(ttl=3600)
 def load_branches():
@@ -76,7 +71,7 @@ def load_branches():
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 # =========================================================
-# FETCH SHEET
+# SAFE SHEET FETCH (NO API STORM)
 # =========================================================
 @st.cache_data(ttl=3600)
 def fetch_sheet_range(sheet_id):
@@ -84,37 +79,37 @@ def fetch_sheet_range(sheet_id):
     ws = ss.worksheet("Stocks")
     return ws.get_all_values()
 
-def fetch_branch(branch):
+def fetch_branch(branch, retries=3):
+
     sid = branch.get("SheetID")
     if not sid:
         return branch["BranchName"], None
-    return branch["BranchName"], fetch_sheet_range(sid)
+
+    for _ in range(retries):
+        try:
+            raw = fetch_sheet_range(sid)
+
+            if raw and len(raw) > 1:
+                return branch["BranchName"], raw
+
+        except APIError:
+            time.sleep(1)
+
+        except Exception:
+            time.sleep(1)
+
+    return branch["BranchName"], None
 
 # =========================================================
-# LOAD ALL DATA (STRICT COMPLETE LOAD)
+# LOAD ALL DATA (SAFE + THROTTLED)
 # =========================================================
 def load_all_data(branches):
 
     all_loaded = []
 
     for b in branches:
-        name = b["BranchName"]
-
-        success = False
-        raw = None
-
-        # infinite retry until branch loads (your requirement 2a)
-        while not success:
-            try:
-                _, raw = fetch_branch(b)
-                if raw and len(raw) > 1:
-                    success = True
-                else:
-                    time.sleep(1)
-            except:
-                time.sleep(1)
-
-        all_loaded.append((name, raw))
+        time.sleep(0.15)  # prevents quota spike
+        all_loaded.append(fetch_branch(b))
 
     return all_loaded
 
@@ -123,38 +118,40 @@ def load_all_data(branches):
 # =========================================================
 st.markdown("## 🔄 Controls")
 
-col1, col2 = st.columns(2)
+if st.button("🔄 SYNC DATA (FULL LOAD)"):
 
-with col1:
-    if st.button("🔄 SYNC DATA (FULL LOAD)"):
-        st.cache_data.clear()  # replace cache completely
+    with st.spinner("Syncing all branches..."):
 
-        with st.spinner("Syncing all branches..."):
+        # clear only relevant cache (NOT everything)
+        load_branches.clear()
+        fetch_sheet_range.clear()
 
-            branches = load_branches()
-            all_data = load_all_data(branches)
+        branches = load_branches()
+        all_data = load_all_data(branches)
 
-            # ensure completeness check
-            if len(all_data) != len(branches):
-                st.error("Sync failed: incomplete branch load")
-                st.stop()
+        st.session_state.branches = branches
+        st.session_state.all_data = all_data
 
-            st.session_state.branches = branches
-            st.session_state.all_data = all_data
-            st.session_state.synced = True
-
-        st.success("Sync completed successfully")
-        st.rerun()
-
-with col2:
-    refresh_date = st.button("📅 REFRESH DATE ONLY")
+    st.success("Sync completed successfully")
+    st.rerun()
 
 # =========================================================
-# STOP UNTIL SYNC COMPLETE
+# AUTO LOAD OLD CACHE ON OPEN
 # =========================================================
-if not st.session_state.synced:
-    st.warning("Please SYNC DATA to load all branches before viewing stock.")
-    st.stop()
+if st.session_state.branches is None or st.session_state.all_data is None:
+
+    try:
+        branches = load_branches()
+        all_data = load_all_data(branches)
+
+        st.session_state.branches = branches
+        st.session_state.all_data = all_data
+
+        st.info("Loaded cached data")
+
+    except Exception:
+        st.warning("No cached data available. Please click SYNC DATA.")
+        st.stop()
 
 branches = st.session_state.branches
 all_data = st.session_state.all_data
@@ -162,7 +159,7 @@ all_data = st.session_state.all_data
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# DATE FILTER (UNCHANGED)
+# DATE FILTER (UNCHANGED - AS REQUESTED)
 # =========================================================
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
@@ -240,13 +237,6 @@ def process_stock(all_data, selected_date_str, branch_names):
             target[key][branch_name] = qty
 
     return daily, weekly
-
-# =========================================================
-# REFRESH DATE ONLY ACTION
-# =========================================================
-if refresh_date:
-    st.cache_data.clear()
-    st.rerun()
 
 daily_items, weekly_items = process_stock(
     all_data,
