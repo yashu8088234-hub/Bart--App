@@ -9,7 +9,6 @@ from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
 from gspread.exceptions import APIError
 import time
-from streamlit_autorefresh import st_autorefresh
 
 # =========================================================
 # PAGE CONFIG
@@ -17,12 +16,27 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-st.markdown("🟢 Live Dashboard (Auto refresh every 30 seconds)")
+# =========================================================
+# SESSION STATE INIT
+# =========================================================
+if "synced" not in st.session_state:
+    st.session_state.synced = False
+
+if "all_data" not in st.session_state:
+    st.session_state.all_data = None
+
+if "branches" not in st.session_state:
+    st.session_state.branches = None
+
+if "page" not in st.session_state:
+    st.session_state.page = "main"
 
 # =========================================================
-# LIVE AUTO REFRESH (NO BUTTON NEEDED)
+# BACK BUTTON
 # =========================================================
-st_autorefresh(interval=300000000000000000, key="live_timer")
+if st.button("⬅ Back"):
+    st.session_state.page = "main"
+    st.stop()
 
 # =========================================================
 # ERROR HANDLER
@@ -50,40 +64,25 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-try:
-    client = get_client()
-except Exception as e:
-    show_api_error(e)
+client = get_client()
 
 # =========================================================
-# BRANCHES (LIVE CACHE 30s)
+# FETCH BRANCHES (1 HOUR CACHE - SYNC OVERRIDES)
 # =========================================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=3600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except APIError as e:
-    show_api_error(e)
-except Exception as e:
-    show_api_error(e)
-
-branch_names = [b["BranchName"] for b in branches]
-
 # =========================================================
-# SHEET FETCH (LIVE CACHE)
+# FETCH SHEET
 # =========================================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=3600)
 def fetch_sheet_range(sheet_id):
-    try:
-        ss = client.open_by_key(sheet_id)
-        ws = ss.worksheet("Stocks")
-        return ws.get_all_values()
-    except:
-        return None
+    ss = client.open_by_key(sheet_id)
+    ws = ss.worksheet("Stocks")
+    return ws.get_all_values()
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
@@ -92,27 +91,86 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA (LIVE CACHE)
+# LOAD ALL DATA (STRICT COMPLETE LOAD)
 # =========================================================
-@st.cache_data(ttl=30)
 def load_all_data(branches):
-    return [fetch_branch(b) for b in branches]
+
+    all_loaded = []
+
+    for b in branches:
+        name = b["BranchName"]
+
+        success = False
+        raw = None
+
+        # infinite retry until branch loads (your requirement 2a)
+        while not success:
+            try:
+                _, raw = fetch_branch(b)
+                if raw and len(raw) > 1:
+                    success = True
+                else:
+                    time.sleep(1)
+            except:
+                time.sleep(1)
+
+        all_loaded.append((name, raw))
+
+    return all_loaded
 
 # =========================================================
-# DATE FILTER
+# SYNC BUTTON (FULL REFRESH + CACHE REPLACE)
+# =========================================================
+st.markdown("## 🔄 Controls")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("🔄 SYNC DATA (FULL LOAD)"):
+        st.cache_data.clear()  # replace cache completely
+
+        with st.spinner("Syncing all branches..."):
+
+            branches = load_branches()
+            all_data = load_all_data(branches)
+
+            # ensure completeness check
+            if len(all_data) != len(branches):
+                st.error("Sync failed: incomplete branch load")
+                st.stop()
+
+            st.session_state.branches = branches
+            st.session_state.all_data = all_data
+            st.session_state.synced = True
+
+        st.success("Sync completed successfully")
+        st.rerun()
+
+with col2:
+    refresh_date = st.button("📅 REFRESH DATE ONLY")
+
+# =========================================================
+# STOP UNTIL SYNC COMPLETE
+# =========================================================
+if not st.session_state.synced:
+    st.warning("Please SYNC DATA to load all branches before viewing stock.")
+    st.stop()
+
+branches = st.session_state.branches
+all_data = st.session_state.all_data
+
+branch_names = [b["BranchName"] for b in branches]
+
+# =========================================================
+# DATE FILTER (UNCHANGED)
 # =========================================================
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# LOAD DATA (AUTO REFRESHED)
-# =========================================================
-all_data = load_all_data(branches)
-
-# =========================================================
 # PROCESS STOCK
 # =========================================================
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=3600)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -183,6 +241,13 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
+# =========================================================
+# REFRESH DATE ONLY ACTION
+# =========================================================
+if refresh_date:
+    st.cache_data.clear()
+    st.rerun()
+
 daily_items, weekly_items = process_stock(
     all_data,
     selected_date_str,
@@ -190,7 +255,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (UNCHANGED)
 # =========================================================
 def build_df(data_dict):
 
@@ -215,7 +280,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID
+# AGGRID (UNCHANGED)
 # =========================================================
 def get_width(series, min_width):
     try:
