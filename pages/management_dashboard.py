@@ -9,7 +9,6 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
-import time
 
 # =========================================================
 # PAGE CONFIG
@@ -19,11 +18,11 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# API ERROR SCREEN
+# ERROR HANDLER
 # =========================================================
 
 def show_api_error():
-    st.error("API Error Occurred")
+    st.error("API Error Occurred. Please try again later.")
     st.stop()
 
 # =========================================================
@@ -51,7 +50,7 @@ except:
     show_api_error()
 
 # =========================================================
-# BRANCHES
+# BRANCH LIST
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -73,110 +72,53 @@ branch_names = [b["BranchName"] for b in branches]
 # SAFE SHEET FETCH
 # =========================================================
 
-@st.cache_resource
-def get_spreadsheet(sheet_id):
+def safe_get_all_values(ws):
     try:
-        return client.open_by_key(sheet_id)
-    except:
-        return None
-
-def fetch_sheet_range(sheet_id):
-    try:
-        ss = get_spreadsheet(sheet_id)
-        if not ss:
-            return None
-        ws = ss.worksheet("Stocks")
         return ws.get_all_values()
     except:
         return None
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
+    name = branch["BranchName"]
+
     if not sid:
-        return branch["BranchName"], None
+        return name, None
 
-    return branch["BranchName"], fetch_sheet_range(sid)
+    try:
+        ss = client.open_by_key(sid)
+        ws = ss.worksheet("Stocks")
+        data = safe_get_all_values(ws)
+        return name, data
+    except:
+        return name, None
 
 # =========================================================
-# LOAD DATA
+# LOAD ALL DATA (CACHE IMPORTANT PART)
 # =========================================================
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=1800)  # 30 MIN CACHE (KEY FIX)
 def load_all_data(branches):
-    return [fetch_branch(b) for b in branches]
+    results = []
+
+    for b in branches:
+        results.append(fetch_branch(b))
+
+    return results
 
 # =========================================================
-# FORCE REFRESH CONTROL
+# AUTO LOAD DATA (NO BUTTONS)
 # =========================================================
 
-if "force_refresh" not in st.session_state:
-    st.session_state.force_refresh = True
-
-REFRESH_COOLDOWN = 90
-
-if "last_force_refresh" not in st.session_state:
-    st.session_state.last_force_refresh = 0
-
-remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
-can_force_refresh = remaining <= 0
+with st.spinner("Loading stock data..."):
+    all_data = load_all_data(branches)
 
 # =========================================================
-# DATE
+# DATE INPUT (KEPT AS REQUESTED)
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-# =========================================================
-# BUTTONS
-# =========================================================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("🔄 Refresh Date Only"):
-        st.rerun()
-
-with col2:
-
-    refresh_text = (
-        "🔴 Refresh Data From Sheets"
-        if can_force_refresh
-        else f"⏳ Wait {int(remaining)} sec"
-    )
-
-    refresh_clicked = st.button(refresh_text, disabled=not can_force_refresh)
-
-    if refresh_clicked:
-
-        with st.spinner("Fetching latest stock data from all branches..."):
-
-            try:
-                st.cache_data.clear()
-                all_data = [fetch_branch(b) for b in branches]
-
-                st.session_state.force_refresh = False
-                st.session_state.last_force_refresh = time.time()
-
-                st.success("✅ Latest stock data loaded successfully")
-
-            except Exception as e:
-                st.error(e)
-                st.stop()
-
-with col3:
-    if st.button("🔙 Back"):
-        st.switch_page("app.py")
-
-# =========================================================
-# FIRST LOAD
-# =========================================================
-
-if st.session_state.force_refresh:
-    all_data = [fetch_branch(b) for b in branches]
-    st.session_state.force_refresh = False
-else:
-    all_data = load_all_data(branches)
 
 # =========================================================
 # PROCESS STOCK
@@ -288,7 +230,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID FIX (ONLY CHANGE IS HERE)
+# GRID
 # =========================================================
 
 def get_width(series, min_width):
@@ -309,7 +251,6 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # ✅ FIXED: ALL 3 PINNED PROPERLY + MOBILE STABILITY
     gb.configure_column("Item Name", pinned="left", minWidth=140, flex=0)
     gb.configure_column("SKU", pinned="left", minWidth=80, flex=0)
     gb.configure_column("UOM", pinned="left", minWidth=70, flex=0)
@@ -320,7 +261,6 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    # ✅ FIX: prevents mobile unpin glitch
     gb.configure_grid_options(
         domLayout='normal',
         suppressColumnVirtualisation=True,
@@ -414,3 +354,10 @@ st.download_button(
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+
+# =========================================================
+# BACK BUTTON (UNCHANGED AS REQUESTED)
+# =========================================================
+
+if st.button("🔙 Back"):
+    st.switch_page("app.py")
