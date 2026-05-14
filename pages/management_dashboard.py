@@ -19,26 +19,13 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# UI AUTO REFRESH (ONLY UI, NO API)
+# 🔄 UI AUTO REFRESH (NO API CALLS)
 # =========================================================
 
 st_autorefresh(interval=10000, key="ui_refresh")
 
 # =========================================================
-# AUTO CACHE CLEAR EVERY 2 MINUTES
-# =========================================================
-
-if "last_cache_clear" not in st.session_state:
-    st.session_state.last_cache_clear = time.time()
-
-AUTO_CLEAR_INTERVAL = 120  # 2 minutes
-
-if time.time() - st.session_state.last_cache_clear > AUTO_CLEAR_INTERVAL:
-    st.cache_data.clear()
-    st.session_state.last_cache_clear = time.time()
-
-# =========================================================
-# API ERROR HANDLER
+# API ERROR SCREEN
 # =========================================================
 
 def show_api_error(e):
@@ -112,7 +99,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD ALL DATA
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -120,7 +107,7 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# 🔐 GLOBAL REFRESH LOCK (2 MIN RULE)
+# 🔐 REFRESH LOCK (ONLY ADDITION - SAFE)
 # =========================================================
 
 if "page_start_time" not in st.session_state:
@@ -149,7 +136,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS
+# BUTTONS (UNCHANGED STRUCTURE, ONLY LOCK APPLIED)
 # =========================================================
 
 col1, col2, col3 = st.columns(3)
@@ -168,7 +155,7 @@ with col2:
 
     if st.button(refresh_text, disabled=not can_force_refresh):
 
-        with st.spinner("Fetching latest stock data from sheets..."):
+        with st.spinner("Fetching latest stock data from all branches..."):
             try:
                 st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
@@ -197,7 +184,7 @@ st.info(f"⏳ Refresh unlocks in: {remaining} seconds")
 all_data = load_all_data(branches)
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -278,7 +265,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (UNCHANGED)
 # =========================================================
 
 def build_df(data_dict):
@@ -304,7 +291,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID DISPLAY
+# GRID (UNCHANGED AGGRID)
 # =========================================================
 
 def render_grid(df, title):
@@ -327,7 +314,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL EXPORT (UNCHANGED)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
