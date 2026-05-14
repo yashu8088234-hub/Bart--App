@@ -25,7 +25,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 
 CACHE_FILE = "stock_cache.pkl"
 SYNC_FILE = "sync_meta.pkl"
-SYNC_LOCK = 300  # 5 minutes
+SYNC_LOCK = 10  # 5 minutes
 
 # =========================================================
 # CACHE HELPERS
@@ -75,7 +75,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCH LOADER
+# BRANCHES
 # =========================================================
 
 def load_branches_live():
@@ -84,19 +84,20 @@ def load_branches_live():
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 # =========================================================
-# SHEET FETCH
+# SAFE SHEET FETCH (NO LOSING DATA)
 # =========================================================
 
 def fetch_sheet(sheet_id):
     try:
         ss = client.open_by_key(sheet_id)
         ws = ss.worksheet("Stocks")
-        return ws.get_all_values()
+        data = ws.get_all_values()
+        return data if data else []
     except:
-        return None
+        return []
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED)
+# PROCESS STOCK (ZERO DATA LOSS VERSION)
 # =========================================================
 
 def process_stock(all_data, selected_date_str, branch_names):
@@ -106,25 +107,31 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     for branch_name, raw in all_data:
 
-        if not raw or len(raw) < 2:
-            continue
+        if raw is None:
+            raw = []
 
-        headers = [str(h).strip() for h in raw[0]]
+        headers = raw[0] if len(raw) > 0 else []
+        headers = [str(h).strip() for h in headers]
 
+        # find date column safely
         date_index = None
         for i, h in enumerate(headers):
-            if h == selected_date_str:
+            if str(h).strip()[:10] == selected_date_str:
                 date_index = i
                 break
 
         current_section = None
 
-        for row in raw:
+        # NEVER SKIP ROWS
+        for row in raw[1:] if len(raw) > 1 else []:
 
-            if not row:
-                continue
+            row = list(row) if row else []
 
-            text = " ".join([str(x) for x in row]).lower()
+            # force minimum columns
+            while len(row) < 3:
+                row.append("")
+
+            text = " ".join(map(str, row)).lower()
 
             if "daily item" in text:
                 current_section = "daily"
@@ -138,11 +145,12 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             item = str(row[0]).strip()
-            sku = str(row[1]).strip() if len(row) > 1 else ""
-            uom = str(row[2]).strip() if len(row) > 2 else ""
+            sku = str(row[1]).strip()
+            uom = str(row[2]).strip()
 
+            # NEVER SKIP ITEM
             if not item:
-                continue
+                item = "UNKNOWN_ITEM"
 
             key = f"{item}_{sku}_{uom}"
 
@@ -155,6 +163,7 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "UOM": uom
                 }
 
+                # INIT ALL BRANCHES = 0
                 for bn in branch_names:
                     target[key][bn] = 0
 
@@ -162,11 +171,17 @@ def process_stock(all_data, selected_date_str, branch_names):
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
-                    qty = float(val) if val not in ["", None] else 0
+                    qty = float(val) if str(val).strip() not in ["", None] else 0
             except:
                 qty = 0
 
             target[key][branch_name] = qty
+
+    # ENSURE ALL FIELDS EXIST
+    for dataset in [daily, weekly]:
+        for k in dataset:
+            for bn in branch_names:
+                dataset[k].setdefault(bn, 0)
 
     return daily, weekly
 
@@ -179,7 +194,7 @@ can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
 remaining = max(0, int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0))))
 
 # =========================================================
-# DATE (NOW ABOVE BUTTONS)
+# DATE (TOP)
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
@@ -237,10 +252,6 @@ with col2:
             except APIError as e:
                 st.error(e)
 
-                old = load_cache()
-                if old:
-                    st.info("⚠️ Loaded cached data")
-
 with col3:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
@@ -287,7 +298,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (ORIGINAL STYLE RESTORED)
+# AGGRID (UNCHANGED STYLE)
 # =========================================================
 
 def get_width(series, min_width):
