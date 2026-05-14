@@ -25,7 +25,6 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 from streamlit_autorefresh import st_autorefresh
 
-# SAFE REFRESH
 st_autorefresh(
     interval=60000,
     key="live_timer"
@@ -35,6 +34,7 @@ st_autorefresh(
 # ERROR HANDLER
 # =========================================================
 def show_api_error(e):
+
     st.error("🚨 Google Sheets API Error")
     st.exception(e)
     st.stop()
@@ -60,9 +60,11 @@ def get_client():
     return gspread.authorize(creds)
 
 try:
+
     client = get_client()
 
 except Exception as e:
+
     show_api_error(e)
 
 # =========================================================
@@ -71,14 +73,16 @@ except Exception as e:
 MASTER_ID = "1KYNCls3HWWj_DFY2Q27JRDRJpolSVcxiSH7f4rNDOlM"
 
 # =========================================================
-# LOAD DATA
+# LOAD MASTER DATA
 # =========================================================
 @st.cache_data(ttl=600)
 def load_data():
 
     try:
 
-        sheet = client.open_by_key(MASTER_ID).worksheet("STOCKS")
+        sheet = client.open_by_key(
+            MASTER_ID
+        ).worksheet("STOCKS")
 
         data = sheet.get_all_values()
 
@@ -88,23 +92,26 @@ def load_data():
         headers = data[0]
         rows = data[1:]
 
-        df = pd.DataFrame(rows, columns=headers)
+        df = pd.DataFrame(
+            rows,
+            columns=headers
+        )
 
-        # =================================================
+        # =============================================
         # DATE FIX
-        # =================================================
+        # =============================================
         if "Date" in df.columns:
+
             df["Date"] = pd.to_datetime(
                 df["Date"],
                 errors="coerce"
             )
 
-        # =================================================
+        # =============================================
         # NUMERIC FIX
-        # =================================================
+        # =============================================
         fixed_cols = [
             "Date",
-            "Type",
             "Item",
             "SKU",
             "UOM"
@@ -125,19 +132,22 @@ def load_data():
         raise e
 
 # =========================================================
-# LOAD MASTER DATA
+# LOAD DATA
 # =========================================================
 try:
 
     df = load_data()
 
 except APIError as e:
+
     show_api_error(e)
 
 except Exception as e:
+
     show_api_error(e)
 
 if df.empty:
+
     st.warning("No Data Found")
     st.stop()
 
@@ -160,7 +170,7 @@ remaining = max(0, int(remaining))
 can_force_refresh = remaining <= 0
 
 # =========================================================
-# DATE SECTION (RESTORED)
+# DATE SECTION
 # =========================================================
 available_dates = sorted(
     df["Date"].dropna().dt.date.unique(),
@@ -226,22 +236,66 @@ st.info(
 )
 
 # =========================================================
-# FILTER DATA BY DATE
+# FILTER BY DATE
 # =========================================================
 filtered = df[
     df["Date"].dt.date == selected_date
 ]
 
 # =========================================================
-# DAILY / WEEKLY LOGIC (RESTORED)
+# DAILY / WEEKLY LOGIC
 # =========================================================
-daily_df = filtered[
-    filtered["Type"].astype(str).str.upper() == "DAILY"
-]
+daily_rows = []
+weekly_rows = []
 
-weekly_df = filtered[
-    filtered["Type"].astype(str).str.upper() == "WEEKLY"
-]
+current_section = None
+
+for _, row in filtered.iterrows():
+
+    row_text = " ".join(
+        [str(x) for x in row.values]
+    ).lower()
+
+    # =============================================
+    # SECTION DETECTION
+    # =============================================
+    if "daily item" in row_text:
+
+        current_section = "daily"
+        continue
+
+    if "weekly item" in row_text:
+
+        current_section = "weekly"
+        continue
+
+    # =============================================
+    # SKIP EMPTY ITEMS
+    # =============================================
+    item = str(
+        row.get("Item", "")
+    ).strip()
+
+    if item == "":
+        continue
+
+    # =============================================
+    # STORE ROWS
+    # =============================================
+    if current_section == "daily":
+
+        daily_rows.append(row)
+
+    elif current_section == "weekly":
+
+        weekly_rows.append(row)
+
+# =========================================================
+# DATAFRAMES
+# =========================================================
+daily_df = pd.DataFrame(daily_rows)
+
+weekly_df = pd.DataFrame(weekly_rows)
 
 # =========================================================
 # GRID WIDTH
@@ -263,13 +317,14 @@ def get_width(series, min_width):
         return min_width
 
 # =========================================================
-# GRID
+# GRID RENDER
 # =========================================================
 def render_grid(df, title):
 
     st.subheader(title)
 
     if df is None or df.empty:
+
         st.warning("No Data")
         return
 
@@ -279,6 +334,7 @@ def render_grid(df, title):
     # PINNED COLUMNS
     # =============================================
     if "Item" in df.columns:
+
         gb.configure_column(
             "Item",
             pinned="left",
@@ -286,6 +342,7 @@ def render_grid(df, title):
         )
 
     if "SKU" in df.columns:
+
         gb.configure_column(
             "SKU",
             pinned="left",
@@ -293,6 +350,7 @@ def render_grid(df, title):
         )
 
     if "UOM" in df.columns:
+
         gb.configure_column(
             "UOM",
             pinned="left",
@@ -300,11 +358,10 @@ def render_grid(df, title):
         )
 
     # =============================================
-    # DYNAMIC BRANCH WIDTHS
+    # DYNAMIC WIDTHS
     # =============================================
     fixed_cols = [
         "Date",
-        "Type",
         "Item",
         "SKU",
         "UOM"
@@ -316,7 +373,10 @@ def render_grid(df, title):
 
             gb.configure_column(
                 col,
-                minWidth=get_width(df[col], 120)
+                minWidth=get_width(
+                    df[col],
+                    120
+                )
             )
 
     gb.configure_default_column(
