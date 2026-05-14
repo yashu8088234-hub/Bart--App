@@ -25,7 +25,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 
 CACHE_FILE = "stock_cache.pkl"
 SYNC_FILE = "sync_meta.pkl"
-SYNC_LOCK = 10000000000  # 5 minutes
+SYNC_LOCK = 10  # 5 minutes
 
 # =========================================================
 # CACHE HELPERS
