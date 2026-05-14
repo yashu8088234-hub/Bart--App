@@ -48,27 +48,9 @@ st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
 
-st.session_state.setdefault("show_user_popup", False)
 st.session_state.setdefault("user_name", None)
 st.session_state.setdefault("user_email", None)
 st.session_state.setdefault("proceed_submit", False)
-st.session_state.setdefault("scroll_to_review", False)
-
-# -----------------------------
-# SCROLL FUNCTION
-# -----------------------------
-def scroll_to_review():
-    st.markdown(
-        """
-        <script>
-            const el = document.getElementById("review_section");
-            if (el) {
-                el.scrollIntoView({behavior: "smooth"});
-            }
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
 
 # -----------------------------
 # TITLE
@@ -227,15 +209,12 @@ with st.form("stock_form", clear_on_submit=False):
         else:
             st.session_state.draft_data = inputs
             st.session_state.review_mode = True
-            st.session_state.scroll_to_review = True
             st.rerun()
 
 # -----------------------------
-# REVIEW SECTION (WITH AUTO SCROLL TARGET)
+# REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
-
-    st.markdown('<div id="review_section"></div>', unsafe_allow_html=True)
 
     st.markdown("## Review")
 
@@ -243,39 +222,28 @@ if st.session_state.review_mode:
         st.write(f"{k} → {v}")
 
     if st.button("✅ Submit"):
-        st.session_state.show_user_popup = True
+        user_popup()
 
 # -----------------------------
-# AUTO SCROLL EXECUTION
+# POPUP (WORKING FIX - STREAMLIT DIALOG)
 # -----------------------------
-if st.session_state.scroll_to_review:
-    scroll_to_review()
-    st.session_state.scroll_to_review = False
+@st.dialog("Enter Details Before Submission")
+def user_popup():
 
-# -----------------------------
-# USER POPUP
-# -----------------------------
-if st.session_state.show_user_popup:
+    name = st.text_input("Name")
+    email = st.text_input("Email")
 
-    st.markdown("## Enter Details Before Submission")
+    if st.button("Confirm & Submit"):
 
-    with st.form("user_popup_form"):
+        if not name or not email:
+            st.error("Name and Email required")
+            return
 
-        name = st.text_input("Name")
-        email = st.text_input("Email")
+        st.session_state.user_name = name
+        st.session_state.user_email = email
+        st.session_state.proceed_submit = True
 
-        ok = st.form_submit_button("Confirm & Submit")
-
-        if ok:
-
-            if not name or not email:
-                st.error("Name and Email required")
-                st.stop()
-
-            st.session_state.user_name = name
-            st.session_state.user_email = email
-            st.session_state.show_user_popup = False
-            st.session_state.proceed_submit = True
+        st.rerun()
 
 # -----------------------------
 # FINAL SUBMIT
@@ -312,7 +280,7 @@ if st.session_state.proceed_submit:
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # ---------------- EMAIL (NO ITEM LIST) ----------------
+            # ---------------- EMAIL ----------------
             report = f"""
 Stock Submission Report
 
@@ -326,13 +294,13 @@ Mode: {st.session_state.mode}
 STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
 
-            sender_email = "yashu8088234@gmail.com"
+            sender_email = "yourgmail@gmail.com"
             sender_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = MIMEText(report)
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
-            msg["To"] = "yash2002anitha@gmail.com"
+            msg["To"] = "yashu8088234@gmail.com"
 
             server = smtplib.SMTP("smtp.gmail.com", 587)
             server.starttls()
