@@ -5,30 +5,28 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 import time
+from streamlit_autorefresh import st_autorefresh
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-# =========================================================
-# 🔥 LIVE TIMER (UNCHANGED)
-# =========================================================
+st.markdown("🟢 Live Dashboard (Auto refresh every 30 seconds)")
 
-from streamlit_autorefresh import st_autorefresh
+# =========================================================
+# LIVE AUTO REFRESH (NO BUTTON NEEDED)
+# =========================================================
 st_autorefresh(interval=30000, key="live_timer")
 
 # =========================================================
-# API ERROR SCREEN
+# ERROR HANDLER
 # =========================================================
-
 def show_api_error(e):
     st.error("API Error Occurred")
     st.error(str(e))
@@ -37,7 +35,6 @@ def show_api_error(e):
 # =========================================================
 # GOOGLE AUTH
 # =========================================================
-
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -59,10 +56,9 @@ except Exception as e:
     show_api_error(e)
 
 # =========================================================
-# BRANCHES
+# BRANCHES (LIVE CACHE 30s)
 # =========================================================
-
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=30)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -78,21 +74,12 @@ except Exception as e:
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET FETCH
+# SHEET FETCH (LIVE CACHE)
 # =========================================================
-
-@st.cache_resource
-def get_spreadsheet(sheet_id):
-    try:
-        return client.open_by_key(sheet_id)
-    except:
-        return None
-
+@st.cache_data(ttl=30)
 def fetch_sheet_range(sheet_id):
     try:
-        ss = get_spreadsheet(sheet_id)
-        if not ss:
-            return None
+        ss = client.open_by_key(sheet_id)
         ws = ss.worksheet("Stocks")
         return ws.get_all_values()
     except:
@@ -102,85 +89,30 @@ def fetch_branch(branch):
     sid = branch.get("SheetID")
     if not sid:
         return branch["BranchName"], None
-
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA
+# LOAD ALL DATA (LIVE CACHE)
 # =========================================================
-
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=30)
 def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# REFRESH CONTROL
+# DATE FILTER
 # =========================================================
-
-if "last_force_refresh" not in st.session_state:
-    st.session_state.last_force_refresh = 0
-
-REFRESH_COOLDOWN = 90
-
-now = time.time()
-remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
-remaining = max(0, int(remaining))
-can_force_refresh = remaining <= 0
-
-# =========================================================
-# DATE
-# =========================================================
-
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS
+# LOAD DATA (AUTO REFRESHED)
 # =========================================================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("🔄 Refresh Date Only"):
-        st.rerun()
-
-with col2:
-
-    refresh_text = (
-        "🔴 Refresh Data From Sheets"
-        if can_force_refresh
-        else f"⏳ Wait {remaining} sec"
-    )
-
-    if st.button(refresh_text, disabled=not can_force_refresh):
-
-        with st.spinner("Fetching latest stock data from all branches..."):
-
-            try:
-                st.cache_data.clear()
-                st.session_state.last_force_refresh = time.time()
-                st.success("✅ Latest stock data loaded successfully")
-                st.rerun()
-
-            except Exception as e:
-                st.error(e)
-                st.stop()
-
-with col3:
-    if st.button("🔙 Back"):
-        st.switch_page("app.py")
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
 all_data = load_all_data(branches)
 
 # =========================================================
 # PROCESS STOCK
 # =========================================================
-
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=30)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -195,7 +127,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         date_index = None
         for i, h in enumerate(headers):
-            if str(h).strip() == selected_date_str:
+            if h == selected_date_str:
                 date_index = i
                 break
 
@@ -260,7 +192,6 @@ daily_items, weekly_items = process_stock(
 # =========================================================
 # DATAFRAME
 # =========================================================
-
 def build_df(data_dict):
 
     rows = []
@@ -284,9 +215,8 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID (FIXED SPACING)
+# AGGRID
 # =========================================================
-
 def get_width(series, min_width):
     try:
         series = series.fillna("").astype(str)
@@ -315,7 +245,6 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    # ✅ FIX: restored original spacing behavior
     AgGrid(
         df,
         gridOptions=gb.build(),
@@ -328,14 +257,12 @@ def render_grid(df, title):
 # =========================================================
 # DISPLAY
 # =========================================================
-
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL EXPORT (UNCHANGED)
 # =========================================================
-
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
