@@ -285,7 +285,7 @@ Mode: {st.session_state.mode}
 STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
 
-                sender_email = "yourgmail@gmail.com"
+                sender_email = "yashu80882342gmail.com"
                 sender_password = st.secrets["EMAIL_PASSWORD"]
 
                 msg = MIMEText(report)
