@@ -22,7 +22,7 @@ st.markdown("🟢 Live Dashboard (Auto refresh every 30 seconds)")
 # =========================================================
 # LIVE AUTO REFRESH (NO BUTTON NEEDED)
 # =========================================================
-st_autorefresh(interval=30000, key="live_timer")
+st_autorefresh(interval=300000000000000000, key="live_timer")
 
 # =========================================================
 # ERROR HANDLER
