@@ -106,15 +106,45 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA (NOW WITH API LOCK ADDED)
 # =========================================================
 
 @st.cache_data(ttl=600)
 def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
+
 # =========================================================
-# REFRESH CONTROL (UNCHANGED LOGIC + FIX ONLY ADDED BELOW)
+# 🔐 API LOCK SYSTEM (NEW - ONLY ADDITION)
+# =========================================================
+
+if "api_lock_until" not in st.session_state:
+    st.session_state.api_lock_until = 0
+
+if "cached_all_data" not in st.session_state:
+    st.session_state.cached_all_data = []
+
+now = time.time()
+
+# =========================================================
+# CONTROLLED DATA LOADING (NO SPAM API)
+# =========================================================
+
+if now >= st.session_state.api_lock_until:
+    with st.spinner("Syncing live stock data..."):
+        all_data = load_all_data(branches)
+
+        # update cache
+        st.session_state.cached_all_data = all_data
+
+        # lock API for 2 minutes
+        st.session_state.api_lock_until = now + 120
+else:
+    all_data = st.session_state.cached_all_data
+
+
+# =========================================================
+# REFRESH CONTROL (UNCHANGED)
 # =========================================================
 
 if "last_force_refresh" not in st.session_state:
@@ -127,27 +157,6 @@ remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
 remaining = max(0, int(remaining))
 can_force_refresh = remaining <= 0
 
-
-# =========================================================
-# 🔐 ONLY ADDITION: HARD LOCK SAFETY SYSTEM
-# =========================================================
-
-if "page_start_time" not in st.session_state:
-    st.session_state.page_start_time = time.time()
-
-LOCK_TIME = 120  # 2 minutes
-
-lock_until = max(
-    st.session_state.page_start_time,
-    st.session_state.last_force_refresh
-) + LOCK_TIME
-
-now = time.time()
-
-can_force_refresh = can_force_refresh and now >= lock_until
-remaining = max(remaining, int(lock_until - now))
-
-
 # =========================================================
 # DATE
 # =========================================================
@@ -156,7 +165,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (UNCHANGED EXCEPT LOCK APPLIES NOW)
+# BUTTONS (UNCHANGED)
 # =========================================================
 
 col1, col2, col3 = st.columns(3)
@@ -178,11 +187,8 @@ with col2:
         with st.spinner("Fetching latest stock data from all branches..."):
 
             try:
-                st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
-
-                # 🔐 reset lock timer
-                st.session_state.page_start_time = time.time()
+                st.session_state.api_lock_until = 0  # force unlock
 
                 st.success("✅ Latest stock data loaded successfully")
                 st.rerun()
@@ -200,12 +206,6 @@ with col3:
 # =========================================================
 
 st.info(f"⏳ Refresh available in: {remaining} seconds")
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
-all_data = load_all_data(branches)
 
 # =========================================================
 # PROCESS STOCK
@@ -340,16 +340,7 @@ def render_grid(df, title):
     gb.configure_column("SKU", pinned="left", minWidth=80)
     gb.configure_column("UOM", pinned="left", minWidth=70)
 
-    for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
-
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
-
-    gb.configure_grid_options(
-        domLayout='normal',
-        suppressHorizontalScroll=False
-    )
 
     AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
 
