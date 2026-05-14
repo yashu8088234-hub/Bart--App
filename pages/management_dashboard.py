@@ -25,7 +25,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 
 CACHE_FILE = "stock_cache.pkl"
 SYNC_FILE = "sync_meta.pkl"
-SYNC_LOCK = 300  # 5 min
+SYNC_LOCK = 300  # 5 minutes
 
 # =========================================================
 # CACHE HELPERS
@@ -54,7 +54,7 @@ def save_sync(data):
 sync_meta = load_sync()
 
 # =========================================================
-# GOOGLE AUTH (UNCHANGED)
+# GOOGLE AUTH
 # =========================================================
 
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -75,7 +75,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES (ONLY USED ON SYNC)
+# BRANCH LOADER (ONLY USED ON SYNC)
 # =========================================================
 
 def load_branches_live():
@@ -84,7 +84,7 @@ def load_branches_live():
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 # =========================================================
-# SHEET FETCH (UNCHANGED LOGIC)
+# SHEET FETCH (UNCHANGED)
 # =========================================================
 
 def fetch_sheet(sheet_id):
@@ -101,61 +101,79 @@ def fetch_sheet(sheet_id):
 
 now = time.time()
 can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
-
 remaining = int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0)))
 remaining = max(0, remaining)
 
 # =========================================================
-# SYNC BUTTON (ONLY DATA REFRESH)
+# TOP BUTTONS (AS REQUESTED)
 # =========================================================
 
-if st.button("🔄 SYNC DATA"):
+col1, col2, col3 = st.columns(3)
 
-    if not can_sync:
-        st.warning(f"⏳ Please wait {remaining} seconds before syncing again")
-        st.stop()
+# ---------------------------
+# REFRESH DATE ONLY
+# ---------------------------
+with col1:
+    if st.button("🔄 Refresh Date Only"):
+        st.rerun()
 
-    with st.spinner("Fetching all 28 branches..."):
+# ---------------------------
+# SYNC DATA (FULL FETCH)
+# ---------------------------
+with col2:
+    if st.button("🔄 SYNC DATA (Fetch All Branches)"):
 
-        try:
-            branches = load_branches_live()
-            branch_names = [b["BranchName"] for b in branches]
+        if not can_sync:
+            st.warning(f"⏳ Please wait {remaining} seconds before syncing again")
+            st.stop()
 
-            selected_date_str = st.date_input("📅 Select Date").strftime("%Y-%m-%d")
+        with st.spinner("Fetching all 28 branches..."):
 
-            # reuse YOUR original logic unchanged
-            all_data = [
-                (b["BranchName"], fetch_sheet(b["SheetID"]))
-                for b in branches
-            ]
+            try:
+                branches = load_branches_live()
+                branch_names = [b["BranchName"] for b in branches]
 
-            daily_items, weekly_items = process_stock(
-                all_data,
-                selected_date_str,
-                branch_names
-            )
+                selected_date_str = st.date_input("📅 Select Date").strftime("%Y-%m-%d")
 
-            cache_data = {
-                "branches": branches,
-                "branch_names": branch_names,
-                "daily": daily_items,
-                "weekly": weekly_items
-            }
+                all_data = [
+                    (b["BranchName"], fetch_sheet(b["SheetID"]))
+                    for b in branches
+                ]
 
-            save_cache(cache_data)
+                daily_items, weekly_items = process_stock(
+                    all_data,
+                    selected_date_str,
+                    branch_names
+                )
 
-            sync_meta["last_sync"] = now
-            save_sync(sync_meta)
+                cache_data = {
+                    "branches": branches,
+                    "branch_names": branch_names,
+                    "daily": daily_items,
+                    "weekly": weekly_items
+                }
 
-            st.success("✅ Sync Completed")
-            st.rerun()
+                save_cache(cache_data)
 
-        except APIError as e:
-            st.error(e)
+                sync_meta["last_sync"] = now
+                save_sync(sync_meta)
 
-            old = load_cache()
-            if old:
-                st.info("⚠️ Loaded previous cached data")
+                st.success("✅ Sync Completed")
+                st.rerun()
+
+            except APIError as e:
+                st.error(e)
+
+                old = load_cache()
+                if old:
+                    st.info("⚠️ Loaded previous cached data")
+
+# ---------------------------
+# BACK BUTTON
+# ---------------------------
+with col3:
+    if st.button("🔙 Back"):
+        st.switch_page("app.py")
 
 # =========================================================
 # LOAD CACHE (DEFAULT VIEW)
@@ -173,7 +191,82 @@ daily_items = cache["daily"]
 weekly_items = cache["weekly"]
 
 # =========================================================
-# BUILD DF (UNCHANGED)
+# PROCESS STOCK (UNCHANGED FUNCTION REQUIRED)
+# =========================================================
+
+def process_stock(all_data, selected_date_str, branch_names):
+
+    daily = {}
+    weekly = {}
+
+    for branch_name, raw in all_data:
+
+        if not raw or len(raw) < 2:
+            continue
+
+        headers = [str(h).strip() for h in raw[0]]
+
+        date_index = None
+        for i, h in enumerate(headers):
+            if h == selected_date_str:
+                date_index = i
+                break
+
+        current_section = None
+
+        for row in raw:
+
+            if not row:
+                continue
+
+            text = " ".join([str(x) for x in row]).lower()
+
+            if "daily item" in text:
+                current_section = "daily"
+                continue
+
+            if "weekly item" in text:
+                current_section = "weekly"
+                continue
+
+            if current_section is None:
+                continue
+
+            item = str(row[0]).strip()
+            sku = str(row[1]).strip() if len(row) > 1 else ""
+            uom = str(row[2]).strip() if len(row) > 2 else ""
+
+            if not item:
+                continue
+
+            key = f"{item}_{sku}_{uom}"
+
+            target = daily if current_section == "daily" else weekly
+
+            if key not in target:
+                target[key] = {
+                    "Item Name": item,
+                    "SKU": sku,
+                    "UOM": uom
+                }
+
+                for bn in branch_names:
+                    target[key][bn] = 0
+
+            qty = 0
+            try:
+                if date_index is not None and len(row) > date_index:
+                    val = row[date_index]
+                    qty = float(val) if val not in ["", None] else 0
+            except:
+                qty = 0
+
+            target[key][branch_name] = qty
+
+    return daily, weekly
+
+# =========================================================
+# DATAFRAME (UNCHANGED)
 # =========================================================
 
 def build_df(data_dict):
@@ -199,18 +292,34 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (UNCHANGED - NO MODIFICATION)
+# AGGRID (ORIGINAL FIXED VERSION RESTORED)
 # =========================================================
+
+def get_width(series, min_width):
+    try:
+        series = series.fillna("").astype(str)
+        max_len = series.map(len).max()
+        return max(int(max_len * 5 + 25), min_width)
+    except:
+        return min_width
 
 def render_grid(df, title):
 
     st.subheader(title)
 
-    if df.empty:
+    if df is None or df.empty:
         st.warning("No Data")
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
+
+    gb.configure_column("Item Name", pinned="left", minWidth=180)
+    gb.configure_column("SKU", pinned="left", minWidth=100)
+    gb.configure_column("UOM", pinned="left", minWidth=90)
+
+    for col in df.columns:
+        if col not in ["Item Name", "SKU", "UOM"]:
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
@@ -221,6 +330,10 @@ def render_grid(df, title):
         height=500,
         fit_columns_on_grid_load=False
     )
+
+# =========================================================
+# DISPLAY
+# =========================================================
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
