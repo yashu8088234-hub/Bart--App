@@ -106,16 +106,15 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (UNCHANGED FUNCTION)
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=600)
 def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
-
 # =========================================================
-# 🔐 FIX ONLY: API LOCK SYSTEM (NO OTHER CHANGES)
+# 🔐 FIX 1: API LOCK SYSTEM (ONLY ADDITION)
 # =========================================================
 
 if "api_lock_until" not in st.session_state:
@@ -133,7 +132,6 @@ if now >= st.session_state.api_lock_until:
         st.session_state.api_lock_until = now + 120  # 2 minutes lock
 else:
     all_data = st.session_state.cached_all_data
-
 
 # =========================================================
 # REFRESH CONTROL (UNCHANGED)
@@ -181,10 +179,7 @@ with col2:
             try:
                 st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
-
-                # reset lock so fresh fetch happens
                 st.session_state.api_lock_until = 0
-
                 st.success("✅ Latest stock data loaded successfully")
                 st.rerun()
 
@@ -203,7 +198,13 @@ with col3:
 st.info(f"⏳ Refresh available in: {remaining} seconds")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED)
+# LOAD DATA
+# =========================================================
+
+all_data = load_all_data(branches)
+
+# =========================================================
+# PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -310,7 +311,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID (UNCHANGED)
+# GRID (FIXED SPACING ONLY HERE)
 # =========================================================
 
 def get_width(series, min_width):
@@ -337,7 +338,15 @@ def render_grid(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
+    # 🔥 FIX: restores original spacing behavior
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        key=title,
+        fit_columns_on_grid_load=True,
+        height=500
+    )
 
 # =========================================================
 # DISPLAY
