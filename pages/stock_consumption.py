@@ -48,7 +48,7 @@ st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
 
-# ✅ ADDED (USER INFO FLOW)
+# USER FLOW
 st.session_state.setdefault("show_user_popup", False)
 st.session_state.setdefault("user_name", None)
 st.session_state.setdefault("user_email", None)
@@ -222,16 +222,15 @@ if st.session_state.review_mode:
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    # ✅ CHANGED: instead of direct submit → open popup
     if st.button("✅ Submit"):
         st.session_state.show_user_popup = True
 
 # -----------------------------
-# USER POPUP (NAME + EMAIL)
+# USER POPUP
 # -----------------------------
 if st.session_state.show_user_popup:
 
-    st.markdown("## Enter Details Before Final Submission")
+    st.markdown("## Enter Details Before Submission")
 
     with st.form("user_popup_form"):
 
@@ -252,7 +251,7 @@ if st.session_state.show_user_popup:
             st.session_state.proceed_submit = True
 
 # -----------------------------
-# FINAL SUBMIT (EMAIL + SHEET)
+# FINAL SUBMIT
 # -----------------------------
 if st.session_state.proceed_submit:
 
@@ -286,7 +285,7 @@ if st.session_state.proceed_submit:
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # ---------------- EMAIL ----------------
+            # ---------------- EMAIL REPORT (CLEAN) ----------------
             report = f"""
 Stock Submission Report
 
@@ -297,11 +296,8 @@ Transaction ID: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
 Mode: {st.session_state.mode}
 
-Items:
+STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
-
-            for k, v in st.session_state.draft_data.items():
-                report += f"\n{k}: {v}"
 
             sender_email = "yashu8088234@gmail.com"
             sender_password = st.secrets["EMAIL_PASSWORD"]
@@ -357,9 +353,6 @@ if st.session_state.show_success:
             <div style="font-size: 36px; font-weight: 900;">SUBMITTED</div>
             <div style="margin-top:10px; color: gray;">
                 Stock saved successfully
-            </div>
-            <div style="margin-top:15px; font-size:14px; color:#999;">
-                Redirecting...
             </div>
         </div>
     </div>
