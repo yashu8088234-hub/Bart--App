@@ -96,7 +96,7 @@ def fetch_sheet(sheet_id):
         return None
 
 # =========================================================
-# PROCESS STOCK (FIXED - NO NAME ERROR)
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 def process_stock(all_data, selected_date_str, branch_names):
@@ -179,6 +179,13 @@ can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
 remaining = max(0, int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0))))
 
 # =========================================================
+# DATE (NOW ABOVE BUTTONS)
+# =========================================================
+
+selected_date = st.date_input("📅 Select Date")
+selected_date_str = selected_date.strftime("%Y-%m-%d")
+
+# =========================================================
 # BUTTONS
 # =========================================================
 
@@ -200,8 +207,6 @@ with col2:
             try:
                 branches = load_branches_live()
                 branch_names = [b["BranchName"] for b in branches]
-
-                selected_date_str = st.date_input("📅 Select Date").strftime("%Y-%m-%d")
 
                 all_data = [
                     (b["BranchName"], fetch_sheet(b["SheetID"]))
@@ -256,7 +261,7 @@ daily_items = cache["daily"]
 weekly_items = cache["weekly"]
 
 # =========================================================
-# DATAFRAME (UNCHANGED)
+# DATAFRAME
 # =========================================================
 
 def build_df(data_dict):
@@ -282,7 +287,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (YOUR ORIGINAL STYLE RESTORED)
+# AGGRID (ORIGINAL STYLE RESTORED)
 # =========================================================
 
 def get_width(series, min_width):
@@ -320,6 +325,10 @@ def render_grid(df, title):
         height=500,
         fit_columns_on_grid_load=False
     )
+
+# =========================================================
+# DISPLAY
+# =========================================================
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
