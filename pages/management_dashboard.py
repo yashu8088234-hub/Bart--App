@@ -114,27 +114,7 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# 🔐 FIX 1: API LOCK SYSTEM (ONLY ADDITION)
-# =========================================================
-
-if "api_lock_until" not in st.session_state:
-    st.session_state.api_lock_until = 0
-
-if "cached_all_data" not in st.session_state:
-    st.session_state.cached_all_data = []
-
-now = time.time()
-
-if now >= st.session_state.api_lock_until:
-    with st.spinner("Syncing live stock data..."):
-        all_data = load_all_data(branches)
-        st.session_state.cached_all_data = all_data
-        st.session_state.api_lock_until = now + 120  # 2 minutes lock
-else:
-    all_data = st.session_state.cached_all_data
-
-# =========================================================
-# REFRESH CONTROL (UNCHANGED)
+# REFRESH CONTROL
 # =========================================================
 
 if "last_force_refresh" not in st.session_state:
@@ -155,7 +135,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (UNCHANGED)
+# BUTTONS
 # =========================================================
 
 col1, col2, col3 = st.columns(3)
@@ -179,7 +159,6 @@ with col2:
             try:
                 st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
-                st.session_state.api_lock_until = 0
                 st.success("✅ Latest stock data loaded successfully")
                 st.rerun()
 
@@ -190,12 +169,6 @@ with col2:
 with col3:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
-
-# =========================================================
-# LIVE TIMER DISPLAY (UNCHANGED)
-# =========================================================
-
-st.info(f"⏳ Refresh available in: {remaining} seconds")
 
 # =========================================================
 # LOAD DATA
@@ -311,7 +284,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID (FIXED SPACING ONLY HERE)
+# GRID (FIXED SPACING)
 # =========================================================
 
 def get_width(series, min_width):
@@ -336,16 +309,20 @@ def render_grid(df, title):
     gb.configure_column("SKU", pinned="left", minWidth=80)
     gb.configure_column("UOM", pinned="left", minWidth=70)
 
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
+
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    # 🔥 FIX: restores original spacing behavior
+    # ✅ FIX: restored original spacing behavior
     AgGrid(
         df,
         gridOptions=gb.build(),
         theme="streamlit",
         key=title,
-        fit_columns_on_grid_load=True,
-        height=500
+        height=500,
+        fit_columns_on_grid_load=False
     )
 
 # =========================================================
@@ -356,7 +333,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
