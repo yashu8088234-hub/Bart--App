@@ -4,19 +4,32 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 from gspread.exceptions import APIError
+from io import BytesIO
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils.dataframe import dataframe_to_rows
 import time
 
 # =========================================================
-# PAGE CONFIG (UNCHANGED STYLE)
+# PAGE CONFIG
 # =========================================================
-st.set_page_config(layout="wide", page_title="Stock Overview")
+st.set_page_config(
+    layout="wide",
+    page_title="Stock Overview"
+)
+
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# LIVE TIMER (SAFE INTERVAL)
+# LIVE TIMER
 # =========================================================
 from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=60000, key="live_timer")  # 1 min (IMPORTANT FIX)
+
+# SAFE REFRESH
+st_autorefresh(
+    interval=60000,
+    key="live_timer"
+)
 
 # =========================================================
 # ERROR HANDLER
@@ -38,43 +51,73 @@ scope = [
 
 @st.cache_resource
 def get_client():
+
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         creds_dict,
         scope
     )
+
     return gspread.authorize(creds)
 
 try:
     client = get_client()
+
 except Exception as e:
     show_api_error(e)
 
 # =========================================================
-# MASTER SHEET ID
+# MASTER SHEET
 # =========================================================
 MASTER_ID = "1KYNCls3HWWj_DFY2Q27JRDRJpolSVcxiSH7f4rNDOlM"
 
 # =========================================================
-# LOAD MASTER DATA ONLY (NO 28 SHEETS ANYMORE)
+# LOAD DATA
 # =========================================================
 @st.cache_data(ttl=600)
 def load_data():
+
     try:
+
         sheet = client.open_by_key(MASTER_ID).worksheet("STOCKS")
 
         data = sheet.get_all_values()
+
+        if not data or len(data) < 2:
+            return pd.DataFrame()
+
         headers = data[0]
         rows = data[1:]
 
         df = pd.DataFrame(rows, columns=headers)
 
-        # FIX TYPES
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        # =================================================
+        # DATE FIX
+        # =================================================
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(
+                df["Date"],
+                errors="coerce"
+            )
 
-        # convert numeric branch columns safely
+        # =================================================
+        # NUMERIC FIX
+        # =================================================
+        fixed_cols = [
+            "Date",
+            "Type",
+            "Item",
+            "SKU",
+            "UOM"
+        ]
+
         for col in df.columns:
-            if col.startswith("Branch"):
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+            if col not in fixed_cols:
+
+                df[col] = pd.to_numeric(
+                    df[col],
+                    errors="coerce"
+                ).fillna(0)
 
         return df
 
@@ -82,21 +125,24 @@ def load_data():
         raise e
 
 # =========================================================
-# LOAD DATA
+# LOAD MASTER DATA
 # =========================================================
 try:
+
     df = load_data()
+
 except APIError as e:
     show_api_error(e)
+
 except Exception as e:
     show_api_error(e)
 
 if df.empty:
-    st.warning("No Data Found in Master Sheet")
+    st.warning("No Data Found")
     st.stop()
 
 # =========================================================
-# REFRESH CONTROL (SAFE)
+# REFRESH CONTROL
 # =========================================================
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
@@ -104,83 +150,120 @@ if "last_force_refresh" not in st.session_state:
 REFRESH_COOLDOWN = 40
 
 now = time.time()
-remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
+
+remaining = REFRESH_COOLDOWN - (
+    now - st.session_state.last_force_refresh
+)
+
 remaining = max(0, int(remaining))
+
 can_force_refresh = remaining <= 0
 
 # =========================================================
-# FILTERS (DATE + ITEM + SKU)
+# DATE SECTION (RESTORED)
 # =========================================================
-st.sidebar.header("🔎 Filters")
+available_dates = sorted(
+    df["Date"].dropna().dt.date.unique(),
+    reverse=True
+)
 
-dates = sorted(df["Date"].dropna().unique())
-selected_date = st.sidebar.selectbox("Select Date", dates)
-
-items = ["All"] + sorted(df["Item"].dropna().unique().tolist())
-selected_item = st.sidebar.selectbox("Select Item", items)
-
-skus = ["All"] + sorted(df["SKU"].dropna().unique().tolist())
-selected_sku = st.sidebar.selectbox("Select SKU", skus)
+selected_date = st.date_input(
+    "📅 Select Date",
+    value=available_dates[0]
+    if available_dates else None
+)
 
 # =========================================================
-# BUTTONS (UNCHANGED UI)
+# BUTTONS
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
 with col1:
+
     if st.button("🔄 Refresh Date Only"):
         st.rerun()
 
 with col2:
+
     refresh_text = (
         "🔴 Refresh Data From Sheets"
         if can_force_refresh
         else f"⏳ Wait {remaining} sec"
     )
 
-    if st.button(refresh_text, disabled=not can_force_refresh):
+    if st.button(
+        refresh_text,
+        disabled=not can_force_refresh
+    ):
+
         try:
+
             st.cache_data.clear()
+
             st.session_state.last_force_refresh = time.time()
-            st.success("Updated")
+
+            st.success(
+                "✅ Latest stock data loaded successfully"
+            )
+
             st.rerun()
+
         except Exception as e:
+
             st.error(e)
             st.stop()
 
 with col3:
+
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
 # =========================================================
 # TIMER DISPLAY
 # =========================================================
-st.info(f"⏳ Refresh available in: {remaining} seconds")
+st.info(
+    f"⏳ Refresh available in: {remaining} seconds"
+)
 
 # =========================================================
-# FILTER LOGIC (FAST LOCAL FILTERING)
+# FILTER DATA BY DATE
 # =========================================================
-filtered = df[df["Date"] == selected_date]
-
-if selected_item != "All":
-    filtered = filtered[filtered["Item"] == selected_item]
-
-if selected_sku != "All":
-    filtered = filtered[filtered["SKU"] == selected_sku]
+filtered = df[
+    df["Date"].dt.date == selected_date
+]
 
 # =========================================================
-# GRID WIDTH HELPER
+# DAILY / WEEKLY LOGIC (RESTORED)
+# =========================================================
+daily_df = filtered[
+    filtered["Type"].astype(str).str.upper() == "DAILY"
+]
+
+weekly_df = filtered[
+    filtered["Type"].astype(str).str.upper() == "WEEKLY"
+]
+
+# =========================================================
+# GRID WIDTH
 # =========================================================
 def get_width(series, min_width):
+
     try:
+
         series = series.fillna("").astype(str)
+
         max_len = series.map(len).max()
-        return max(int(max_len * 5 + 25), min_width)
+
+        return max(
+            int(max_len * 5 + 25),
+            min_width
+        )
+
     except:
         return min_width
 
 # =========================================================
-# GRID RENDER (UNCHANGED STYLE)
+# GRID
 # =========================================================
 def render_grid(df, title):
 
@@ -192,17 +275,60 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item", pinned="left", minWidth=140)
-    gb.configure_column("SKU", pinned="left", minWidth=80)
-    gb.configure_column("UOM", pinned="left", minWidth=70)
+    # =============================================
+    # PINNED COLUMNS
+    # =============================================
+    if "Item" in df.columns:
+        gb.configure_column(
+            "Item",
+            pinned="left",
+            minWidth=180
+        )
 
-    # dynamic branch column widths
+    if "SKU" in df.columns:
+        gb.configure_column(
+            "SKU",
+            pinned="left",
+            minWidth=100
+        )
+
+    if "UOM" in df.columns:
+        gb.configure_column(
+            "UOM",
+            pinned="left",
+            minWidth=80
+        )
+
+    # =============================================
+    # DYNAMIC BRANCH WIDTHS
+    # =============================================
+    fixed_cols = [
+        "Date",
+        "Type",
+        "Item",
+        "SKU",
+        "UOM"
+    ]
+
     for col in df.columns:
-        if col.startswith("Branch"):
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
-    gb.configure_grid_options(domLayout='normal', suppressHorizontalScroll=False)
+        if col not in fixed_cols:
+
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 120)
+            )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
+
+    gb.configure_grid_options(
+        domLayout='normal',
+        suppressHorizontalScroll=False
+    )
 
     AgGrid(
         df,
@@ -212,18 +338,108 @@ def render_grid(df, title):
     )
 
 # =========================================================
-# DISPLAY DATA (SAME DESIGN)
+# DISPLAY
 # =========================================================
-render_grid(filtered, "📦 Daily Items Stock")
+render_grid(
+    daily_df,
+    "📦 Daily Items Stock"
+)
 
-# placeholder (kept for your old UI compatibility)
-render_grid(pd.DataFrame(), "📦 Weekly Items Stock")
+render_grid(
+    weekly_df,
+    "📦 Weekly Items Stock"
+)
 
 # =========================================================
-# DOWNLOAD (SIMPLE EXPORT)
+# EXCEL EXPORT
 # =========================================================
+def create_excel(
+    daily_df,
+    weekly_df
+):
+
+    output = BytesIO()
+
+    wb = Workbook()
+
+    ws = wb.active
+
+    ws.title = "Stock Dashboard"
+
+    def write_section(
+        title,
+        df,
+        start_row
+    ):
+
+        rows = list(
+            dataframe_to_rows(
+                df,
+                index=False,
+                header=True
+            )
+        )
+
+        if not rows:
+            return start_row + 2
+
+        total_cols = len(rows[0])
+
+        ws.merge_cells(
+            start_row=start_row,
+            start_column=1,
+            end_row=start_row,
+            end_column=total_cols
+        )
+
+        ws.cell(
+            row=start_row,
+            column=1,
+            value=title
+        ).font = Font(bold=True)
+
+        r0 = start_row + 2
+
+        for r_i, row in enumerate(rows):
+
+            for c_i, val in enumerate(row, 1):
+
+                ws.cell(
+                    row=r0 + r_i,
+                    column=c_i,
+                    value=val
+                )
+
+        return r0 + len(rows) + 3
+
+    next_row = write_section(
+        "DAILY STOCK",
+        daily_df,
+        1
+    )
+
+    write_section(
+        "WEEKLY STOCK",
+        weekly_df,
+        next_row
+    )
+
+    wb.save(output)
+
+    output.seek(0)
+
+    return output
+
+# =========================================================
+# DOWNLOAD
+# =========================================================
+excel_file = create_excel(
+    daily_df,
+    weekly_df
+)
+
 st.download_button(
     "📥 Download Stock Report",
-    filtered.to_csv(index=False),
-    file_name="stock_report.csv"
+    excel_file,
+    file_name="stock_report.xlsx"
 )
