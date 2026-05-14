@@ -5,11 +5,11 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 import time
+from streamlit_autorefresh import st_autorefresh
 
 # =========================================================
 # PAGE CONFIG
@@ -19,15 +19,26 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# 🔥 LIVE TIMER (UNCHANGED)
+# UI AUTO REFRESH (10 seconds ONLY UI rerun)
 # =========================================================
 
-from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=30000, key="live_timer")
+st_autorefresh(interval=10000, key="ui_refresh")
+
+# =========================================================
+# AUTO CACHE CLEAR (EVERY 2 MINUTES)
+# =========================================================
+
+if "last_cache_clear" not in st.session_state:
+    st.session_state.last_cache_clear = time.time()
+
+AUTO_CLEAR_INTERVAL = 120  # 2 minutes
+
+if time.time() - st.session_state.last_cache_clear > AUTO_CLEAR_INTERVAL:
+    st.cache_data.clear()
+    st.session_state.last_cache_clear = time.time()
 
 # =========================================================
 # API ERROR SCREEN
-# (ONLY CHANGE: show real error)
 # =========================================================
 
 def show_api_error(e):
@@ -54,7 +65,6 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-# ONLY ERROR FIX HERE
 try:
     client = get_client()
 except Exception as e:
@@ -72,8 +82,6 @@ def load_branches():
 
 try:
     branches = load_branches()
-except APIError as e:
-    show_api_error(e)
 except Exception as e:
     show_api_error(e)
 
@@ -116,13 +124,13 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# REFRESH CONTROL (UNCHANGED)
+# REFRESH CONTROL (1 MIN LOCK)
 # =========================================================
 
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
 
-REFRESH_COOLDOWN = 90
+REFRESH_COOLDOWN = 60  # 1 minute
 
 now = time.time()
 remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
@@ -137,7 +145,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# BUTTONS (UNCHANGED)
+# BUTTONS
 # =========================================================
 
 col1, col2, col3 = st.columns(3)
@@ -156,13 +164,11 @@ with col2:
 
     if st.button(refresh_text, disabled=not can_force_refresh):
 
-        with st.spinner("Fetching latest stock data from all branches..."):
-
+        with st.spinner("Fetching latest stock data from sheets..."):
             try:
                 st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
-
-                st.success("✅ Latest stock data loaded successfully")
+                st.success("✅ Data refreshed successfully")
                 st.rerun()
 
             except Exception as e:
@@ -174,13 +180,13 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# LIVE TIMER DISPLAY (UNCHANGED)
+# LIVE TIMER DISPLAY
 # =========================================================
 
-st.info(f"⏳ Refresh available in: {remaining} seconds")
+st.info(f"⏳ Manual refresh available in: {remaining} seconds")
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA (CACHED OR FRESH)
 # =========================================================
 
 all_data = load_all_data(branches)
@@ -287,7 +293,7 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
@@ -323,11 +329,6 @@ def render_grid(df, title):
             gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
-
-    gb.configure_grid_options(
-        domLayout='normal',
-        suppressHorizontalScroll=False
-    )
 
     AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
 
