@@ -106,7 +106,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (UNCHANGED LOGIC + FIX ONLY ADDED BELOW)
+# LOAD DATA (UNCHANGED FUNCTION)
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -115,7 +115,7 @@ def load_all_data(branches):
 
 
 # =========================================================
-# 🔐 ONLY FIX: API LOCK SYSTEM (NO OTHER CHANGES)
+# 🔐 FIX ONLY: API LOCK SYSTEM (NO OTHER CHANGES)
 # =========================================================
 
 if "api_lock_until" not in st.session_state:
@@ -130,7 +130,7 @@ if now >= st.session_state.api_lock_until:
     with st.spinner("Syncing live stock data..."):
         all_data = load_all_data(branches)
         st.session_state.cached_all_data = all_data
-        st.session_state.api_lock_until = now + 120  # 2 min lock
+        st.session_state.api_lock_until = now + 120  # 2 minutes lock
 else:
     all_data = st.session_state.cached_all_data
 
@@ -284,7 +284,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME (UNCHANGED)
+# DATAFRAME
 # =========================================================
 
 def build_df(data_dict):
@@ -310,7 +310,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID (UNCHANGED AGGRID)
+# GRID (UNCHANGED)
 # =========================================================
 
 def get_width(series, min_width):
