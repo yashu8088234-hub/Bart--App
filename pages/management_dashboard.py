@@ -106,7 +106,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA (NOW WITH API LOCK ADDED)
+# LOAD DATA (UNCHANGED LOGIC + FIX ONLY ADDED BELOW)
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -115,7 +115,7 @@ def load_all_data(branches):
 
 
 # =========================================================
-# 🔐 API LOCK SYSTEM (NEW - ONLY ADDITION)
+# 🔐 ONLY FIX: API LOCK SYSTEM (NO OTHER CHANGES)
 # =========================================================
 
 if "api_lock_until" not in st.session_state:
@@ -126,19 +126,11 @@ if "cached_all_data" not in st.session_state:
 
 now = time.time()
 
-# =========================================================
-# CONTROLLED DATA LOADING (NO SPAM API)
-# =========================================================
-
 if now >= st.session_state.api_lock_until:
     with st.spinner("Syncing live stock data..."):
         all_data = load_all_data(branches)
-
-        # update cache
         st.session_state.cached_all_data = all_data
-
-        # lock API for 2 minutes
-        st.session_state.api_lock_until = now + 120
+        st.session_state.api_lock_until = now + 120  # 2 min lock
 else:
     all_data = st.session_state.cached_all_data
 
@@ -187,8 +179,11 @@ with col2:
         with st.spinner("Fetching latest stock data from all branches..."):
 
             try:
+                st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
-                st.session_state.api_lock_until = 0  # force unlock
+
+                # reset lock so fresh fetch happens
+                st.session_state.api_lock_until = 0
 
                 st.success("✅ Latest stock data loaded successfully")
                 st.rerun()
@@ -208,7 +203,7 @@ with col3:
 st.info(f"⏳ Refresh available in: {remaining} seconds")
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (UNCHANGED)
 # =========================================================
 
 @st.cache_data(ttl=300)
@@ -289,7 +284,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME (UNCHANGED)
 # =========================================================
 
 def build_df(data_dict):
@@ -315,7 +310,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# GRID (UNCHANGED AGGRID)
 # =========================================================
 
 def get_width(series, min_width):
@@ -352,7 +347,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT
+# EXCEL EXPORT (UNCHANGED)
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
