@@ -8,6 +8,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
+from streamlit_autorefresh import st_autorefresh
 import time
 
 # =========================================================
@@ -21,10 +22,8 @@ st.set_page_config(
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# LIVE TIMER
+# AUTO REFRESH
 # =========================================================
-from streamlit_autorefresh import st_autorefresh
-
 st_autorefresh(
     interval=60000,
     key="live_timer"
@@ -80,11 +79,11 @@ def load_data():
 
     try:
 
-        sheet = client.open_by_key(
+        ws = client.open_by_key(
             MASTER_ID
         ).worksheet("STOCKS")
 
-        data = sheet.get_all_values()
+        data = ws.get_all_values()
 
         if not data or len(data) < 2:
             return pd.DataFrame()
@@ -112,6 +111,7 @@ def load_data():
         # =============================================
         fixed_cols = [
             "Date",
+            "Section",
             "Item",
             "SKU",
             "UOM"
@@ -129,6 +129,7 @@ def load_data():
         return df
 
     except Exception as e:
+
         raise e
 
 # =========================================================
@@ -155,6 +156,7 @@ if df.empty:
 # REFRESH CONTROL
 # =========================================================
 if "last_force_refresh" not in st.session_state:
+
     st.session_state.last_force_refresh = 0
 
 REFRESH_COOLDOWN = 40
@@ -170,7 +172,7 @@ remaining = max(0, int(remaining))
 can_force_refresh = remaining <= 0
 
 # =========================================================
-# DATE SECTION
+# DATE SELECTOR
 # =========================================================
 available_dates = sorted(
     df["Date"].dropna().dt.date.unique(),
@@ -243,59 +245,21 @@ filtered = df[
 ]
 
 # =========================================================
-# DAILY / WEEKLY LOGIC
+# DAILY / WEEKLY SPLIT
 # =========================================================
-daily_rows = []
-weekly_rows = []
+daily_df = filtered[
+    filtered["Section"]
+    .astype(str)
+    .str.upper()
+    == "DAILY"
+]
 
-current_section = None
-
-for _, row in filtered.iterrows():
-
-    row_text = " ".join(
-        [str(x) for x in row.values]
-    ).lower()
-
-    # =============================================
-    # SECTION DETECTION
-    # =============================================
-    if "daily item" in row_text:
-
-        current_section = "daily"
-        continue
-
-    if "weekly item" in row_text:
-
-        current_section = "weekly"
-        continue
-
-    # =============================================
-    # SKIP EMPTY ITEMS
-    # =============================================
-    item = str(
-        row.get("Item", "")
-    ).strip()
-
-    if item == "":
-        continue
-
-    # =============================================
-    # STORE ROWS
-    # =============================================
-    if current_section == "daily":
-
-        daily_rows.append(row)
-
-    elif current_section == "weekly":
-
-        weekly_rows.append(row)
-
-# =========================================================
-# DATAFRAMES
-# =========================================================
-daily_df = pd.DataFrame(daily_rows)
-
-weekly_df = pd.DataFrame(weekly_rows)
+weekly_df = filtered[
+    filtered["Section"]
+    .astype(str)
+    .str.upper()
+    == "WEEKLY"
+]
 
 # =========================================================
 # GRID WIDTH
@@ -314,10 +278,11 @@ def get_width(series, min_width):
         )
 
     except:
+
         return min_width
 
 # =========================================================
-# GRID RENDER
+# GRID
 # =========================================================
 def render_grid(df, title):
 
@@ -338,7 +303,7 @@ def render_grid(df, title):
         gb.configure_column(
             "Item",
             pinned="left",
-            minWidth=180
+            minWidth=220
         )
 
     if "SKU" in df.columns:
@@ -362,6 +327,7 @@ def render_grid(df, title):
     # =============================================
     fixed_cols = [
         "Date",
+        "Section",
         "Item",
         "SKU",
         "UOM"
@@ -432,6 +398,9 @@ def create_excel(
         start_row
     ):
 
+        if df is None or df.empty:
+            return start_row + 2
+
         rows = list(
             dataframe_to_rows(
                 df,
@@ -439,9 +408,6 @@ def create_excel(
                 header=True
             )
         )
-
-        if not rows:
-            return start_row + 2
 
         total_cols = len(rows[0])
 
