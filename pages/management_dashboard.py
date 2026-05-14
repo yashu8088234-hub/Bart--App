@@ -18,7 +18,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-st.markdown("🟢 Live Dashboard (Auto refresh every 2 minutes)")
+
 
 # =========================================================
 # LIVE AUTO REFRESH
