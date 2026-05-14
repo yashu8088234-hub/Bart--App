@@ -19,13 +19,13 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# UI AUTO REFRESH (10 seconds ONLY UI rerun)
+# UI AUTO REFRESH (ONLY UI, NO API)
 # =========================================================
 
 st_autorefresh(interval=10000, key="ui_refresh")
 
 # =========================================================
-# AUTO CACHE CLEAR (EVERY 2 MINUTES)
+# AUTO CACHE CLEAR EVERY 2 MINUTES
 # =========================================================
 
 if "last_cache_clear" not in st.session_state:
@@ -38,7 +38,7 @@ if time.time() - st.session_state.last_cache_clear > AUTO_CLEAR_INTERVAL:
     st.session_state.last_cache_clear = time.time()
 
 # =========================================================
-# API ERROR SCREEN
+# API ERROR HANDLER
 # =========================================================
 
 def show_api_error(e):
@@ -80,11 +80,7 @@ def load_branches():
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except Exception as e:
-    show_api_error(e)
-
+branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
@@ -116,7 +112,7 @@ def fetch_branch(branch):
     return branch["BranchName"], fetch_sheet_range(sid)
 
 # =========================================================
-# LOAD DATA
+# LOAD ALL DATA
 # =========================================================
 
 @st.cache_data(ttl=600)
@@ -124,21 +120,29 @@ def load_all_data(branches):
     return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# REFRESH CONTROL (1 MIN LOCK)
+# 🔐 GLOBAL REFRESH LOCK (2 MIN RULE)
 # =========================================================
+
+if "page_start_time" not in st.session_state:
+    st.session_state.page_start_time = time.time()
 
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
 
-REFRESH_COOLDOWN = 60  # 1 minute
+LOCK_TIME = 120  # 2 minutes
+
+lock_until = max(
+    st.session_state.page_start_time,
+    st.session_state.last_force_refresh
+) + LOCK_TIME
 
 now = time.time()
-remaining = REFRESH_COOLDOWN - (now - st.session_state.last_force_refresh)
-remaining = max(0, int(remaining))
-can_force_refresh = remaining <= 0
+
+can_force_refresh = now >= lock_until
+remaining = max(0, int(lock_until - now))
 
 # =========================================================
-# DATE
+# DATE SELECT
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
@@ -159,7 +163,7 @@ with col2:
     refresh_text = (
         "🔴 Refresh Data From Sheets"
         if can_force_refresh
-        else f"⏳ Wait {remaining} sec"
+        else f"⏳ Locked ({remaining}s)"
     )
 
     if st.button(refresh_text, disabled=not can_force_refresh):
@@ -168,6 +172,7 @@ with col2:
             try:
                 st.cache_data.clear()
                 st.session_state.last_force_refresh = time.time()
+
                 st.success("✅ Data refreshed successfully")
                 st.rerun()
 
@@ -180,13 +185,13 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# LIVE TIMER DISPLAY
+# TIMER INFO
 # =========================================================
 
-st.info(f"⏳ Manual refresh available in: {remaining} seconds")
+st.info(f"⏳ Refresh unlocks in: {remaining} seconds")
 
 # =========================================================
-# LOAD DATA (CACHED OR FRESH)
+# LOAD DATA
 # =========================================================
 
 all_data = load_all_data(branches)
@@ -299,16 +304,8 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# GRID DISPLAY
 # =========================================================
-
-def get_width(series, min_width):
-    try:
-        series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-        return max(int(max_len * 5 + 25), min_width)
-    except:
-        return min_width
 
 def render_grid(df, title):
 
@@ -324,17 +321,7 @@ def render_grid(df, title):
     gb.configure_column("SKU", pinned="left", minWidth=80)
     gb.configure_column("UOM", pinned="left", minWidth=70)
 
-    for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
-
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
-
     AgGrid(df, gridOptions=gb.build(), theme="streamlit", key=title)
-
-# =========================================================
-# DISPLAY
-# =========================================================
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
