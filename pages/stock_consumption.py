@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
@@ -37,22 +36,6 @@ div.stButton > button{
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# AUTO SCROLL FUNCTION
-# -----------------------------
-def auto_scroll():
-    components.html(
-        """
-        <script>
-            window.parent.document.querySelector('.main').scrollTo({
-                top: document.body.scrollHeight,
-                behavior: 'smooth'
-            });
-        </script>
-        """,
-        height=0,
-    )
-
-# -----------------------------
 # SESSION INIT
 # -----------------------------
 if "page" not in st.session_state:
@@ -64,6 +47,10 @@ st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
+
+st.session_state.setdefault("user_name", None)
+st.session_state.setdefault("user_email", None)
+st.session_state.setdefault("proceed_submit", False)
 
 # -----------------------------
 # TITLE
@@ -113,7 +100,7 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A (FIXED - NO CACHE ERROR)
+# LOAD COLUMN A
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
@@ -177,7 +164,6 @@ st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
-    st.rerun()
     st.session_state.mode = None
     st.rerun()
 
@@ -188,7 +174,7 @@ date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# INPUT FORM (NO REFRESH WHILE TYPING)
+# INPUT FORM
 # -----------------------------
 st.markdown("## Enter Stock")
 
@@ -223,13 +209,12 @@ with st.form("stock_form", clear_on_submit=False):
         else:
             st.session_state.draft_data = inputs
             st.session_state.review_mode = True
+            st.rerun()
 
 # -----------------------------
-# REVIEW + SUBMIT
+# REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
-
-    auto_scroll()
 
     st.markdown("## Review")
 
@@ -237,46 +222,70 @@ if st.session_state.review_mode:
         st.write(f"{k} → {v}")
 
     if st.button("✅ Submit"):
+        user_popup()
 
-        if st.session_state.submitted:
-            st.warning("Already submitted")
-            st.stop()
+# -----------------------------
+# POPUP (WORKING FIX - STREAMLIT DIALOG)
+# -----------------------------
+@st.dialog("Enter Details Before Submission")
+def user_popup():
 
-        try:
-            with st.spinner("Saving stock..."):
+    name = st.text_input("Name")
+    email = st.text_input("Email")
 
-                sheet_data = sheet.get_all_values()
-                headers = sheet_data[0]
+    if st.button("Confirm & Submit"):
 
-                submission_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        if not name or not email:
+            st.error("Name and Email required")
+            return
 
-                if not st.session_state.tx_id:
-                    st.session_state.tx_id = str(uuid.uuid4())[:8]
+        st.session_state.user_name = name
+        st.session_state.user_email = email
+        st.session_state.proceed_submit = True
 
-                if date_str in headers:
-                    col_index = headers.index(date_str) + 1
-                else:
-                    col_index = len(headers) + 1
-                    sheet.update_cell(1, col_index, date_str)
+        st.rerun()
 
-                col_values = sheet.col_values(1)
-                item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
+# -----------------------------
+# FINAL SUBMIT
+# -----------------------------
+if st.session_state.proceed_submit:
 
-                cells = []
+    try:
+        with st.spinner("Saving stock..."):
 
-                for item, qty in st.session_state.draft_data.items():
-                    row = item_to_row.get(item)
+            sheet_data = sheet.get_all_values()
+            headers = sheet_data[0]
 
-                    if row:
-                        cells.append(Cell(row=row, col=col_index, value=qty))
+            submission_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-                if cells:
-                    sheet.update_cells(cells, value_input_option="USER_ENTERED")
+            if not st.session_state.tx_id:
+                st.session_state.tx_id = str(uuid.uuid4())[:8]
 
-                # ---------------- EMAIL REPORT ----------------
-                report = f"""
+            if date_str in headers:
+                col_index = headers.index(date_str) + 1
+            else:
+                col_index = len(headers) + 1
+                sheet.update_cell(1, col_index, date_str)
+
+            col_values = sheet.col_values(1)
+            item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
+
+            cells = []
+
+            for item, qty in st.session_state.draft_data.items():
+                row = item_to_row.get(item)
+                if row:
+                    cells.append(Cell(row=row, col=col_index, value=qty))
+
+            if cells:
+                sheet.update_cells(cells, value_input_option="USER_ENTERED")
+
+            # ---------------- EMAIL ----------------
+            report = f"""
 Stock Submission Report
 
+Name: {st.session_state.user_name}
+Email: {st.session_state.user_email}
 Time: {submission_time}
 Transaction ID: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
@@ -285,28 +294,29 @@ Mode: {st.session_state.mode}
 STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
 
-                sender_email = "yashu8088234@gmail.com"
-                sender_password = st.secrets["EMAIL_PASSWORD"]
+            sender_email = "yourgmail@gmail.com"
+            sender_password = st.secrets["EMAIL_PASSWORD"]
 
-                msg = MIMEText(report)
-                msg["Subject"] = "New Stock Submission"
-                msg["From"] = sender_email
-                msg["To"] = "yashu8088234@gmail.com"
+            msg = MIMEText(report)
+            msg["Subject"] = "New Stock Submission"
+            msg["From"] = sender_email
+            msg["To"] = "yashu8088234@gmail.com"
 
-                server = smtplib.SMTP("smtp.gmail.com", 587)
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, "yashu8088234@gmail.com", msg.as_string())
-                server.quit()
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, "yashu8088234@gmail.com", msg.as_string())
+            server.quit()
 
-                st.session_state.submitted = True
-                st.session_state.show_success = True
-                st.session_state.review_mode = False
+            st.session_state.proceed_submit = False
+            st.session_state.review_mode = False
+            st.session_state.show_success = True
+            st.session_state.submitted = True
 
-            st.rerun()
+        st.rerun()
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 # -----------------------------
 # SUCCESS SCREEN
@@ -339,18 +349,14 @@ if st.session_state.show_success:
             <div style="margin-top:10px; color: gray;">
                 Stock saved successfully
             </div>
-            <div style="margin-top:15px; font-size:14px; color:#999;">
-                Redirecting to dashboard in 4 seconds...
-            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
 
-    time.sleep(4)
+    time.sleep(3)
 
-    # RESET
     st.session_state.page = "mode_select"
     st.session_state.mode = None
     st.session_state.review_mode = False
@@ -358,5 +364,7 @@ if st.session_state.show_success:
     st.session_state.show_success = False
     st.session_state.submitted = False
     st.session_state.tx_id = None
+    st.session_state.user_name = None
+    st.session_state.user_email = None
 
     st.switch_page("pages/staff_dashboard.py")
