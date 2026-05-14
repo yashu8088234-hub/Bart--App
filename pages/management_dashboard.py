@@ -13,22 +13,18 @@ import os
 import pickle
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
-st.title("📦 BART - Stock Management (All Branches)")
-
-# =========================================================
-# CACHE FILES
-# =========================================================
+st.title("📦 BART - Stock Management (Flexible Parser)")
 
 CACHE_FILE = "stock_cache.pkl"
 SYNC_FILE = "sync_meta.pkl"
-SYNC_LOCK = 10  # 5 minutes
+SYNC_LOCK = 300
 
 # =========================================================
-# CACHE HELPERS
+# CACHE
 # =========================================================
 
 def load_cache():
@@ -75,29 +71,19 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES
-# =========================================================
-
-def load_branches_live():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    data = sheet.get_all_records()
-    return [b for b in data if b.get("SheetID") and b.get("BranchName")]
-
-# =========================================================
-# SAFE SHEET FETCH (NO LOSING DATA)
+# SAFE FETCH
 # =========================================================
 
 def fetch_sheet(sheet_id):
     try:
         ss = client.open_by_key(sheet_id)
         ws = ss.worksheet("Stocks")
-        data = ws.get_all_values()
-        return data if data else []
+        return ws.get_all_values() or []
     except:
         return []
 
 # =========================================================
-# PROCESS STOCK (ZERO DATA LOSS VERSION)
+# FLEXIBLE STOCK PROCESSOR (FIXED CORE)
 # =========================================================
 
 def process_stock(all_data, selected_date_str, branch_names):
@@ -107,50 +93,52 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     for branch_name, raw in all_data:
 
-        if raw is None:
-            raw = []
+        if not raw:
+            continue
 
-        headers = raw[0] if len(raw) > 0 else []
-        headers = [str(h).strip() for h in headers]
+        headers = [str(h).strip() for h in raw[0]]
 
-        # find date column safely
+        # =====================================================
+        # FLEXIBLE DATE MATCH
+        # =====================================================
         date_index = None
         for i, h in enumerate(headers):
-            if str(h).strip()[:10] == selected_date_str:
+            clean = str(h).strip().replace("/", "-")
+            if selected_date_str in clean:
                 date_index = i
                 break
 
-        current_section = None
+        current_section = "unknown"
 
-        # NEVER SKIP ROWS
-        for row in raw[1:] if len(raw) > 1 else []:
+        # =====================================================
+        # PROCESS ROWS (NEVER SKIP)
+        # =====================================================
+        for row in raw[1:]:
 
             row = list(row) if row else []
 
-            # force minimum columns
             while len(row) < 3:
                 row.append("")
 
             text = " ".join(map(str, row)).lower()
 
-            if "daily item" in text:
+            # =================================================
+            # FLEXIBLE SECTION DETECTION
+            # =================================================
+            if "daily" in text:
                 current_section = "daily"
                 continue
 
-            if "weekly item" in text:
+            if "weekly" in text:
                 current_section = "weekly"
                 continue
 
-            if current_section is None:
-                continue
-
-            item = str(row[0]).strip()
+            # =================================================
+            # ALWAYS ACCEPT ROW
+            # =================================================
+            item = str(row[0]).strip() or "UNKNOWN"
             sku = str(row[1]).strip()
             uom = str(row[2]).strip()
-
-            # NEVER SKIP ITEM
-            if not item:
-                item = "UNKNOWN_ITEM"
 
             key = f"{item}_{sku}_{uom}"
 
@@ -163,25 +151,18 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "UOM": uom
                 }
 
-                # INIT ALL BRANCHES = 0
-                for bn in branch_names:
-                    target[key][bn] = 0
+                for b in branch_names:
+                    target[key][b] = 0
 
             qty = 0
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
-                    qty = float(val) if str(val).strip() not in ["", None] else 0
+                    qty = float(val) if str(val).strip() != "" else 0
             except:
                 qty = 0
 
             target[key][branch_name] = qty
-
-    # ENSURE ALL FIELDS EXIST
-    for dataset in [daily, weekly]:
-        for k in dataset:
-            for bn in branch_names:
-                dataset[k].setdefault(bn, 0)
 
     return daily, weekly
 
@@ -194,30 +175,26 @@ can_sync = (now - sync_meta.get("last_sync", 0)) > SYNC_LOCK
 remaining = max(0, int(SYNC_LOCK - (now - sync_meta.get("last_sync", 0))))
 
 # =========================================================
-# DATE (TOP)
+# UI
 # =========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
-# =========================================================
-# BUTTONS
-# =========================================================
-
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🔄 Refresh Date Only"):
+    if st.button("🔄 Refresh Date"):
         st.rerun()
 
 with col2:
-    if st.button("🔄 SYNC DATA (Fetch All Branches)"):
+    if st.button("🔄 SYNC DATA"):
 
         if not can_sync:
-            st.error(f"⛔ Sync locked. Wait {remaining} sec")
+            st.error(f"⛔ Locked for {remaining}s")
             st.stop()
 
-        with st.spinner("Fetching all branches..."):
+        with st.spinner("Loading all branches..."):
 
             try:
                 branches = load_branches_live()
@@ -234,26 +211,24 @@ with col2:
                     branch_names
                 )
 
-                cache_data = {
+                save_cache({
                     "branches": branches,
                     "branch_names": branch_names,
                     "daily": daily_items,
                     "weekly": weekly_items
-                }
-
-                save_cache(cache_data)
+                })
 
                 sync_meta["last_sync"] = now
                 save_sync(sync_meta)
 
-                st.success("✅ Sync Completed")
+                st.success("Sync Done")
                 st.rerun()
 
             except APIError as e:
                 st.error(e)
 
 with col3:
-    if st.button("🔙 Back"):
+    if st.button("Back"):
         st.switch_page("app.py")
 
 # =========================================================
@@ -263,7 +238,7 @@ with col3:
 cache = load_cache()
 
 if not cache:
-    st.warning("No cached data. Please click SYNC DATA.")
+    st.warning("No data. Run SYNC first.")
     st.stop()
 
 branches = cache["branches"]
@@ -298,14 +273,13 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# AGGRID (UNCHANGED STYLE)
+# AGGRID
 # =========================================================
 
 def get_width(series, min_width):
     try:
         series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-        return max(int(max_len * 5 + 25), min_width)
+        return max(series.map(len).max() * 5 + 25, min_width)
     except:
         return min_width
 
@@ -327,76 +301,7 @@ def render_grid(df, title):
         if col not in ["Item Name", "SKU", "UOM"]:
             gb.configure_column(col, minWidth=get_width(df[col], 120))
 
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+    AgGrid(df, gridOptions=gb.build(), height=500, theme="streamlit")
 
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        theme="streamlit",
-        height=500,
-        fit_columns_on_grid_load=False
-    )
-
-# =========================================================
-# DISPLAY
-# =========================================================
-
-render_grid(daily_df, "📦 Daily Items Stock")
-render_grid(weekly_df, "📦 Weekly Items Stock")
-
-# =========================================================
-# EXCEL EXPORT
-# =========================================================
-
-def create_excel(daily_df, weekly_df):
-
-    output = BytesIO()
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Stock Dashboard"
-
-    def write_section(title, df, start_row):
-
-        rows = list(dataframe_to_rows(df, index=False, header=True))
-
-        if not rows:
-            return start_row + 2
-
-        cols = len(rows[0])
-
-        ws.merge_cells(start_row=start_row, start_column=1,
-                       end_row=start_row, end_column=cols)
-
-        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
-
-        r0 = start_row + 2
-
-        for r_i, row in enumerate(rows):
-            for c_i, val in enumerate(row, 1):
-                ws.cell(row=r0 + r_i, column=c_i, value=val)
-
-        return r0 + len(rows) + 3
-
-    next_row = write_section("DAILY STOCK", daily_df, 1)
-    write_section("WEEKLY STOCK", weekly_df, next_row)
-
-    wb.save(output)
-    output.seek(0)
-    return output
-
-excel_file = create_excel(daily_df, weekly_df)
-
-st.download_button(
-    "📥 Download Stock Report",
-    excel_file,
-    file_name="stock_report.xlsx"
-)
-
-# =========================================================
-# FOOTER
-# =========================================================
-
-st.caption(f"Last Sync: {time.ctime(sync_meta.get('last_sync', 0))}")
-
-if not can_sync:
-    st.warning(f"🔒 Sync locked for {remaining} seconds")
+render_grid(daily_df, "Daily Stock")
+render_grid(weekly_df, "Weekly Stock")
