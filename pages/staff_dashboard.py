@@ -253,7 +253,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1,  col3 = st.columns(3)
+        col1,  col2 = st.columns(2)
 
         if col1.button("📦 Stock Record"):
             refresh_activity()
@@ -261,7 +261,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         
 
-        if col3.button("🔍 Stock View"):
+        if col2.button("🔍 Stock View"):
             refresh_activity()
 
             sheet = client.open_by_key(branch_info["SheetID"])
