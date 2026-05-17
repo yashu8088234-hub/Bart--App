@@ -17,13 +17,6 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# ERROR HANDLER
-# =========================================================
-def show_api_error():
-    st.error("API Error Occurred. Please try again later.")
-    st.stop()
-
-# =========================================================
 # GOOGLE AUTH
 # =========================================================
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
@@ -44,7 +37,8 @@ def get_client():
 try:
     client = get_client()
 except:
-    show_api_error()
+    st.error("Google Auth Failed")
+    st.stop()
 
 # =========================================================
 # BRANCH LIST
@@ -55,23 +49,13 @@ def load_branches():
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except APIError:
-    show_api_error()
-except:
-    show_api_error()
-
+branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SAFE SHEET FETCH
+# 🔥 OPTIMIZED SHEET LOADER (1 CALL PER BRANCH)
 # =========================================================
-def safe_get_all_values(ws):
-    try:
-        return ws.get_all_values()
-    except:
-        return None
+sheet_cache = {}
 
 def fetch_branch(branch):
     sid = branch.get("SheetID")
@@ -81,34 +65,43 @@ def fetch_branch(branch):
         return name, None
 
     try:
-        ss = client.open_by_key(sid)
-        ws = ss.worksheet("Stocks")
-        data = safe_get_all_values(ws)
+        # cache worksheet object (prevents repeated open calls)
+        if sid not in sheet_cache:
+            sheet_cache[sid] = client.open_by_key(sid).worksheet("Stocks")
+
+        ws = sheet_cache[sid]
+
+        # ONLY REAL API CALL HERE
+        data = ws.get_all_values()
+
         return name, data
-    except:
+
+    except Exception:
         return name, None
 
 # =========================================================
-# 🔥 SMART CACHE (MAIN FIX)
+# 🔥 SNAPSHOT LOADER (28 CALLS ONLY ON REFRESH)
 # =========================================================
 @st.cache_data(ttl=600)
-def load_all_data_cached(branches):
+def load_all_branches(branches):
     results = []
+
     for b in branches:
         results.append(fetch_branch(b))
+
     return results
 
 # =========================================================
-# SESSION STATE (PREVENT RELOAD ISSUES)
+# MEMORY SNAPSHOT (NO API AFTER LOAD)
 # =========================================================
-if "all_data" not in st.session_state:
+if "snapshot" not in st.session_state:
     with st.spinner("Loading all 28 branches (first time only)..."):
-        st.session_state.all_data = load_all_data_cached(branches)
+        st.session_state.snapshot = load_all_branches(branches)
 
-all_data = st.session_state.all_data
+all_data = st.session_state.snapshot
 
 # =========================================================
-# 🔄 REFRESH BUTTON (FORCE FULL RELOAD)
+# 🔄 REFRESH CONTROL (ONLY PLACE API IS TRIGGERED)
 # =========================================================
 st.sidebar.subheader("🔄 Data Control")
 
@@ -116,7 +109,7 @@ if st.sidebar.button("Refresh All Branch Data"):
     st.cache_data.clear()
 
     with st.spinner("Reloading all 28 branches..."):
-        st.session_state.all_data = load_all_data_cached(branches)
+        st.session_state.snapshot = load_all_branches(branches)
 
     st.sidebar.success("Data refreshed successfully")
 
@@ -127,7 +120,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (USES CACHED DATA ONLY)
+# PROCESS STOCK (PURE LOCAL PROCESSING)
 # =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -241,11 +234,6 @@ def render_grid(df, title):
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
-
-    gb.configure_column("Item Name", pinned="left", minWidth=140)
-    gb.configure_column("SKU", pinned="left", minWidth=80)
-    gb.configure_column("UOM", pinned="left", minWidth=70)
-
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(df, gridOptions=gb.build(), theme="streamlit")
