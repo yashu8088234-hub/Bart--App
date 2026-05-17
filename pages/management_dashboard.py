@@ -9,26 +9,17 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
+from concurrent.futures import ThreadPoolExecutor
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# ERROR HANDLER
-# =========================================================
-
-def show_api_error():
-    st.error("API Error Occurred. Please try again later.")
-    st.stop()
-
-# =========================================================
 # GOOGLE AUTH
 # =========================================================
-
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 scope = [
@@ -44,87 +35,92 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-try:
-    client = get_client()
-except:
-    show_api_error()
+client = get_client()
 
 # =========================================================
-# BRANCH LIST
+# LOAD BRANCHES
 # =========================================================
-
 @st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except APIError:
-    show_api_error()
-except:
-    show_api_error()
-
+branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
+# stable mapping (IMPORTANT)
+branches_map = {b["SheetID"]: b for b in branches if b.get("SheetID")}
+
 # =========================================================
-# SAFE SHEET FETCH
+# REFRESH CONTROL (NO DUPLICATE API)
 # =========================================================
+if "raw_cache_loaded" not in st.session_state:
+    st.session_state.raw_cache_loaded = False
 
-def safe_get_all_values(ws):
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        st.cache_data.clear()
+        st.session_state.raw_cache_loaded = False
+        st.rerun()
+
+# =========================================================
+# SINGLE API FETCH (NO DUPLICATES)
+# =========================================================
+def fetch_branch(sheet_id, branch_name):
     try:
-        return ws.get_all_values()
-    except:
-        return None
-
-def fetch_branch(branch):
-    sid = branch.get("SheetID")
-    name = branch["BranchName"]
-
-    if not sid:
-        return name, None
-
-    try:
-        ss = client.open_by_key(sid)
+        ss = client.open_by_key(sheet_id)
         ws = ss.worksheet("Stocks")
-        data = safe_get_all_values(ws)
-        return name, data
+        return branch_name, ws.get_all_values()
     except:
-        return name, None
+        return branch_name, None
 
-# =========================================================
-# LOAD ALL DATA (CACHE IMPORTANT PART)
-# =========================================================
-
-@st.cache_data(ttl=1800)  # 30 MIN CACHE (KEY FIX)
-def load_all_data(branches):
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_all_branches(branch_keys_tuple):
     results = []
 
-    for b in branches:
-        results.append(fetch_branch(b))
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+
+        for sheet_id in branch_keys_tuple:
+            branch = branches_map.get(sheet_id)
+            if not branch:
+                continue
+
+            futures.append(
+                executor.submit(fetch_branch, sheet_id, branch["BranchName"])
+            )
+
+        for f in futures:
+            results.append(f.result())
 
     return results
 
-# =========================================================
-# AUTO LOAD DATA (NO BUTTONS)
-# =========================================================
+# stable key (IMPORTANT for cache safety)
+branch_keys = tuple(sorted(branches_map.keys()))
 
-with st.spinner("Loading stock data..."):
-    all_data = load_all_data(branches)
+# load once only
+if not st.session_state.raw_cache_loaded:
+    with st.spinner("Loading stock data..."):
+        all_data = fetch_all_branches(branch_keys)
+
+    st.session_state.raw_data = all_data
+    st.session_state.raw_cache_loaded = True
+else:
+    all_data = st.session_state.raw_data
 
 # =========================================================
-# DATE INPUT (KEPT AS REQUESTED)
+# DATE INPUT
 # =========================================================
-
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (cached per date)
 # =========================================================
-
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, show_spinner=False)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -139,7 +135,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         date_index = None
         for i, h in enumerate(headers):
-            if str(h).strip() == selected_date_str:
+            if h == selected_date_str:
                 date_index = i
                 break
 
@@ -163,7 +159,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            item = str(row[0]).strip() if len(row) > 0 else ""
+            item = str(row[0]).strip()
             sku = str(row[1]).strip() if len(row) > 1 else ""
             uom = str(row[2]).strip() if len(row) > 2 else ""
 
@@ -171,7 +167,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             key = f"{item}_{sku}_{uom}"
-
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
@@ -185,7 +180,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                     target[key][bn] = 0
 
             qty = 0
-
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
@@ -198,21 +192,18 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 daily_items, weekly_items = process_stock(
-    all_data,
+    tuple(all_data),
     selected_date_str,
-    branch_names
+    tuple(branch_names)
 )
 
 # =========================================================
 # DATAFRAME
 # =========================================================
-
 def build_df(data_dict):
-
     rows = []
 
     for _, v in data_dict.items():
-
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
@@ -224,7 +215,7 @@ def build_df(data_dict):
 
         rows.append(row)
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
@@ -232,7 +223,6 @@ weekly_df = build_df(weekly_items)
 # =========================================================
 # GRID
 # =========================================================
-
 def get_width(series, min_width):
     try:
         series = series.fillna("").astype(str)
@@ -251,21 +241,15 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left", minWidth=140, flex=0)
-    gb.configure_column("SKU", pinned="left", minWidth=80, flex=0)
-    gb.configure_column("UOM", pinned="left", minWidth=70, flex=0)
+    gb.configure_column("Item Name", pinned="left", minWidth=140)
+    gb.configure_column("SKU", pinned="left", minWidth=80)
+    gb.configure_column("UOM", pinned="left", minWidth=70)
 
     for col in branch_names:
         if col in df.columns:
             gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
-
-    gb.configure_grid_options(
-        domLayout='normal',
-        suppressColumnVirtualisation=True,
-        suppressHorizontalScroll=False
-    )
 
     AgGrid(
         df,
@@ -275,17 +259,12 @@ def render_grid(df, title):
         key=title
     )
 
-# =========================================================
-# DISPLAY
-# =========================================================
-
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
-
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
@@ -315,7 +294,6 @@ def create_excel(daily_df, weekly_df):
 
         for r_i, row in enumerate(rows):
             for c_i, val in enumerate(row, 1):
-
                 c = ws.cell(row=row_idx + r_i, column=c_i, value=val)
                 c.alignment = align_center
 
@@ -330,16 +308,8 @@ def create_excel(daily_df, weekly_df):
     write_section("📦 WEEKLY STOCK", weekly_df, next_row)
 
     for col in ws.columns:
-        try:
-            column = get_column_letter(col[0].column)
-        except:
-            continue
-
-        max_length = 0
-        for cell in col:
-            if cell.value:
-                max_length = max(max_length, len(str(cell.value)))
-
+        column = get_column_letter(col[0].column)
+        max_length = max((len(str(cell.value)) for cell in col if cell.value), default=0)
         ws.column_dimensions[column].width = max_length + 3
 
     wb.save(output)
@@ -349,15 +319,14 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Daily + Weekly Excel)",
+    "📥 Download Stock Report",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
 # =========================================================
-# BACK BUTTON (UNCHANGED AS REQUESTED)
+# BACK BUTTON
 # =========================================================
-
 if st.button("🔙 Back"):
     st.switch_page("app.py")
