@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
@@ -13,7 +15,27 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# BRANCH LIST (YOUR MASTER SHEET)
+# 🔐 GOOGLE AUTH (FIXED - REQUIRED)
+# =========================================================
+creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+
+@st.cache_resource
+def get_client():
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        creds_dict,
+        scope
+    )
+    return gspread.authorize(creds)
+
+client = get_client()
+
+# =========================================================
+# BRANCH LIST
 # =========================================================
 @st.cache_data(ttl=600)
 def load_branches():
@@ -36,7 +58,7 @@ def fetch_branch(branch):
         return name, None
 
     try:
-        # CSV EXPORT (NO gspread, NO quota burst)
+        # CSV EXPORT (NO gspread burst)
         url = f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv"
         df = pd.read_csv(url)
 
@@ -46,7 +68,7 @@ def fetch_branch(branch):
         return name, None
 
 # =========================================================
-# LOAD ALL BRANCHES (SAFE 28 CALLS ONLY ON REFRESH)
+# LOAD ALL BRANCHES (SAFE)
 # =========================================================
 @st.cache_data(ttl=600)
 def load_all_branches(branches):
@@ -62,7 +84,7 @@ if "snapshot" not in st.session_state:
 all_data = st.session_state.snapshot
 
 # =========================================================
-# REFRESH CONTROL (ONLY API ENTRY POINT)
+# REFRESH BUTTON (ONLY TIME DATA LOADS)
 # =========================================================
 st.sidebar.subheader("🔄 Data Control")
 
@@ -182,7 +204,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🚀 AGGRID (FIXED SPACING PRESERVED)
+# 🚀 AGGRID (FIXED SPACING)
 # =========================================================
 def render_grid(df, title):
 
