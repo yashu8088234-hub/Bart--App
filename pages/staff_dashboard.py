@@ -105,7 +105,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # ---------------- LOAD BRANCHES ----------------
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=None)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     return sheet.get_all_records()
