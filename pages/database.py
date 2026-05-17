@@ -1,32 +1,38 @@
+import json
+import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
-import streamlit as st
 
 # =========================================================
-# INIT FIRESTORE (SAFE SINGLETON)
+# FIRESTORE INIT (SAFE + FIXED FOR STREAMLIT SECRETS)
 # =========================================================
 @st.cache_resource
 def init_firestore():
 
-    # Load Firebase credentials from Streamlit secrets
-    cred = credentials.Certificate(st.secrets["FIREBASE_KEY"])
+    # 🔥 Get Firebase key from Streamlit secrets
+    firebase_key = st.secrets["FIREBASE_KEY"]
 
-    # Prevent duplicate initialization
+    # 🔥 Convert string → dict (IMPORTANT FIX)
+    if isinstance(firebase_key, str):
+        firebase_key = json.loads(firebase_key)
+
+    # 🔥 Prevent duplicate Firebase initialization
     if not firebase_admin._apps:
+        cred = credentials.Certificate(firebase_key)
         firebase_admin.initialize_app(cred)
 
     return firestore.client()
 
 
+# Firestore client
 db = init_firestore()
+
 
 # =========================================================
 # TEST WRITE FUNCTION
 # =========================================================
 def add_test_stock():
-    """
-    Writes a sample document to Firestore
-    """
+
     db.collection("stock").add({
         "branch": "Jeddah",
         "item": "Rice",
@@ -40,7 +46,7 @@ def add_test_stock():
 
 
 # =========================================================
-# WRITE STOCK (REAL FUNCTION YOU WILL USE LATER)
+# ADD STOCK (REAL USE)
 # =========================================================
 def add_stock(branch, item, sku, uom, date, qty):
 
@@ -53,7 +59,7 @@ def add_stock(branch, item, sku, uom, date, qty):
         "qty": float(qty)
     })
 
-    return "✅ Stock added"
+    return "✅ Stock added successfully"
 
 
 # =========================================================
@@ -65,16 +71,13 @@ def get_stock_by_date(date_str):
         .where("date", "==", date_str) \
         .stream()
 
-    data = []
-
-    for doc in docs:
-        data.append(doc.to_dict())
+    data = [doc.to_dict() for doc in docs]
 
     return data
 
 
 # =========================================================
-# CLEAR COLLECTION (FOR TESTING ONLY)
+# CLEAR COLLECTION (TEST ONLY)
 # =========================================================
 def clear_stock_collection():
 
