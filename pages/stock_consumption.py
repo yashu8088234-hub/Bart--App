@@ -48,11 +48,8 @@ st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
 
-st.session_state.setdefault("show_user_popup", False)
-st.session_state.setdefault("user_name", None)
-st.session_state.setdefault("user_email", None)
-st.session_state.setdefault("proceed_submit", False)
 st.session_state.setdefault("scroll_to_review", False)
+st.session_state.setdefault("proceed_submit", False)
 
 # -----------------------------
 # SCROLL FUNCTION
@@ -150,7 +147,7 @@ if st.session_state.page == "mode_select":
     st.session_state.show_success = False
 
     st.markdown("## Select Option")
-    c1, c2  = st.columns(2)
+    c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
@@ -164,7 +161,6 @@ if st.session_state.page == "mode_select":
 
     if st.button("⬅ Back to Staff"):
         st.switch_page("pages/staff_dashboard.py")
-        st.rerun()
 
     st.stop()
 
@@ -231,7 +227,7 @@ with st.form("stock_form", clear_on_submit=False):
             st.rerun()
 
 # -----------------------------
-# REVIEW SECTION (WITH AUTO SCROLL TARGET)
+# REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
 
@@ -242,40 +238,16 @@ if st.session_state.review_mode:
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
+    # ✅ DIRECT SUBMIT (NO POPUP)
     if st.button("✅ Submit"):
-        st.session_state.show_user_popup = True
+        st.session_state.proceed_submit = True
 
 # -----------------------------
-# AUTO SCROLL EXECUTION
+# AUTO SCROLL
 # -----------------------------
 if st.session_state.scroll_to_review:
     scroll_to_review()
     st.session_state.scroll_to_review = False
-
-# -----------------------------
-# USER POPUP
-# -----------------------------
-if st.session_state.show_user_popup:
-
-    st.markdown("## Enter Details Before Submission")
-
-    with st.form("user_popup_form"):
-
-        name = st.text_input("Name")
-        email = st.text_input("Email")
-
-        ok = st.form_submit_button("Confirm & Submit")
-
-        if ok:
-
-            if not name or not email:
-                st.error("Name and Email required")
-                st.stop()
-
-            st.session_state.user_name = name
-            st.session_state.user_email = email
-            st.session_state.show_user_popup = False
-            st.session_state.proceed_submit = True
 
 # -----------------------------
 # FINAL SUBMIT
@@ -312,12 +284,11 @@ if st.session_state.proceed_submit:
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # ---------------- EMAIL (NO ITEM LIST) ----------------
+            # ---------------- EMAIL ----------------
             report = f"""
 Stock Submission Report
 
-Name: {st.session_state.user_name}
-Email: {st.session_state.user_email}
+Submitted By: System Auto Entry
 Time: {submission_time}
 Transaction ID: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
@@ -396,7 +367,5 @@ if st.session_state.show_success:
     st.session_state.show_success = False
     st.session_state.submitted = False
     st.session_state.tx_id = None
-    st.session_state.user_name = None
-    st.session_state.user_email = None
 
     st.switch_page("pages/staff_dashboard.py")
