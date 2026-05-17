@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
@@ -14,18 +13,19 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# BRANCH LIST (KEEP YOUR EXISTING SOURCE IF YOU HAVE)
+# BRANCH LIST (YOUR MASTER SHEET)
 # =========================================================
 @st.cache_data(ttl=600)
 def load_branches():
-    # KEEP YOUR ORIGINAL MASTER SHEET LOGIC HERE IF NEEDED
-    return st.secrets["BRANCHES"]
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    data = sheet.get_all_records()
+    return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# 🔥 BATCH EXPORT LOADER (NO API LIMIT BURST)
+# 🚀 BATCH EXPORT FETCH (NO API LIMIT ISSUE)
 # =========================================================
 def fetch_branch(branch):
 
@@ -36,9 +36,8 @@ def fetch_branch(branch):
         return name, None
 
     try:
-        # CSV EXPORT (NO gspread API LIMIT ISSUE)
+        # CSV EXPORT (NO gspread, NO quota burst)
         url = f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv"
-
         df = pd.read_csv(url)
 
         return name, df.values.tolist()
@@ -46,13 +45,12 @@ def fetch_branch(branch):
     except Exception:
         return name, None
 
-
+# =========================================================
+# LOAD ALL BRANCHES (SAFE 28 CALLS ONLY ON REFRESH)
+# =========================================================
 @st.cache_data(ttl=600)
 def load_all_branches(branches):
-    results = []
-    for b in branches:
-        results.append(fetch_branch(b))
-    return results
+    return [fetch_branch(b) for b in branches]
 
 # =========================================================
 # SESSION CACHE (NO RELOAD ON DATE CHANGE)
@@ -64,7 +62,7 @@ if "snapshot" not in st.session_state:
 all_data = st.session_state.snapshot
 
 # =========================================================
-# REFRESH CONTROL
+# REFRESH CONTROL (ONLY API ENTRY POINT)
 # =========================================================
 st.sidebar.subheader("🔄 Data Control")
 
@@ -72,7 +70,7 @@ if st.sidebar.button("Refresh All Branch Data"):
     st.cache_data.clear()
     with st.spinner("Refreshing all branches..."):
         st.session_state.snapshot = load_all_branches(branches)
-    st.sidebar.success("Updated successfully")
+    st.sidebar.success("Data refreshed successfully")
 
 # =========================================================
 # DATE INPUT (NO API CALL)
@@ -81,7 +79,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (UNCHANGED LOGIC STYLE)
+# PROCESS STOCK (PURE LOCAL)
 # =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -91,7 +89,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     for branch_name, raw in all_data:
 
-        if raw is None or len(raw) < 2:
+        if not raw or len(raw) < 2:
             continue
 
         headers = [str(h).strip() for h in raw[0]]
@@ -184,17 +182,8 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🔥 AGGRID (YOUR SPACING KEPT EXACT STYLE)
+# 🚀 AGGRID (FIXED SPACING PRESERVED)
 # =========================================================
-def get_width(series, min_width):
-    try:
-        series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-        return max(int(max_len * 6 + 30), min_width)
-    except:
-        return min_width
-
-
 def render_grid(df, title):
 
     st.subheader(title)
@@ -211,11 +200,7 @@ def render_grid(df, title):
 
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(
-                col,
-                minWidth=get_width(df[col], 120),
-                resizable=True
-            )
+            gb.configure_column(col, minWidth=120, resizable=True)
 
     gb.configure_default_column(
         resizable=True,
