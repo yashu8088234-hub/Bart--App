@@ -25,7 +25,7 @@ def get_conn():
         host="localhost",
         database="bart",
         user="postgres",
-        password="YOUR_PASSWORD",  # 🔴 CHANGE THIS
+        password="2208",  # 🔴 CHANGE THIS
         port=5432
     )
 
