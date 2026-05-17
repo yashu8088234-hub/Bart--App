@@ -115,13 +115,26 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A
+# LOAD ITEMS + UMO (COLUMN A + C)
 # -----------------------------
-def load_column_a(ws):
+def load_items_with_umo(ws):
     data = ws.get_all_values()
-    return [row[0].strip() for row in data if row and row[0].strip()]
+    items = []
 
-items_list = load_column_a(sheet)
+    # start from row 2
+    for row in data[1:]:
+        if len(row) < 1:
+            continue
+
+        item = row[0].strip() if row[0] else None
+        umo = row[2].strip() if len(row) >= 3 and row[2] else ""
+
+        if item:
+            items.append((item, umo))
+
+    return items
+
+items_list = load_items_with_umo(sheet)
 
 # -----------------------------
 # FIND SECTIONS
@@ -132,8 +145,8 @@ def find_index(items, name):
             return i
     return None
 
-daily_start = find_index(items_list, "DAILY ITEM")
-weekly_start = find_index(items_list, "WEEKLY ITEM")
+daily_start = find_index([i[0] for i in items_list], "DAILY ITEM")
+weekly_start = find_index([i[0] for i in items_list], "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
     st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
@@ -202,15 +215,16 @@ with st.form("stock_form", clear_on_submit=False):
         for j, col in enumerate(cols):
             if i + j < len(filtered_items):
 
-                item = filtered_items[i + j]
+                item_name, umo = filtered_items[i + j]
+                label = f"{item_name} [{umo}]"
 
                 value = col.text_input(
-                    item,
+                    label,
                     placeholder="Enter quantity",
-                    key=f"{mode}_{item}"
+                    key=f"{mode}_{item_name}"
                 )
 
-                inputs[item] = value.strip() if value.strip() else None
+                inputs[item_name] = value.strip() if value.strip() else None
 
     submitted = st.form_submit_button("🔍 Review Stock")
 
@@ -238,7 +252,6 @@ if st.session_state.review_mode:
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    # ✅ DIRECT SUBMIT (NO POPUP)
     if st.button("✅ Submit"):
         st.session_state.proceed_submit = True
 
