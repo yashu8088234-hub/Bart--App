@@ -9,13 +9,17 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
-from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
 
-st.set_page_config(layout="wide", page_title="Stock Overview")
+st.set_page_config(
+    layout="wide",
+    page_title="Stock Overview"
+)
+
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
@@ -23,10 +27,12 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 def show_api_error(error=None):
+
     if error:
         st.error(f"API Error: {str(error)}")
     else:
-        st.error("API Error Occurred. Please try again later.")
+        st.error("API Error Occurred")
+
     st.stop()
 
 # =========================================================
@@ -42,23 +48,27 @@ scope = [
 
 @st.cache_resource
 def get_client():
+
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         creds_dict,
         scope
     )
+
     return gspread.authorize(creds)
 
 try:
     client = get_client()
+
 except Exception as e:
     show_api_error(e)
 
 # =========================================================
-# MASTER SHEET CACHE
+# MASTER SHEET
 # =========================================================
 
 @st.cache_resource
 def get_master_sheet():
+
     return client.open("MASTERBRANCHSHEET").sheet1
 
 # =========================================================
@@ -66,7 +76,7 @@ def get_master_sheet():
 # =========================================================
 
 @st.cache_data(ttl=600)
-def load_branches():
+def load_branches(refresh_key):
 
     sheet = get_master_sheet()
 
@@ -77,30 +87,46 @@ def load_branches():
         if b.get("SheetID") and b.get("BranchName")
     ]
 
-try:
-    branches = load_branches()
-except Exception as e:
-    show_api_error(e)
-
-branch_names = [b["BranchName"] for b in branches]
-
 # =========================================================
 # REFRESH BUTTON
 # =========================================================
 
+if "refresh_key" not in st.session_state:
+    st.session_state["refresh_key"] = 0
+
 col1, col2 = st.columns([1, 8])
 
 with col1:
-    if st.button("🔄 Refresh Data"):
+
+    if st.button("🔄 Refresh"):
 
         st.cache_data.clear()
 
-        st.success("Cache Cleared. Reloading Fresh Data...")
+        st.session_state["refresh_key"] += 1
 
         st.rerun()
 
 # =========================================================
-# SAFE FETCH
+# LOAD BRANCHES
+# =========================================================
+
+try:
+
+    branches = load_branches(
+        st.session_state["refresh_key"]
+    )
+
+except Exception as e:
+
+    show_api_error(e)
+
+branch_names = [
+    b["BranchName"]
+    for b in branches
+]
+
+# =========================================================
+# SAFE GET VALUES
 # =========================================================
 
 def safe_get_all_values(ws):
@@ -109,7 +135,9 @@ def safe_get_all_values(ws):
         return ws.get_all_values()
 
     except Exception as e:
-        st.warning(f"Worksheet Fetch Failed: {str(e)}")
+
+        st.warning(f"Worksheet Error: {str(e)}")
+
         return None
 
 # =========================================================
@@ -119,6 +147,7 @@ def safe_get_all_values(ws):
 def fetch_branch(branch):
 
     sid = branch.get("SheetID")
+
     name = branch["BranchName"]
 
     if not sid:
@@ -141,25 +170,24 @@ def fetch_branch(branch):
         return name, None
 
 # =========================================================
-# LOAD ALL DATA (PARALLEL + CACHED)
+# LOAD ALL DATA
 # =========================================================
 
 @st.cache_data(ttl=1800)
-def load_all_data(branches_tuple):
+def load_all_data(branches_tuple, refresh_key):
 
-    branch_objects = [
-        {
-            "BranchName": b[0],
-            "SheetID": b[1]
+    results = []
+
+    for branch_name, sheet_id in branches_tuple:
+
+        branch = {
+            "BranchName": branch_name,
+            "SheetID": sheet_id
         }
-        for b in branches_tuple
-    ]
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+        result = fetch_branch(branch)
 
-        results = list(
-            executor.map(fetch_branch, branch_objects)
-        )
+        results.append(result)
 
     return results
 
@@ -178,71 +206,196 @@ branches_tuple = tuple(
 
 with st.spinner("Loading stock data..."):
 
-    all_data = load_all_data(branches_tuple)
+    all_data = load_all_data(
+        branches_tuple,
+        st.session_state["refresh_key"]
+    )
 
 # =========================================================
 # DATE INPUT
 # =========================================================
 
-selected_date = st.date_input("📅 Select Date")
+selected_date = st.date_input(
+    "📅 Select Date"
+)
 
-selected_date_str = selected_date.strftime("%Y-%m-%d")
+selected_date_str = selected_date.strftime(
+    "%Y-%m-%d"
+)
 
 # =========================================================
 # PROCESS STOCK
 # =========================================================
 
 @st.cache_data(ttl=300)
-def process_stock(all_data, selected_date_str, branch_names):
+def process_stock(
+    all_data,
+    selected_date_str,
+    branch_names,
+    refresh_key
+):
 
     daily = {}
+
     weekly = {}
+
+    selected_date_obj = datetime.strptime(
+        selected_date_str,
+        "%Y-%m-%d"
+    ).date()
 
     for branch_name, raw in all_data:
 
-        if not raw or len(raw) < 2:
+        if not raw:
             continue
 
-        headers = [str(h).strip() for h in raw[0]]
+        headers = []
+
+        if len(raw) > 0:
+
+            headers = [
+                str(h).strip()
+                for h in raw[0]
+            ]
+
+        # =====================================================
+        # FIND DATE COLUMN
+        # =====================================================
 
         date_index = None
 
         for i, h in enumerate(headers):
 
-            if str(h).strip() == selected_date_str:
-                date_index = i
-                break
+            try:
+
+                parsed_date = pd.to_datetime(
+                    str(h).strip(),
+                    errors="coerce"
+                )
+
+                if pd.notna(parsed_date):
+
+                    if parsed_date.date() == selected_date_obj:
+
+                        date_index = i
+                        break
+
+            except:
+                continue
+
+        if date_index is None:
+
+            st.warning(
+                f"{branch_name}: Date not found"
+            )
+
+            continue
+
+        # =====================================================
+        # SECTION TRACKER
+        # =====================================================
 
         current_section = None
 
-        for row in raw:
+        # =====================================================
+        # LOOP ROWS
+        # =====================================================
+
+        for row in raw[1:]:
 
             if not row:
                 continue
 
-            text = " ".join([str(x) for x in row]).lower()
+            row = list(row)
 
-            if "daily item" in text:
+            while len(row) <= date_index:
+                row.append("")
+
+            first_col = str(row[0]).strip().lower()
+
+            # =================================================
+            # SECTION DETECTION
+            # =================================================
+
+            if "daily" in first_col:
+
                 current_section = "daily"
+
                 continue
 
-            if "weekly item" in text:
+            if "weekly" in first_col:
+
                 current_section = "weekly"
+
                 continue
 
             if current_section is None:
                 continue
 
-            item = str(row[0]).strip() if len(row) > 0 else ""
-            sku = str(row[1]).strip() if len(row) > 1 else ""
-            uom = str(row[2]).strip() if len(row) > 2 else ""
+            # =================================================
+            # SAFE FIELDS
+            # =================================================
+
+            item = (
+                str(row[0]).strip()
+                if len(row) > 0 else ""
+            )
+
+            sku = (
+                str(row[1]).strip()
+                if len(row) > 1 else ""
+            )
+
+            uom = (
+                str(row[2]).strip()
+                if len(row) > 2 else ""
+            )
 
             if not item:
                 continue
 
-            key = f"{item}_{sku}_{uom}"
+            if item.lower() in [
+                "item",
+                "item name",
+                "daily items",
+                "weekly items"
+            ]:
+                continue
 
-            target = daily if current_section == "daily" else weekly
+            # =================================================
+            # QUANTITY
+            # =================================================
+
+            qty = 0
+
+            try:
+
+                val = row[date_index]
+
+                if val not in ["", None]:
+
+                    qty = float(
+                        str(val).replace(",", "")
+                    )
+
+            except:
+                qty = 0
+
+            # =================================================
+            # UNIQUE KEY
+            # =================================================
+
+            key = f"{item}|{sku}|{uom}"
+
+            target = (
+                daily
+                if current_section == "daily"
+                else weekly
+            )
+
+            # =================================================
+            # CREATE ITEM
+            # =================================================
 
             if key not in target:
 
@@ -255,18 +408,9 @@ def process_stock(all_data, selected_date_str, branch_names):
                 for bn in branch_names:
                     target[key][bn] = 0
 
-            qty = 0
-
-            try:
-
-                if date_index is not None and len(row) > date_index:
-
-                    val = row[date_index]
-
-                    qty = float(val) if val not in ["", None] else 0
-
-            except:
-                qty = 0
+            # =================================================
+            # SAVE QTY
+            # =================================================
 
             target[key][branch_name] = qty
 
@@ -275,7 +419,8 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(
     all_data,
     selected_date_str,
-    tuple(branch_names)
+    tuple(branch_names),
+    st.session_state["refresh_key"]
 )
 
 # =========================================================
@@ -295,15 +440,27 @@ def build_df(data_dict):
         }
 
         for b in branch_names:
+
             row[b] = v.get(b, 0)
 
         rows.append(row)
 
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
+    if rows:
+        return pd.DataFrame(rows)
+
+    return pd.DataFrame()
 
 daily_df = build_df(daily_items)
 
 weekly_df = build_df(weekly_items)
+
+# =========================================================
+# DEBUG COUNTS
+# =========================================================
+
+st.caption(f"Daily Rows: {len(daily_df)}")
+
+st.caption(f"Weekly Rows: {len(weekly_df)}")
 
 # =========================================================
 # GRID HELPERS
@@ -313,18 +470,24 @@ def get_width(series, min_width):
 
     try:
 
-        series = series.fillna("").astype(str)
+        series = (
+            series
+            .fillna("")
+            .astype(str)
+        )
 
         max_len = series.map(len).max()
 
-        return max(int(max_len * 5 + 25), min_width)
+        return max(
+            int(max_len * 5 + 25),
+            min_width
+        )
 
     except:
-
         return min_width
 
 # =========================================================
-# GRID RENDER
+# RENDER GRID
 # =========================================================
 
 def render_grid(df, title):
@@ -342,22 +505,19 @@ def render_grid(df, title):
     gb.configure_column(
         "Item Name",
         pinned="left",
-        minWidth=160,
-        flex=0
+        minWidth=160
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
-        minWidth=90,
-        flex=0
+        minWidth=90
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
-        minWidth=80,
-        flex=0
+        minWidth=80
     )
 
     for col in branch_names:
@@ -370,13 +530,13 @@ def render_grid(df, title):
             )
 
     gb.configure_default_column(
-        resizable=True,
         sortable=True,
-        filter=True
+        filter=True,
+        resizable=True
     )
 
     gb.configure_grid_options(
-        domLayout='normal',
+        domLayout="normal",
         suppressHorizontalScroll=False
     )
 
@@ -393,9 +553,15 @@ def render_grid(df, title):
 # DISPLAY
 # =========================================================
 
-render_grid(daily_df, "📦 Daily Items Stock")
+render_grid(
+    daily_df,
+    "📦 Daily Items Stock"
+)
 
-render_grid(weekly_df, "📦 Weekly Items Stock")
+render_grid(
+    weekly_df,
+    "📦 Weekly Items Stock"
+)
 
 # =========================================================
 # EXCEL EXPORT
@@ -436,7 +602,7 @@ def create_excel(daily_df, weekly_df):
         if not rows:
             return start_row + 2
 
-        total_cols = len(rows[0]) or 1
+        total_cols = len(rows[0])
 
         ws.merge_cells(
             start_row=start_row,
@@ -493,7 +659,9 @@ def create_excel(daily_df, weekly_df):
     for col in ws.columns:
 
         try:
-            column = get_column_letter(col[0].column)
+            column = get_column_letter(
+                col[0].column
+            )
 
         except:
             continue
@@ -509,7 +677,9 @@ def create_excel(daily_df, weekly_df):
                     len(str(cell.value))
                 )
 
-        ws.column_dimensions[column].width = min(
+        ws.column_dimensions[
+            column
+        ].width = min(
             max_length + 3,
             40
         )
@@ -526,11 +696,11 @@ excel_file = create_excel(
 )
 
 # =========================================================
-# DOWNLOAD
+# DOWNLOAD BUTTON
 # =========================================================
 
 st.download_button(
-    "📥 Download Stock Report (Daily + Weekly Excel)",
+    "📥 Download Stock Report",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
