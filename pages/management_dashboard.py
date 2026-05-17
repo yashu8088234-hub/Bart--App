@@ -259,7 +259,7 @@ def process_stock(
             ]
 
         # =====================================================
-        # FIND DATE COLUMN
+        # FIXED DATE COLUMN DETECTION (IMPORTANT FIX ONLY)
         # =====================================================
 
         date_index = None
@@ -270,12 +270,13 @@ def process_stock(
 
                 parsed_date = pd.to_datetime(
                     str(h).strip(),
-                    errors="coerce"
+                    errors="coerce",
+                    dayfirst=True
                 )
 
                 if pd.notna(parsed_date):
 
-                    if parsed_date.date() == selected_date_obj:
+                    if parsed_date.strftime("%Y-%m-%d") == selected_date_str:
 
                         date_index = i
                         break
@@ -313,10 +314,6 @@ def process_stock(
 
             first_col = str(row[0]).strip().lower()
 
-            # =================================================
-            # SECTION DETECTION
-            # =================================================
-
             if "daily" in first_col:
 
                 current_section = "daily"
@@ -331,10 +328,6 @@ def process_stock(
 
             if current_section is None:
                 continue
-
-            # =================================================
-            # SAFE FIELDS
-            # =================================================
 
             item = (
                 str(row[0]).strip()
@@ -362,10 +355,6 @@ def process_stock(
             ]:
                 continue
 
-            # =================================================
-            # QUANTITY
-            # =================================================
-
             qty = 0
 
             try:
@@ -381,10 +370,6 @@ def process_stock(
             except:
                 qty = 0
 
-            # =================================================
-            # UNIQUE KEY
-            # =================================================
-
             key = f"{item}|{sku}|{uom}"
 
             target = (
@@ -392,10 +377,6 @@ def process_stock(
                 if current_section == "daily"
                 else weekly
             )
-
-            # =================================================
-            # CREATE ITEM
-            # =================================================
 
             if key not in target:
 
@@ -407,10 +388,6 @@ def process_stock(
 
                 for bn in branch_names:
                     target[key][bn] = 0
-
-            # =================================================
-            # SAVE QTY
-            # =================================================
 
             target[key][branch_name] = qty
 
