@@ -5,9 +5,8 @@ import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 
 # =========================================================
@@ -34,11 +33,7 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-try:
-    client = get_client()
-except:
-    st.error("Google Auth Failed")
-    st.stop()
+client = get_client()
 
 # =========================================================
 # BRANCH LIST
@@ -53,7 +48,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# 🔥 OPTIMIZED SHEET LOADER (1 CALL PER BRANCH)
+# SHEET CACHE (IMPORTANT)
 # =========================================================
 sheet_cache = {}
 
@@ -65,13 +60,12 @@ def fetch_branch(branch):
         return name, None
 
     try:
-        # cache worksheet object (prevents repeated open calls)
         if sid not in sheet_cache:
             sheet_cache[sid] = client.open_by_key(sid).worksheet("Stocks")
 
         ws = sheet_cache[sid]
 
-        # ONLY REAL API CALL HERE
+        # 🔥 ONLY 1 REAL API CALL PER BRANCH
         data = ws.get_all_values()
 
         return name, data
@@ -80,47 +74,40 @@ def fetch_branch(branch):
         return name, None
 
 # =========================================================
-# 🔥 SNAPSHOT LOADER (28 CALLS ONLY ON REFRESH)
+# SNAPSHOT LOADER (28 CALLS ONLY ON REFRESH)
 # =========================================================
 @st.cache_data(ttl=600)
 def load_all_branches(branches):
-    results = []
-
-    for b in branches:
-        results.append(fetch_branch(b))
-
-    return results
+    return [fetch_branch(b) for b in branches]
 
 # =========================================================
-# MEMORY SNAPSHOT (NO API AFTER LOAD)
+# SESSION STATE (NO RELOAD ON INTERACTION)
 # =========================================================
 if "snapshot" not in st.session_state:
-    with st.spinner("Loading all 28 branches (first time only)..."):
+    with st.spinner("Loading all 28 branches..."):
         st.session_state.snapshot = load_all_branches(branches)
 
 all_data = st.session_state.snapshot
 
 # =========================================================
-# 🔄 REFRESH CONTROL (ONLY PLACE API IS TRIGGERED)
+# REFRESH BUTTON
 # =========================================================
 st.sidebar.subheader("🔄 Data Control")
 
 if st.sidebar.button("Refresh All Branch Data"):
     st.cache_data.clear()
-
-    with st.spinner("Reloading all 28 branches..."):
+    with st.spinner("Refreshing all branches..."):
         st.session_state.snapshot = load_all_branches(branches)
-
     st.sidebar.success("Data refreshed successfully")
 
 # =========================================================
-# DATE INPUT (NO API TRIGGER)
+# DATE INPUT (NO API CALL)
 # =========================================================
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (PURE LOCAL PROCESSING)
+# PROCESS STOCK (PURE LOCAL)
 # =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -223,8 +210,17 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID UI
+# 🔥 GRID (FIXED AUTO SPACING)
 # =========================================================
+def get_width(series, min_width):
+    try:
+        series = series.fillna("").astype(str)
+        max_len = series.map(len).max()
+        return max(int(max_len * 6 + 30), min_width)
+    except:
+        return min_width
+
+
 def render_grid(df, title):
 
     st.subheader(title)
@@ -234,9 +230,31 @@ def render_grid(df, title):
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit")
+    gb.configure_column("Item Name", pinned="left", minWidth=160)
+    gb.configure_column("SKU", pinned="left", minWidth=90)
+    gb.configure_column("UOM", pinned="left", minWidth=80)
+
+    for col in branch_names:
+        if col in df.columns:
+            gb.configure_column(
+                col,
+                minWidth=get_width(df[col], 120),
+                resizable=True
+            )
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True
+    )
+
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        fit_columns_on_grid_load=False
+    )
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
