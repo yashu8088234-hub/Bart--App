@@ -56,7 +56,7 @@ except:
 # BRANCHES
 # =========================================================
 
-@st.cache_data(ttl=200)
+@st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
