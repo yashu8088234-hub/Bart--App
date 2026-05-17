@@ -1,13 +1,11 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import requests
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from gspread.exceptions import APIError
 
 # =========================================================
 # PAGE CONFIG
@@ -16,43 +14,21 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# GOOGLE AUTH
-# =========================================================
-creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
-
-@st.cache_resource
-def get_client():
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        creds_dict,
-        scope
-    )
-    return gspread.authorize(creds)
-
-client = get_client()
-
-# =========================================================
-# BRANCH LIST
+# BRANCH LIST (KEEP YOUR EXISTING SOURCE IF YOU HAVE)
 # =========================================================
 @st.cache_data(ttl=600)
 def load_branches():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    data = sheet.get_all_records()
-    return [b for b in data if b.get("SheetID") and b.get("BranchName")]
+    # KEEP YOUR ORIGINAL MASTER SHEET LOGIC HERE IF NEEDED
+    return st.secrets["BRANCHES"]
 
 branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE (IMPORTANT)
+# 🔥 BATCH EXPORT LOADER (NO API LIMIT BURST)
 # =========================================================
-sheet_cache = {}
-
 def fetch_branch(branch):
+
     sid = branch.get("SheetID")
     name = branch["BranchName"]
 
@@ -60,37 +36,35 @@ def fetch_branch(branch):
         return name, None
 
     try:
-        if sid not in sheet_cache:
-            sheet_cache[sid] = client.open_by_key(sid).worksheet("Stocks")
+        # CSV EXPORT (NO gspread API LIMIT ISSUE)
+        url = f"https://docs.google.com/spreadsheets/d/{sid}/export?format=csv"
 
-        ws = sheet_cache[sid]
+        df = pd.read_csv(url)
 
-        # 🔥 ONLY 1 REAL API CALL PER BRANCH
-        data = ws.get_all_values()
-
-        return name, data
+        return name, df.values.tolist()
 
     except Exception:
         return name, None
 
-# =========================================================
-# SNAPSHOT LOADER (28 CALLS ONLY ON REFRESH)
-# =========================================================
+
 @st.cache_data(ttl=600)
 def load_all_branches(branches):
-    return [fetch_branch(b) for b in branches]
+    results = []
+    for b in branches:
+        results.append(fetch_branch(b))
+    return results
 
 # =========================================================
-# SESSION STATE (NO RELOAD ON INTERACTION)
+# SESSION CACHE (NO RELOAD ON DATE CHANGE)
 # =========================================================
 if "snapshot" not in st.session_state:
-    with st.spinner("Loading all 28 branches..."):
+    with st.spinner("Loading all branches (batch mode)..."):
         st.session_state.snapshot = load_all_branches(branches)
 
 all_data = st.session_state.snapshot
 
 # =========================================================
-# REFRESH BUTTON
+# REFRESH CONTROL
 # =========================================================
 st.sidebar.subheader("🔄 Data Control")
 
@@ -98,7 +72,7 @@ if st.sidebar.button("Refresh All Branch Data"):
     st.cache_data.clear()
     with st.spinner("Refreshing all branches..."):
         st.session_state.snapshot = load_all_branches(branches)
-    st.sidebar.success("Data refreshed successfully")
+    st.sidebar.success("Updated successfully")
 
 # =========================================================
 # DATE INPUT (NO API CALL)
@@ -107,7 +81,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK (PURE LOCAL)
+# PROCESS STOCK (UNCHANGED LOGIC STYLE)
 # =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -117,7 +91,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     for branch_name, raw in all_data:
 
-        if not raw or len(raw) < 2:
+        if raw is None or len(raw) < 2:
             continue
 
         headers = [str(h).strip() for h in raw[0]]
@@ -210,7 +184,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# 🔥 GRID (FIXED AUTO SPACING)
+# 🔥 AGGRID (YOUR SPACING KEPT EXACT STYLE)
 # =========================================================
 def get_width(series, min_width):
     try:
