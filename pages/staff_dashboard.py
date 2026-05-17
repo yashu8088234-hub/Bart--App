@@ -259,6 +259,10 @@ if st.session_state.selected_branch != "-- Select Branch --":
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
+        if col2.button("Data Base "):
+            
+            st.switch_page("pages/database.py")
+
         if col3.button("🔍 Stock View"):
             refresh_activity()
 
