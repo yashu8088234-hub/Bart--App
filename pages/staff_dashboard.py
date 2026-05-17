@@ -253,15 +253,13 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1, col2, col3 = st.columns(3)
+        col1,  col3 = st.columns(3)
 
         if col1.button("📦 Stock Record"):
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
 
-        if col2.button("Data Base "):
-            
-            st.switch_page("pages/database.py")
+        
 
         if col3.button("🔍 Stock View"):
             refresh_activity()
