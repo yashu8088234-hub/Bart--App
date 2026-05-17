@@ -6,9 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
 import time
 
@@ -24,7 +23,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 def show_api_error():
-    st.error("API Error - Please try again")
+    st.error("API Error")
     st.stop()
 
 # =========================================================
@@ -49,7 +48,7 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# GLOBAL SHARED CACHE (THIS IS THE FIX)
+# GLOBAL STORE (ONE SOURCE OF TRUTH)
 # =========================================================
 
 @st.cache_resource
@@ -57,13 +56,14 @@ def get_store():
     return {
         "all_data": None,
         "branches": None,
+        "sheet_cache": None,
         "last_refresh": 0
     }
 
 store = get_store()
 
 # =========================================================
-# LOAD BRANCHES (ONLY WHEN EMPTY OR REFRESHED)
+# LOAD BRANCHES (ONLY WHEN EMPTY)
 # =========================================================
 
 def load_branches():
@@ -78,25 +78,31 @@ branches = store["branches"]
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# SHEET CACHE
+# SHEET CACHE (FIXED HERE)
 # =========================================================
 
 @st.cache_resource
 def get_sheets(branches):
     cache = {}
-    for b in branches:
+
+    for b in branches:   # <-- FIX: expects dicts
         sid = b.get("SheetID")
         if sid:
             try:
                 cache[sid] = client.open_by_key(sid)
             except:
                 pass
+
     return cache
 
-sheet_cache = get_sheets(tuple(branch_names))
+# ❌ FIXED: PASS branches NOT branch_names
+if store["sheet_cache"] is None:
+    store["sheet_cache"] = get_sheets(tuple(branches))
+
+sheet_cache = store["sheet_cache"]
 
 # =========================================================
-# FETCH SHEETS
+# FETCH DATA
 # =========================================================
 
 def fetch_sheet_range(sheet_id):
@@ -117,7 +123,7 @@ def load_all_data(branches):
         return list(ex.map(fetch_branch, branches))
 
 # =========================================================
-# INITIAL LOAD (ONLY ONCE EVER PER SERVER START)
+# INITIAL LOAD (ONLY ONCE PER SERVER)
 # =========================================================
 
 if store["all_data"] is None:
@@ -127,27 +133,11 @@ if store["all_data"] is None:
 all_data = store["all_data"]
 
 # =========================================================
-# SMART REFRESH CONTROL
+# REFRESH CONTROL
 # =========================================================
-
-REFRESH_COOLDOWN = 90
 
 if "last_force_refresh" not in st.session_state:
     st.session_state.last_force_refresh = 0
-
-remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
-can_force_refresh = remaining <= 0
-
-# =========================================================
-# DATE
-# =========================================================
-
-selected_date = st.date_input("📅 Select Date")
-selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-# =========================================================
-# BUTTONS
-# =========================================================
 
 col1, col2, col3 = st.columns(3)
 
@@ -157,33 +147,36 @@ with col1:
 
 with col2:
 
-    refresh_text = "🔴 Refresh Data" if can_force_refresh else f"⏳ Wait {int(remaining)} sec"
+    if st.button("🔴 Refresh All Data"):
 
-    if st.button(refresh_text, disabled=not can_force_refresh):
+        with st.spinner("Refreshing from Google Sheets..."):
 
-        with st.spinner("Refreshing ALL data for ALL users..."):
+            store["branches"] = load_branches()
+            branches = store["branches"]
+            branch_names = [b["BranchName"] for b in branches]
 
-            try:
-                store["branches"] = load_branches()
-                branches = store["branches"]
+            store["sheet_cache"] = get_sheets(tuple(branches))
+            sheet_cache = store["sheet_cache"]
 
-                sheet_cache = get_sheets(tuple(branch_names))
+            store["all_data"] = load_all_data(branches)
+            all_data = store["all_data"]
 
-                # 🔴 ONLY PLACE WHERE API HAPPENS
-                store["all_data"] = load_all_data(branches)
+            st.session_state.last_force_refresh = time.time()
 
-                st.session_state.last_force_refresh = time.time()
+            st.success("✅ Data refreshed for ALL users")
 
-                st.success("✅ Data refreshed globally for all users")
-
-                st.rerun()
-
-            except:
-                show_api_error()
+            st.rerun()
 
 with col3:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
+
+# =========================================================
+# DATE
+# =========================================================
+
+selected_date = st.date_input("📅 Select Date")
+selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
 # PROCESS STOCK
