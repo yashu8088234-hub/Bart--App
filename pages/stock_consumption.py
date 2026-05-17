@@ -115,26 +115,22 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD ITEMS + UMO (COLUMN A + C)
+# LOAD COLUMN A (UNCHANGED LOGIC)
 # -----------------------------
-def load_items_with_umo(ws):
+def load_column_a(ws):
     data = ws.get_all_values()
-    items = []
+    return [row[0].strip() for row in data if row and row[0].strip()]
 
-    # start from row 2
-    for row in data[1:]:
-        if len(row) < 1:
-            continue
+items_list = load_column_a(sheet)
 
-        item = row[0].strip() if row[0] else None
-        umo = row[2].strip() if len(row) >= 3 and row[2] else ""
+# -----------------------------
+# ONLY ADDITION: LOAD COLUMN C (UMO)
+# -----------------------------
+def load_column_c(ws):
+    data = ws.get_all_values()
+    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data]
 
-        if item:
-            items.append((item, umo))
-
-    return items
-
-items_list = load_items_with_umo(sheet)
+umo_list = load_column_c(sheet)
 
 # -----------------------------
 # FIND SECTIONS
@@ -145,8 +141,8 @@ def find_index(items, name):
             return i
     return None
 
-daily_start = find_index([i[0] for i in items_list], "DAILY ITEM")
-weekly_start = find_index([i[0] for i in items_list], "WEEKLY ITEM")
+daily_start = find_index(items_list, "DAILY ITEM")
+weekly_start = find_index(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
     st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
@@ -215,16 +211,19 @@ with st.form("stock_form", clear_on_submit=False):
         for j, col in enumerate(cols):
             if i + j < len(filtered_items):
 
-                item_name, umo = filtered_items[i + j]
-                label = f"{item_name} [{umo}]"
+                item = filtered_items[i + j]
+
+                # ONLY UI ADDITION (NO LOGIC CHANGE)
+                umo = umo_list[i + j] if i + j < len(umo_list) else ""
+                label = f"{item} [{umo}]"
 
                 value = col.text_input(
                     label,
                     placeholder="Enter quantity",
-                    key=f"{mode}_{item_name}"
+                    key=f"{mode}_{item}"
                 )
 
-                inputs[item_name] = value.strip() if value.strip() else None
+                inputs[item] = value.strip() if value.strip() else None
 
     submitted = st.form_submit_button("🔍 Review Stock")
 
