@@ -202,8 +202,8 @@ with col2:
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                
-                st.rerun()
+                if st.button("🔄 Click Now to Refresh"):
+                    st.rerun()
 
             except:
                 show_api_error()
