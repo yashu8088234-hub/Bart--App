@@ -303,7 +303,7 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             msg = MIMEText(report)
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
-            msg["To"] = "yash2002anitha@gmail.com"
+            msg["To"] = "Ramees@bartksa.com"
 
             server = smtplib.SMTP("smtp.gmail.com", 587)
             server.starttls()
