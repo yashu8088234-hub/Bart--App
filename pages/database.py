@@ -4,21 +4,31 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # =========================================================
-# FIRESTORE INIT (SAFE + FIXED FOR STREAMLIT SECRETS)
+# FIRESTORE INIT (SAFE + STREAMLIT CLOUD READY)
 # =========================================================
 @st.cache_resource
 def init_firestore():
 
-    # 🔥 Get Firebase key from Streamlit secrets
-    firebase_key = st.secrets["FIREBASE_KEY"]
+    raw_key = st.secrets["FIREBASE_KEY"]
 
-    # 🔥 Convert string → dict (IMPORTANT FIX)
-    if isinstance(firebase_key, str):
-        firebase_key = json.loads(firebase_key)
+    # -------------------------------------------------
+    # Convert secrets into dict safely
+    # -------------------------------------------------
+    if isinstance(raw_key, str):
+        try:
+            key_dict = json.loads(raw_key)
+        except Exception:
+            raise ValueError(
+                "❌ FIREBASE_KEY is not valid JSON. Fix Streamlit secrets format."
+            )
+    else:
+        key_dict = raw_key
 
-    # 🔥 Prevent duplicate Firebase initialization
+    # -------------------------------------------------
+    # Prevent duplicate Firebase initialization
+    # -------------------------------------------------
     if not firebase_admin._apps:
-        cred = credentials.Certificate(firebase_key)
+        cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred)
 
     return firestore.client()
@@ -27,12 +37,10 @@ def init_firestore():
 # Firestore client
 db = init_firestore()
 
-
 # =========================================================
-# TEST WRITE FUNCTION
+# TEST WRITE
 # =========================================================
 def add_test_stock():
-
     db.collection("stock").add({
         "branch": "Jeddah",
         "item": "Rice",
@@ -41,12 +49,11 @@ def add_test_stock():
         "date": "2026-05-17",
         "qty": 10
     })
-
-    return "✅ Test data written successfully"
+    return "✅ Test data written"
 
 
 # =========================================================
-# ADD STOCK (REAL USE)
+# ADD STOCK
 # =========================================================
 def add_stock(branch, item, sku, uom, date, qty):
 
@@ -59,11 +66,11 @@ def add_stock(branch, item, sku, uom, date, qty):
         "qty": float(qty)
     })
 
-    return "✅ Stock added successfully"
+    return "✅ Stock added"
 
 
 # =========================================================
-# READ STOCK BY DATE
+# GET STOCK BY DATE
 # =========================================================
 def get_stock_by_date(date_str):
 
@@ -71,19 +78,17 @@ def get_stock_by_date(date_str):
         .where("date", "==", date_str) \
         .stream()
 
-    data = [doc.to_dict() for doc in docs]
-
-    return data
+    return [doc.to_dict() for doc in docs]
 
 
 # =========================================================
-# CLEAR COLLECTION (TEST ONLY)
+# DELETE ALL STOCK (TEST ONLY)
 # =========================================================
-def clear_stock_collection():
+def clear_stock():
 
     docs = db.collection("stock").stream()
 
     for doc in docs:
         doc.reference.delete()
 
-    return "🗑️ All stock data deleted"
+    return "🗑️ All stock cleared"
