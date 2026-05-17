@@ -128,7 +128,7 @@ items_list = load_column_a(sheet)
 # -----------------------------
 def load_column_c(ws):
     data = ws.get_all_values()
-    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data]
+    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data[1:]]
 
 umo_list = load_column_c(sheet)
 
