@@ -56,7 +56,7 @@ except:
 # BRANCHES
 # =========================================================
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=None)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -128,10 +128,10 @@ def fetch_branch(branch):
 # LOAD DATA
 # =========================================================
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=None)
 def load_all_data(branches):
 
-    with ThreadPoolExecutor(max_workers=28) as ex:
+    with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
 # =========================================================
@@ -202,8 +202,8 @@ with col2:
 
                 st.success("✅ Latest stock data loaded successfully")
 
-                if st.button("🔄 Click Now to Refresh"):
-                    st.rerun()
+                
+                st.rerun()
 
             except:
                 show_api_error()
@@ -227,7 +227,7 @@ except:
 # PROCESS STOCK
 # =========================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=None)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -580,7 +580,3 @@ st.download_button(
 
 
 
-
-
-
-why am i mising some branches 
