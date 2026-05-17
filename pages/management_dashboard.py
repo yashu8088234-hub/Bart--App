@@ -1,5 +1,4 @@
 import streamlit as st
-import psycopg2
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
@@ -16,38 +15,6 @@ from gspread.exceptions import APIError
 # =========================================================
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
-
-# =========================================================
-# POSTGRES CONNECTION (ADDED - SAFE)
-# =========================================================
-def get_conn():
-    return psycopg2.connect(
-        host="localhost",
-        database="bart",
-        user="postgres",
-        password="2208",  # 🔴 CHANGE THIS
-        port=5432
-    )
-
-# =========================================================
-# POSTGRES TEST (ADDED - SAFE UI BLOCK)
-# =========================================================
-st.sidebar.subheader("🗄️ Database Check")
-
-if st.sidebar.button("Test PostgreSQL"):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("SELECT 'PostgreSQL Connected';")
-        result = cur.fetchone()
-
-        st.sidebar.success(result[0])
-
-        cur.close()
-        conn.close()
-
-    except Exception as e:
-        st.sidebar.error(f"DB Error: {e}")
 
 # =========================================================
 # ERROR HANDLER
@@ -122,26 +89,45 @@ def fetch_branch(branch):
         return name, None
 
 # =========================================================
-# LOAD ALL DATA
+# 🔥 SMART CACHE (MAIN FIX)
 # =========================================================
-@st.cache_data(ttl=1800)
-def load_all_data(branches):
+@st.cache_data(ttl=600)
+def load_all_data_cached(branches):
     results = []
     for b in branches:
         results.append(fetch_branch(b))
     return results
 
-with st.spinner("Loading stock data..."):
-    all_data = load_all_data(branches)
+# =========================================================
+# SESSION STATE (PREVENT RELOAD ISSUES)
+# =========================================================
+if "all_data" not in st.session_state:
+    with st.spinner("Loading all 28 branches (first time only)..."):
+        st.session_state.all_data = load_all_data_cached(branches)
+
+all_data = st.session_state.all_data
 
 # =========================================================
-# DATE INPUT
+# 🔄 REFRESH BUTTON (FORCE FULL RELOAD)
+# =========================================================
+st.sidebar.subheader("🔄 Data Control")
+
+if st.sidebar.button("Refresh All Branch Data"):
+    st.cache_data.clear()
+
+    with st.spinner("Reloading all 28 branches..."):
+        st.session_state.all_data = load_all_data_cached(branches)
+
+    st.sidebar.success("Data refreshed successfully")
+
+# =========================================================
+# DATE INPUT (NO API TRIGGER)
 # =========================================================
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # =========================================================
-# PROCESS STOCK
+# PROCESS STOCK (USES CACHED DATA ONLY)
 # =========================================================
 @st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -219,7 +205,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
-# DATAFRAME
+# DATAFRAME BUILDER
 # =========================================================
 def build_df(data_dict):
 
@@ -244,16 +230,8 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID
+# GRID UI
 # =========================================================
-def get_width(series, min_width):
-    try:
-        series = series.fillna("").astype(str)
-        max_len = series.map(len).max()
-        return max(int(max_len * 5 + 25), min_width)
-    except:
-        return min_width
-
 def render_grid(df, title):
 
     st.subheader(title)
@@ -268,10 +246,6 @@ def render_grid(df, title):
     gb.configure_column("SKU", pinned="left", minWidth=80)
     gb.configure_column("UOM", pinned="left", minWidth=70)
 
-    for col in branch_names:
-        if col in df.columns:
-            gb.configure_column(col, minWidth=get_width(df[col], 120))
-
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(df, gridOptions=gb.build(), theme="streamlit")
@@ -280,7 +254,7 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
 def create_excel(daily_df, weekly_df):
 
@@ -326,7 +300,7 @@ st.download_button(
 )
 
 # =========================================================
-# BACK BUTTON (UNCHANGED)
+# BACK BUTTON
 # =========================================================
 if st.button("🔙 Back"):
     st.switch_page("app.py")
