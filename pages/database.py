@@ -7,10 +7,10 @@ from firebase_admin import credentials, firestore
 @st.cache_resource
 def init_firestore():
 
-    raw_key = st.secrets["FIREBASE_KEY"]
+    raw = st.secrets["FIREBASE_KEY"]
 
-    # Convert string → dict
-    key_dict = json.loads(raw_key)
+    # convert string → dict safely
+    key_dict = json.loads(raw)
 
     if not firebase_admin._apps:
         cred = credentials.Certificate(key_dict)
