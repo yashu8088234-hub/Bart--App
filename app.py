@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from ai_core import run_ai
 
 # =========================================================
@@ -13,7 +14,6 @@ st.set_page_config(
 # =========================================================
 # SESSION STATE
 # =========================================================
-# ALWAYS AUTHENTICATED (LOGIN DISABLED)
 st.session_state.authenticated = True
 
 if "chat" not in st.session_state:
@@ -34,6 +34,17 @@ if "WEEKLY_ITEMS" not in st.session_state:
 if "show_mgmt_password" not in st.session_state:
     st.session_state.show_mgmt_password = False
 
+# 🔥 GLOBAL MANAGEMENT LOCK
+if "mgmt_lock_until" not in st.session_state:
+    st.session_state.mgmt_lock_until = 0
+
+
+# =========================================================
+# LOCK CHECK
+# =========================================================
+def is_mgmt_locked():
+    return time.time() < st.session_state.mgmt_lock_until
+
 
 # =========================================================
 # DATA CHECK
@@ -48,39 +59,30 @@ def data_missing():
 
 
 # =========================================================
-# STYLE
+# STYLE (UNCHANGED)
 # =========================================================
-st.markdown("""
-<style>
+st.markdown("""<style>
+#MainMenu, footer, header {visibility: hidden;}
 
-#MainMenu, footer, header {
-    visibility: hidden;
-}
-
-/* App background */
 .stApp {
     background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
     font-family: 'Segoe UI', sans-serif;
 }
 
-/* 🔥 FULL SIDEBAR HIDE (ONLY CHANGE) */
 [data-testid="stSidebar"] {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* Hide sidebar collapse button */
 [data-testid="collapsedControl"] {
     display: none !important;
 }
 
-/* App spacing fix when sidebar removed */
 section.main > div {
     padding-left: 2rem;
     padding-right: 2rem;
 }
 
-/* Hero */
 .hero {
     background: white;
     padding: 60px;
@@ -90,17 +92,9 @@ section.main > div {
     margin-bottom: 20px;
 }
 
-.hero h1 {
-    font-size: 70px;
-    color: #C0392B;
-    margin: 0;
-}
+.hero h1 {font-size: 70px; color: #C0392B;}
+.hero h2 {color: #2C2A28;}
 
-.hero h2 {
-    color: #2C2A28;
-}
-
-/* Buttons */
 div.stButton > button {
     width: 100%;
     height: 52px;
@@ -111,11 +105,8 @@ div.stButton > button {
     border: none;
 }
 
-div.stButton > button:hover {
-    opacity: 0.9;
-}
+div.stButton > button:hover {opacity: 0.9;}
 
-/* Sections */
 .section {
     background: white;
     padding: 25px;
@@ -124,9 +115,7 @@ div.stButton > button:hover {
     box-shadow: 0 5px 20px rgba(0,0,0,0.08);
     text-align: center;
 }
-
-</style>
-""", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -151,15 +140,21 @@ with col1:
         st.switch_page("pages/staff_dashboard.py")
 
 with col2:
-    if st.button("📦 Management Dashboard", use_container_width=True):
-        st.session_state.show_mgmt_password = True
+    # 🔥 LOCKED BUTTON LOGIC
+    if is_mgmt_locked():
+        st.button("📦 Management Dashboard 🔒 Locked", disabled=True, use_container_width=True)
+        remaining = int(st.session_state.mgmt_lock_until - time.time())
+        st.warning(f"Locked for {remaining} seconds")
+    else:
+        if st.button("📦 Management Dashboard", use_container_width=True):
+            st.session_state.show_mgmt_password = True
 
 with col3:
     st.empty()
 
 
 # =========================================================
-# MANAGEMENT PASSWORD
+# PASSWORD CHECK
 # =========================================================
 if st.session_state.show_mgmt_password:
 
@@ -177,8 +172,7 @@ if st.session_state.show_mgmt_password:
 
 
 # =========================================================
-# SIDE BAR AI
-# (still exists but will be hidden by CSS)
+# SIDEBAR AI (unchanged)
 # =========================================================
 with st.sidebar:
 
@@ -186,7 +180,6 @@ with st.sidebar:
 
     if data_missing():
         st.warning("⚠ Stock not loaded")
-        st.info("Open Management Dashboard to load data")
         st.stop()
 
     for sender, msg in st.session_state.chat[-20:]:
