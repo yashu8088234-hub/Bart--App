@@ -227,7 +227,7 @@ except:
 # PROCESS STOCK
 # =========================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=None)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
