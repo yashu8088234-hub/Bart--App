@@ -170,7 +170,7 @@ with col1:
 with col2:
 
     refresh_text = (
-        "🔴 Refresh Data From Sheets"
+        "🔴 "
         if can_force_refresh
         else f"⏳ Wait {int(remaining)} sec"
     )
