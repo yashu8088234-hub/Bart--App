@@ -146,6 +146,10 @@ if st.session_state.page == "mode_select":
 
     st.markdown("## Select Option")
 
+    # ✅ ADDED BACK BUTTON (ONLY CHANGE)
+    if st.button("⬅ Back to Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
+
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
