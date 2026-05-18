@@ -257,15 +257,30 @@ with st.form("stock_form", clear_on_submit=False):
             st.error("Missing inputs")
 
         else:
-            st.toast("Review section ready below ✔", icon="📋")
-
-            st.session_state.draft_data = inputs
-            st.session_state.review_mode = True
-            st.session_state.scroll_to_review = True
-
-            time.sleep(0.5)
-
-            st.rerun()
+            else:
+                st.toast("Review ready below ⬇", icon="👇")
+                st.markdown("""
+                <div style="
+                text-align:center;
+                font-size:22px;
+                margin-top:10px;
+                color:#00c853;
+                font-weight:600;
+                animation: blink 1s infinite;
+                ">
+                ⬇ Scroll Down to Review ⬇
+                </div>
+                <style
+                @keyframes blink {
+                0% {opacity: 1;}
+                50% {opacity: 0.3;}
+                100% {opacity: 1;}
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                st.session_state.draft_data = inputs
+                st.session_state.review_mode = True
+                st.rerun()
 
 # -----------------------------
 # REVIEW SECTION
