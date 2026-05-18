@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
@@ -55,25 +56,29 @@ st.session_state.setdefault("proceed_submit", False)
 # SCROLL FUNCTION
 # -----------------------------
 def scroll_to_review():
-    st.markdown("""
+    components.html("""
     <script>
-    setTimeout(function() {
+        function scrollNow() {
 
-        const reviewSection =
-            window.parent.document.getElementById("review_section");
+            const parentDoc = window.parent.document;
 
-        if (reviewSection) {
+            const reviewSection =
+                parentDoc.getElementById("review_section");
 
-            reviewSection.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
+            if (reviewSection) {
+
+                reviewSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+            }
 
         }
 
-    }, 300);
+        setTimeout(scrollNow, 700);
     </script>
-    """, unsafe_allow_html=True)
+    """, height=0)
 
 # -----------------------------
 # TITLE
