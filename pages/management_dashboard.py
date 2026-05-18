@@ -92,6 +92,14 @@ def load_all_data(branches):
 
 all_data = load_all_data(branches)
 
+
+
+
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
+
 # =========================================================
 # DATE
 # =========================================================
