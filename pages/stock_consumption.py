@@ -165,7 +165,7 @@ if st.session_state.page == "mode_select":
 c1, c2 = st.columns([1, 3])
 
 with c1:
-    if st.button("⬅ Back to Mode Select "):
+    if st.button("⬅ Back to Mode Select"):
         st.session_state.page = "mode_select"
         st.session_state.step = 1
         st.session_state.form_data = {}
@@ -175,14 +175,7 @@ with c2:
     step_bar(st.session_state.step)
 
 # -----------------------------
-# DATE
-# -----------------------------
-default_date = datetime.today().date() - timedelta(days=1)
-date = st.date_input("Select Operation Date", value=default_date)
-date_str = str(date)
-
-# -----------------------------
-# 🔥 MODE INFO HEADER (ADDED)
+# 🔥 MODE INFO HEADER (MOVED HERE - BEFORE BACK BUTTON AS REQUESTED)
 # -----------------------------
 mode_label = "Daily Stock" if mode == "daily" else "Weekly Stock"
 total_items = len(filtered)
@@ -203,6 +196,13 @@ st.markdown(f"""
     <div>Total Items: <span style="color:#1f4fff;">{total_items}</span></div>
 </div>
 """, unsafe_allow_html=True)
+
+# -----------------------------
+# DATE
+# -----------------------------
+default_date = datetime.today().date() - timedelta(days=1)
+date = st.date_input("Select Operation Date", value=default_date)
+date_str = str(date)
 
 # -----------------------------
 # STEP 1
