@@ -45,7 +45,6 @@ st.session_state.setdefault("mode", None)
 st.session_state.setdefault("step", 1)
 st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("form_data", {})
-st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("tx_id", None)
 
 # -----------------------------
@@ -143,6 +142,9 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
+    if st.button("⬅ Back to Staff Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
+
     st.stop()
 
 # -----------------------------
@@ -157,6 +159,17 @@ else:
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
+# ✅ RESTORED BACK BUTTON (THIS WAS MISSING)
+if st.button("⬅ Back"):
+    st.session_state.page = "mode_select"
+    st.session_state.step = 1
+    st.session_state.form_data = {}
+    st.session_state.draft_data = {}
+    st.rerun()
+
+# -----------------------------
+# DATE
+# -----------------------------
 default_date = datetime.today().date() - timedelta(days=1)
 date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
@@ -286,9 +299,7 @@ Mode: {st.session_state.mode}
             server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
-            # -----------------------------
-            # ✅ NEW PROFESSIONAL POPUP
-            # -----------------------------
+            # SUCCESS POPUP (UNCHANGED)
             st.markdown("""
             <div style="
                 position: fixed;
