@@ -77,7 +77,7 @@ def fetch_branch(branch):
 @st.cache_data(ttl=300)
 def load_all_data(branches):
     results = []
-    with ThreadPoolExecutor(max_workers=12) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         futures = [ex.submit(fetch_branch, b) for b in branches]
         for f in as_completed(futures):
             results.append(f.result())
