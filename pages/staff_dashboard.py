@@ -117,6 +117,7 @@ branch_options = ["-- Select Branch --"] + branches
 st.subheader("Select Branch")
 
 if st.session_state.selected_branch == "-- Select Branch --":
+
     st.session_state.authenticated = False
     st.session_state.auth_branch = None
     st.session_state.last_activity = None
@@ -126,8 +127,7 @@ if st.session_state.selected_branch == "-- Select Branch --":
 
         if selected_branch != "-- Select Branch --":
             st.session_state.selected_branch = selected_branch
-            # ❌ removed rerun (this was causing extra loop)
-            # st.rerun()
+            # ❌ removed rerun (was causing extra refresh loops)
 
 else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
@@ -137,15 +137,16 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
-        st.rerun()  # keep this one (important UX reset)
+        st.rerun()   # keep (important UX reset)
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
 
 if st.session_state.selected_branch != "-- Select Branch --":
     branch_info = next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
+        (b for b in branch_data
+         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch),
+        None
     )
 
 # ---------------- PASSWORD SYSTEM ----------------
@@ -172,41 +173,14 @@ def save_passwords(branch_key, new_password):
             sheet.update_cell(idx, col_index, new_password)
             return
 
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
 
     passwords = load_passwords()
 
+    # ---------------- LOGIN ----------------
     if not st.session_state.authenticated:
+
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -225,7 +199,7 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
 
-                    st.rerun()  # KEEP (needed after login)
+                    st.rerun()
                 else:
                     st.error("Incorrect password")
 
