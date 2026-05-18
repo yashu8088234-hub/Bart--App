@@ -74,7 +74,7 @@ def step_bar(step):
     """, unsafe_allow_html=True)
 
 # -----------------------------
-# TITLE (CHILLI RED KEPT)
+# TITLE
 # -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
 
@@ -130,7 +130,6 @@ daily_start = next(i for i,v in enumerate(items) if v=="DAILY ITEM")
 weekly_start = next(i for i,v in enumerate(items) if v=="WEEKLY ITEM")
 
 mode = st.session_state.mode or "daily"
-
 filtered = items[daily_start+1:weekly_start] if mode=="daily" else items[weekly_start+1:]
 
 # -----------------------------
@@ -181,6 +180,29 @@ with c2:
 default_date = datetime.today().date() - timedelta(days=1)
 date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
+
+# -----------------------------
+# 🔥 MODE INFO HEADER (ADDED)
+# -----------------------------
+mode_label = "Daily Stock" if mode == "daily" else "Weekly Stock"
+total_items = len(filtered)
+
+st.markdown(f"""
+<div style="
+    background: white;
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: 1px solid #d0d7ff;
+    margin: 10px 0;
+    display:flex;
+    justify-content:space-between;
+    font-size:16px;
+    font-weight:600;
+">
+    <div>Mode: <span style="color:#FF2400;">{mode_label}</span></div>
+    <div>Total Items: <span style="color:#1f4fff;">{total_items}</span></div>
+</div>
+""", unsafe_allow_html=True)
 
 # -----------------------------
 # STEP 1
@@ -267,7 +289,7 @@ elif st.session_state.step == 3:
             </div>
             """, unsafe_allow_html=True)
 
-            # ---------------- EMAIL RESTORED ----------------
+            # EMAIL
             report = f"""
 Stock Submission Report
 
@@ -293,7 +315,6 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
-            # ---------------- EMAIL END ----------------
 
             time.sleep(4)
 
