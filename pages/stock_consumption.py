@@ -44,7 +44,7 @@ if "page" not in st.session_state:
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("step", 1)
 st.session_state.setdefault("draft_data", {})
-st.session_state.setdefault("form_data", {})   # ⭐ IMPORTANT FIX
+st.session_state.setdefault("form_data", {})
 st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("tx_id", None)
 
@@ -126,7 +126,7 @@ if daily_start is None or weekly_start is None:
 if st.session_state.page == "mode_select":
 
     st.session_state.step = 1
-    st.session_state.form_data = {}   # reset only here
+    st.session_state.form_data = {}
     st.session_state.mode = None
 
     st.markdown("## Select Operation ")
@@ -146,7 +146,7 @@ if st.session_state.page == "mode_select":
     st.stop()
 
 # -----------------------------
-# STOCK ENTRY DATA
+# STOCK DATA
 # -----------------------------
 mode = st.session_state.mode
 
@@ -162,13 +162,13 @@ date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
 
 # -----------------------------
-# STEP 1 - ENTRY (PERSIST FIX HERE)
+# STEP 1 - ENTRY
 # -----------------------------
 if st.session_state.step == 1:
 
     st.markdown("## Step 1: Enter Stock")
 
-    inputs = st.session_state.form_data   # ⭐ restore old data
+    inputs = st.session_state.form_data
 
     with st.form("stock_form"):
 
@@ -186,7 +186,7 @@ if st.session_state.step == 1:
 
                     value = col.text_input(
                         label,
-                        value=inputs.get(item, ""),   # ⭐ PREFILL FIX
+                        value=inputs.get(item, ""),
                         key=f"{mode}_{item}"
                     )
 
@@ -202,7 +202,7 @@ if st.session_state.step == 1:
                 st.error("Missing inputs")
 
             else:
-                st.session_state.form_data = inputs   # ⭐ SAVE DATA
+                st.session_state.form_data = inputs
                 st.session_state.draft_data = inputs
                 st.session_state.step = 2
                 st.rerun()
@@ -286,8 +286,47 @@ Mode: {st.session_state.mode}
             server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
-            st.success("🎉 Stock Submitted Successfully!")
-            st.balloons()
+            # -----------------------------
+            # ✅ NEW PROFESSIONAL POPUP
+            # -----------------------------
+            st.markdown("""
+            <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100vh;
+                background: rgba(0,0,0,0.6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+            ">
+                <div style="
+                    background: white;
+                    padding: 40px 60px;
+                    border-radius: 20px;
+                    text-align: center;
+                    box-shadow: 0px 10px 40px rgba(0,0,0,0.3);
+                    animation: pop 0.25s ease-in-out;
+                ">
+                    <div style="font-size:70px;">✔</div>
+                    <div style="font-size:28px;font-weight:700;margin-top:10px;">
+                        STOCK SUBMITTED
+                    </div>
+                    <div style="color:gray;margin-top:10px;font-size:14px;">
+                        Your stock has been saved successfully
+                    </div>
+                </div>
+            </div>
+
+            <style>
+            @keyframes pop {
+                from {transform: scale(0.7); opacity: 0;}
+                to {transform: scale(1); opacity: 1;}
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
             time.sleep(2)
 
