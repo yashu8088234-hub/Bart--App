@@ -9,9 +9,7 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 
-# -----------------------------
-# UI SETUP (YOUR ORIGINAL)
-# -----------------------------
+# ---------------- UI ----------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
 
@@ -23,10 +21,6 @@ header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; max-width:100% !important;}
 
-.stApp {
-    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
-}
-
 div.stButton > button{
     height:55px;
     font-size:18px;
@@ -35,118 +29,90 @@ div.stButton > button{
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------
-# SESSION INIT
-# -----------------------------
+# ---------------- SESSION ----------------
 if "page" not in st.session_state:
     st.session_state.page = "mode_select"
 
 st.session_state.setdefault("mode", None)
-st.session_state.setdefault("review_mode", False)
-st.session_state.setdefault("draft_data", {})
-st.session_state.setdefault("form_data", {})
 st.session_state.setdefault("step", 1)
+st.session_state.setdefault("form_data", {})
+st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("tx_id", None)
 
-# -----------------------------
-# SMALL STEP INDICATOR (NEW - MINIMAL)
-# -----------------------------
+# ---------------- STEP BAR (INLINE STYLE - NO EXTRA SPACE) ----------------
 def step_bar(step):
+    status = {
+        1: ("✔", "done"),
+        2: ("●", "active"),
+        3: ("○", "inactive")
+    }
+
+    s1 = "✔ done" if step > 1 else "● active" if step == 1 else "○"
+    s2 = "✔ done" if step > 2 else "● active" if step == 2 else "○"
+    s3 = "● active" if step == 3 else "○ inactive"
+
     st.markdown(f"""
-    <div style="
-        display:flex;
-        justify-content:center;
-        gap:20px;
-        margin:10px 0;
-        font-size:14px;
-        font-weight:600;
-    ">
-        <div style="color:{'#000' if step==1 else '#999'}">1 Entry</div>
-        <div>→</div>
-        <div style="color:{'#000' if step==2 else '#999'}">2 Review</div>
-        <div>→</div>
-        <div style="color:{'#000' if step==3 else '#999'}">3 Submit</div>
+    <div style="display:flex;align-items:center;gap:10px;margin:5px 0;">
+        <b>{"✔" if step>1 else "1 Entry"}</b>
+        ───▶
+        <b>{"● Review" if step==2 else "2 Review"}</b>
+        ───▶
+        <b>{"○ Submit" if step<3 else "3 Submit"}</b>
     </div>
     """, unsafe_allow_html=True)
 
-# -----------------------------
-# TITLE
-# -----------------------------
+# ---------------- TITLE ----------------
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
-    f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
+    f"<h2 style='text-align:center;color:red;margin-bottom:10px;'>{branch} - Stock System</h2>",
     unsafe_allow_html=True
 )
 
-# -----------------------------
-# SHEET CHECK
-# -----------------------------
+# ---------------- SHEET ----------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
 if not sheet_id or not tab_name:
-    st.error("Session expired.")
-    if st.button("⬅ Back"):
-        st.switch_page("pages/staff_dashboard.py")
+    st.error("Session expired")
     st.stop()
 
-# -----------------------------
-# GOOGLE SHEETS AUTH
-# -----------------------------
+# ---------------- GOOGLE ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
+scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
 
 @st.cache_resource
-def get_client():
+def client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-client = get_client()
+gc = client()
 
 @st.cache_resource
-def get_sheet(sheet_id, tab_name):
-    return client.open_by_key(sheet_id).worksheet(tab_name)
+def sheet():
+    return gc.open_by_key(sheet_id).worksheet(tab_name)
 
-sheet = get_sheet(sheet_id, tab_name)
+ws = sheet()
 
-# -----------------------------
-# LOAD DATA
-# -----------------------------
-def load_column_a(ws):
+# ---------------- DATA ----------------
+def load_items(ws):
     data = ws.get_all_values()
-    return [row[0].strip() for row in data if row and row[0].strip()]
+    return [r[0].strip() for r in data if r and r[0].strip()]
 
-def load_column_c(ws):
-    data = ws.get_all_values()
-    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data[1:]]
+items = load_items(ws)
 
-items_list = load_column_a(sheet)
-umo_list = load_column_c(sheet)
+daily_start = next(i for i,v in enumerate(items) if v=="DAILY ITEM")
+weekly_start = next(i for i,v in enumerate(items) if v=="WEEKLY ITEM")
 
-def find_index(items, name):
-    for i, v in enumerate(items):
-        if v.strip().upper() == name:
-            return i
-    return None
+mode = st.session_state.mode or "daily"
 
-daily_start = find_index(items_list, "DAILY ITEM")
-weekly_start = find_index(items_list, "WEEKLY ITEM")
+filtered = items[daily_start+1:weekly_start] if mode=="daily" else items[weekly_start+1:]
 
-if daily_start is None or weekly_start is None:
-    st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
-    st.stop()
+umo = [""] * len(filtered)
 
-# -----------------------------
-# MODE SELECT
-# -----------------------------
+# ---------------- MODE ----------------
 if st.session_state.page == "mode_select":
 
-    st.session_state.mode = None
     st.session_state.step = 1
     st.session_state.form_data = {}
 
@@ -164,44 +130,27 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    if st.button("⬅ Back to Staff Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
-
     st.stop()
 
-# -----------------------------
-# STOCK ENTRY
-# -----------------------------
-mode = st.session_state.mode
+# ---------------- BACK BUTTON + STEP BAR SAME ROW ----------------
+col1, col2 = st.columns([1, 3])
 
-if mode == "daily":
-    filtered_items = items_list[daily_start + 1 : weekly_start]
-else:
-    filtered_items = items_list[weekly_start + 1 :]
+with col1:
+    if st.button("⬅ Back"):
+        st.session_state.page = "mode_select"
+        st.session_state.step = 1
+        st.session_state.form_data = {}
+        st.rerun()
 
-st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
+with col2:
+    step_bar(st.session_state.step)
 
-if st.button("⬅ Back"):
-    st.session_state.page = "mode_select"
-    st.session_state.step = 1
-    st.session_state.form_data = {}
-    st.rerun()
-
-# -----------------------------
-# DATE (your logic unchanged)
-# -----------------------------
+# ---------------- DATE ----------------
 default_date = datetime.today().date() - timedelta(days=1)
 date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
 
-# -----------------------------
-# STEP BAR (small only)
-# -----------------------------
-step_bar(st.session_state.step)
-
-# -----------------------------
-# STEP 1
-# -----------------------------
+# ---------------- STEP 1 ----------------
 if st.session_state.step == 1:
 
     st.markdown("## Enter Stock")
@@ -210,49 +159,43 @@ if st.session_state.step == 1:
 
     with st.form("stock_form"):
 
-        for i in range(0, len(filtered_items), 4):
+        for i in range(0, len(filtered), 4):
             cols = st.columns(4)
 
             for j, col in enumerate(cols):
-                if i + j < len(filtered_items):
+                if i + j < len(filtered):
 
-                    item = filtered_items[i + j]
-                    umo = umo_list[i + j] if i + j < len(umo_list) else ""
+                    item = filtered[i + j]
+                    umo_val = umo[i + j]
 
-                    value = col.text_input(
-                        f"{item} [{umo}]",
+                    inputs[item] = col.text_input(
+                        f"{item} [{umo_val}]",
                         value=inputs.get(item, ""),
-                        key=f"{mode}_{item}"
+                        placeholder="Enter quantity"   # ✅ RESTORED
                     )
 
-                    inputs[item] = value.strip() if value.strip() else None
-
-        submitted = st.form_submit_button("➡ Continue to Review")
+        submitted = st.form_submit_button("➡ Continue")
 
         if submitted:
-
-            missing = [k for k, v in inputs.items() if v is None]
+            missing = [k for k,v in inputs.items() if v is None or v == ""]
 
             if missing:
                 st.error("Missing inputs")
-
             else:
                 st.session_state.form_data = inputs
                 st.session_state.draft_data = inputs
                 st.session_state.step = 2
                 st.rerun()
 
-# -----------------------------
-# STEP 2
-# -----------------------------
+# ---------------- STEP 2 ----------------
 elif st.session_state.step == 2:
 
     st.markdown("## Review")
 
-    for k, v in st.session_state.draft_data.items():
+    for k,v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    c1, c2 = st.columns(2)
+    c1,c2 = st.columns(2)
 
     if c1.button("⬅ Back"):
         st.session_state.step = 1
@@ -262,18 +205,14 @@ elif st.session_state.step == 2:
         st.session_state.step = 3
         st.rerun()
 
-# -----------------------------
-# STEP 3
-# -----------------------------
+# ---------------- STEP 3 ----------------
 elif st.session_state.step == 3:
 
     try:
-        with st.spinner("Saving stock..."):
+        with st.spinner("Saving..."):
 
             tx = str(uuid.uuid4())[:8]
-            st.session_state.tx_id = tx
 
-            # POPUP (your style kept simple)
             st.markdown(f"""
             <div style="
                 position:fixed;
@@ -299,9 +238,8 @@ elif st.session_state.step == 3:
             st.session_state.step = 1
             st.session_state.form_data = {}
             st.session_state.draft_data = {}
-            st.session_state.tx_id = None
 
             st.switch_page("pages/staff_dashboard.py")
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(str(e))
