@@ -240,9 +240,11 @@ with st.form("stock_form", clear_on_submit=False):
         if missing:
             st.error("Missing inputs")
         else:
+            st.toast("Review section ready below ✔", icon="📋")
             st.session_state.draft_data = inputs
             st.session_state.review_mode = True
             st.session_state.scroll_to_review = True
+            time.sleep(0.5)
             st.rerun()
 
 # -----------------------------
