@@ -10,7 +10,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 # -----------------------------
-# UI SETUP (GLASSMORPHISM)
+# UI SETUP (LIGHT GLASS)
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
@@ -21,70 +21,49 @@ st.markdown("""
 footer {visibility:hidden;}
 header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
-.block-container {padding:10px !important; max-width:100% !important;}
 
-/* BACKGROUND */
+.block-container {
+    padding: 10px !important;
+    max-width: 100% !important;
+}
+
+/* Background */
 .stApp {
     background: radial-gradient(circle at top left, #e0eafc, #cfdef3, #d6e4ff);
 }
 
-/* GLASS CARD */
-.glass-card {
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 20px;
-    padding: 20px;
-    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    margin: 10px 0;
-    animation: fadeIn 0.4s ease-in-out;
-}
-
-/* INPUTS */
-input, textarea {
-    background: rgba(255,255,255,0.6) !important;
-    border-radius: 12px !important;
-    border: 1px solid rgba(255,255,255,0.4) !important;
-}
-
-input:focus {
-    border: 1px solid #7aa7ff !important;
-    box-shadow: 0 0 10px rgba(122,167,255,0.4) !important;
-}
-
-/* BUTTONS */
-.stButton > button {
-    height: 55px;
-    font-size: 18px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.35);
+/* Compact glass pill (NOT heavy cards) */
+.glass-pill {
+    background: rgba(255,255,255,0.25);
     border: 1px solid rgba(255,255,255,0.3);
-    backdrop-filter: blur(10px);
-    transition: all 0.25s ease;
+    border-radius: 12px;
+    padding: 8px 12px;
+    backdrop-filter: blur(8px);
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    margin: 6px 0;
+}
+
+/* Buttons (medium size) */
+.stButton > button {
+    height: 44px;
+    font-size: 15px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.35);
+    border: 1px solid rgba(255,255,255,0.25);
+    backdrop-filter: blur(8px);
 }
 
 .stButton > button:hover {
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.6);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    background: rgba(255,255,255,0.55);
+    transform: translateY(-1px);
 }
 
-/* ANIMATION */
-@keyframes fadeIn {
-    from {opacity: 0; transform: translateY(10px);}
-    to {opacity: 1; transform: translateY(0);}
-}
-
-/* MOBILE */
-@media (max-width: 768px) {
-    .stButton > button {
-        width: 100%;
-        font-size: 16px;
-    }
-    .glass-card {
-        padding: 15px;
-    }
+/* Inputs cleaner */
+input, textarea {
+    background: rgba(255,255,255,0.55) !important;
+    border-radius: 10px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -97,8 +76,8 @@ if "step" not in st.session_state:
 
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("draft_data", {})
-st.session_state.setdefault("proceed_submit", False)
 st.session_state.setdefault("tx_id", None)
+st.session_state.setdefault("proceed_submit", False)
 st.session_state.setdefault("show_success", False)
 
 # -----------------------------
@@ -107,7 +86,7 @@ st.session_state.setdefault("show_success", False)
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
-    f"<h1 style='text-align:center;color:#1f2937;'>{branch} - Stock System</h1>",
+    f"<h2 style='text-align:center;color:#1f2937;'>{branch} - Stock System</h2>",
     unsafe_allow_html=True
 )
 
@@ -172,7 +151,7 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# MODE
+# MODE + ITEMS
 # -----------------------------
 mode = st.session_state.mode
 
@@ -184,18 +163,14 @@ else:
 mode_label = "DAILY" if mode == "daily" else "WEEKLY"
 
 # -----------------------------
-# STEP PROGRESS
+# STEP HEADER
 # -----------------------------
-st.markdown(f"## Step {st.session_state.step}/3")
-st.progress(st.session_state.step / 3)
+st.markdown(f"### Step {st.session_state.step}/3")
 
-# -----------------------------
-# 🔥 RESTORED STATUS BAR (FIX)
-# -----------------------------
 st.markdown(f"""
-<div class="glass-card" style="text-align:center;">
-    <h3>📊 Mode: {mode_label} STOCK</h3>
-    <p><b>Total Items:</b> {len(filtered_items)}</p>
+<div class="glass-pill">
+    <div>📊 {mode_label if mode else "NO MODE SELECTED"}</div>
+    <div>{len(filtered_items)} Items</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -204,8 +179,7 @@ st.markdown(f"""
 # -----------------------------
 if st.session_state.step == 1:
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("### Select Mode")
+    st.markdown("#### Select Mode")
 
     c1, c2 = st.columns(2)
 
@@ -219,13 +193,12 @@ if st.session_state.step == 1:
         st.session_state.step = 2
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
 # -----------------------------
 # DATE
 # -----------------------------
-date = st.date_input("Select Date")
+date = st.date_input("Date")
 date_str = str(date)
 
 # -----------------------------
@@ -233,8 +206,7 @@ date_str = str(date)
 # -----------------------------
 if st.session_state.step == 2:
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("### Enter Stock")
+    st.markdown("#### Enter Stock")
 
     inputs = {}
 
@@ -256,9 +228,7 @@ if st.session_state.step == 2:
 
                     inputs[item] = value.strip() if value.strip() else None
 
-        submitted = st.form_submit_button("🔍 Review")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Review")
 
     if submitted:
         if any(v is None for v in inputs.values()):
@@ -277,22 +247,19 @@ if st.session_state.step == 2:
 # -----------------------------
 if st.session_state.step == 3:
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("### Review Stock")
+    st.markdown("#### Review")
 
     for k, v in st.session_state.draft_data.items():
-        st.write(f"**{k}** → {v}")
+        st.write(f"• {k}: {v}")
 
     c1, c2 = st.columns(2)
 
-    if c1.button("⬅ Edit"):
+    if c1.button("Edit"):
         st.session_state.step = 2
         st.rerun()
 
-    if c2.button("✅ Submit"):
+    if c2.button("Submit"):
         st.session_state.proceed_submit = True
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # FINAL SUBMIT
@@ -300,7 +267,7 @@ if st.session_state.step == 3:
 if st.session_state.proceed_submit:
 
     try:
-        with st.spinner("Saving stock..."):
+        with st.spinner("Saving..."):
 
             sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
@@ -328,14 +295,13 @@ if st.session_state.proceed_submit:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             # EMAIL
-            report = f"""
+            msg = MIMEText(f"""
 Stock Submitted
 TX: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
 Mode: {mode_label}
-"""
+""")
 
-            msg = MIMEText(report)
             msg["Subject"] = "Stock Update"
             msg["From"] = st.secrets["EMAIL_USER"]
             msg["To"] = st.secrets["EMAIL_TO"]
@@ -357,33 +323,14 @@ Mode: {mode_label}
         st.error(f"Error: {e}")
 
 # -----------------------------
-# SUCCESS
+# SUCCESS SCREEN
 # -----------------------------
 if st.session_state.show_success:
 
-    st.markdown("""
-    <div style="
-        position:fixed;
-        top:0;
-        left:0;
-        width:100%;
-        height:100vh;
-        background:rgba(0,0,0,0.6);
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        z-index:9999;">
-        
-        <div class="glass-card" style="width:420px;text-align:center;">
-            <div style="font-size:80px;color:#00c853;">✔</div>
-            <h2>SUBMITTED</h2>
-            <p>Stock saved successfully</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
+    st.success("Stock submitted successfully ✔")
     st.toast("Submitted ✔", icon="✔")
-    time.sleep(2)
+
+    time.sleep(1)
 
     st.session_state.show_success = False
     st.rerun()
