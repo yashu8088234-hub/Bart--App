@@ -16,7 +16,7 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
-
+ 
 # =========================================================
 # ERROR
 # =========================================================
