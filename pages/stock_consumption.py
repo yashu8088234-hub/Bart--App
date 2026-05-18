@@ -273,9 +273,13 @@ with st.form("stock_form", clear_on_submit=False):
 if st.session_state.review_mode:
 
     st.markdown("""
-    <div id="review_section" style="
-        padding-top:20px;
-    "></div>
+    <a id="review_section"></a>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <script>
+        window.location.hash = "review_section";
+    </script>
     """, unsafe_allow_html=True)
 
     st.markdown("## Review")
@@ -285,13 +289,6 @@ if st.session_state.review_mode:
 
     if st.button("✅ Submit"):
         st.session_state.proceed_submit = True
-
-# -----------------------------
-# AUTO SCROLL
-# -----------------------------
-if st.session_state.scroll_to_review:
-    scroll_to_review()
-    st.session_state.scroll_to_review = False
 
 # -----------------------------
 # FINAL SUBMIT
