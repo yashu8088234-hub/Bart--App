@@ -231,7 +231,7 @@ with st.form("stock_form", clear_on_submit=False):
 
                 inputs[item] = value.strip() if value.strip() else None
 
-    submitted = st.form_submit_button("🔍 Review Stock")
+    submitted = st.form_submit_button("🔍 Submit-Review Stock")
 
     if submitted:
 
@@ -323,12 +323,12 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             msg = MIMEText(report)
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
-            msg["To"] = "Ramees@bartksa.com"
+            msg["To"] = "yash2002anitha@gmail.com"
 
             server = smtplib.SMTP("smtp.gmail.com", 587)
             server.starttls()
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, "Ramees@bartksa.com", msg.as_string())
+            server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
             st.session_state.proceed_submit = False
