@@ -200,7 +200,7 @@ with col2:
                 time.sleep(10)
 
                 st.success("✅ Latest Stock-Loaded ")
-                st.rerun()
+                
 
 
 
