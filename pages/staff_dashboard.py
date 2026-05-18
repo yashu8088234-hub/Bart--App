@@ -122,12 +122,12 @@ if st.session_state.selected_branch == "-- Select Branch --":
     st.session_state.last_activity = None
 
     with st.popover("Choose Branch"):
-        with st.form("branch_form"):
-            selected_branch = st.radio("Branch List", branch_options, index=0)
-            submitted = st.form_submit_button("Select")
+        selected_branch = st.radio("Branch List", branch_options, index=0)
 
-            if submitted and selected_branch != "-- Select Branch --":
-                st.session_state.selected_branch = selected_branch
+        if selected_branch != "-- Select Branch --":
+            st.session_state.selected_branch = selected_branch
+            # ❌ removed rerun (this was causing extra loop)
+            # st.rerun()
 
 else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
@@ -137,15 +137,15 @@ else:
         st.session_state.authenticated = False
         st.session_state.auth_branch = None
         st.session_state.last_activity = None
+        st.rerun()  # keep this one (important UX reset)
 
 # ---------------- BRANCH INFO ----------------
 branch_info = None
 
 if st.session_state.selected_branch != "-- Select Branch --":
     branch_info = next(
-        (b for b in branch_data
-         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch),
-        None
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
 
 # ---------------- PASSWORD SYSTEM ----------------
@@ -209,11 +209,12 @@ if st.session_state.selected_branch != "-- Select Branch --":
     if not st.session_state.authenticated:
         st.subheader("Branch Login")
 
-        with st.form("login_form"):
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login")
+        password = st.text_input("Password", type="password")
 
-            if submitted:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Login"):
                 if passwords.get(st.session_state.selected_branch, "") == password:
 
                     st.session_state.authenticated = True
@@ -224,10 +225,9 @@ if st.session_state.selected_branch != "-- Select Branch --":
                     st.session_state.tab_name = "Stocks"
                     st.session_state.branch_info = branch_info
 
+                    st.rerun()  # KEEP (needed after login)
                 else:
                     st.error("Incorrect password")
-
-        col1, col2 = st.columns(2)
 
         with col2:
             if st.button("Reset Password"):
@@ -237,18 +237,16 @@ if st.session_state.selected_branch != "-- Select Branch --":
     if st.session_state.reset_mode:
         st.subheader("Reset Password")
 
-        with st.form("reset_form"):
-            admin_pass = st.text_input("Admin Password", type="password")
-            new_pass = st.text_input("New Password", type="password")
-            submitted = st.form_submit_button("Update Password")
+        admin_pass = st.text_input("Admin Password", type="password")
+        new_pass = st.text_input("New Password", type="password")
 
-            if submitted:
-                if admin_pass == load_admin()["admin"]:
-                    save_passwords(st.session_state.selected_branch, new_pass)
-                    st.success("Password updated successfully")
-                    st.session_state.reset_mode = False
-                else:
-                    st.error("Wrong admin password")
+        if st.button("Update Password"):
+            if admin_pass == load_admin()["admin"]:
+                save_passwords(st.session_state.selected_branch, new_pass)
+                st.success("Password updated successfully")
+                st.session_state.reset_mode = False
+            else:
+                st.error("Wrong admin password")
 
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
