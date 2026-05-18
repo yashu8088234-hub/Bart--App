@@ -6,10 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
-from gspread.exceptions import APIError
 import time
 
 # =========================================================
@@ -19,10 +17,10 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# ERROR HANDLING
+# ERROR HANDLER
 # =========================================================
-def show_api_error():
-    st.error("⚠️ Google Sheets API Error")
+def show_api_error(msg="Google Sheets API Error"):
+    st.error(msg)
     st.stop()
 
 # =========================================================
@@ -46,39 +44,48 @@ def get_client():
 client = get_client()
 
 # =========================================================
-# BRANCHES (cached list is OK)
+# BRANCH LOADING (NO SILENT FILTERING)
 # =========================================================
 @st.cache_data(ttl=300)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
-    return [b for b in data if b.get("SheetID") and b.get("BranchName")]
+
+    # ❗ DO NOT FILTER SILENTLY
+    # keep all rows, handle errors later
+    return data
 
 try:
     branches = load_branches()
 except:
     show_api_error()
 
-branch_names = [b["BranchName"] for b in branches]
+branch_names = [b.get("BranchName", "") for b in branches]
 
 # =========================================================
-# FETCH SINGLE BRANCH (NO CACHE HERE)
+# FETCH ONE BRANCH (SAFE)
 # =========================================================
 def fetch_branch(branch):
     try:
-        sid = branch["SheetID"]
+        sid = branch.get("SheetID")
+        name = branch.get("BranchName", "UNKNOWN")
+
+        if not sid:
+            return name, []
+
         ws = client.open_by_key(sid).worksheet("Stocks")
-        data = ws.get_all_values()   # ALWAYS fresh
-        return branch["BranchName"], data
-    except:
-        return branch["BranchName"], None
+        data = ws.get_all_values()
+
+        return name, data
+
+    except Exception as e:
+        return branch.get("BranchName", "UNKNOWN"), []
 
 # =========================================================
-# LOAD ALL DATA (TTL CACHE = SAFE)
+# LOAD ALL DATA (CONTROLLED REFRESH)
 # =========================================================
-@st.cache_data(ttl=120)
-def load_all_data(branch_ids_tuple):
-    with ThreadPoolExecutor(max_workers=10) as ex:
+def load_all_data(branches):
+    with ThreadPoolExecutor(max_workers=8) as ex:
         return list(ex.map(fetch_branch, branches))
 
 # =========================================================
@@ -86,14 +93,14 @@ def load_all_data(branch_ids_tuple):
 # =========================================================
 REFRESH_COOLDOWN = 120
 
-if "last_force_refresh" not in st.session_state:
-    st.session_state.last_force_refresh = 0
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = 0
 
-remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_force_refresh)
-can_force_refresh = remaining <= 0
+remaining = REFRESH_COOLDOWN - (time.time() - st.session_state.last_refresh)
+can_refresh = remaining <= 0
 
 # =========================================================
-# DATE
+# DATE INPUT
 # =========================================================
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
@@ -109,23 +116,24 @@ with col1:
 
 with col2:
 
-    refresh_text = "🔴 Refresh Now" if can_force_refresh else f"⏳ Wait {int(remaining)} sec"
+    label = "🔴 Refresh Data" if can_refresh else f"⏳ Wait {int(remaining)}s"
 
-    if st.button(refresh_text, disabled=not can_force_refresh):
+    if st.button(label, disabled=not can_refresh):
 
-        with st.spinner("Refreshing latest data..."):
+        with st.spinner("Refreshing all branches..."):
 
-            # 🔥 IMPORTANT: clear cache properly
             st.cache_data.clear()
 
             branches = load_branches()
-            branch_names = [b["BranchName"] for b in branches]
 
-            all_data = load_all_data(tuple(b["SheetID"] for b in branches))
+            branch_names = [b.get("BranchName", "") for b in branches]
 
-            st.session_state.last_force_refresh = time.time()
+            all_data = load_all_data(branches)
+
+            st.session_state.last_refresh = time.time()
 
             st.success("✅ Updated from Google Sheets")
+
             st.rerun()
 
 with col3:
@@ -133,14 +141,22 @@ with col3:
         st.switch_page("app.py")
 
 # =========================================================
-# INITIAL LOAD (USES CACHE)
+# INITIAL LOAD
 # =========================================================
-all_data = load_all_data(tuple(b["SheetID"] for b in branches))
+all_data = load_all_data(branches)
+
+# =========================================================
+# DEBUG MISSING BRANCHES (IMPORTANT)
+# =========================================================
+loaded_names = [x[0] for x in all_data]
+missing = set(branch_names) - set(loaded_names)
+
+if missing:
+    st.warning(f"⚠️ Missing branches detected: {missing}")
 
 # =========================================================
 # PROCESS STOCK
 # =========================================================
-@st.cache_data(ttl=120)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -166,7 +182,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not row:
                 continue
 
-            text = " ".join([str(x) for x in row]).lower()
+            text = " ".join(map(str, row)).lower()
 
             if "daily item" in text:
                 current_section = "daily"
@@ -196,9 +212,8 @@ def process_stock(all_data, selected_date_str, branch_names):
                     "SKU": sku,
                     "UOM": uom
                 }
-
-                for bn in branch_names:
-                    target[key][bn] = 0
+                for b in branch_names:
+                    target[key][b] = 0
 
             qty = 0
             try:
@@ -225,7 +240,8 @@ def build_df(data_dict):
 
     rows = []
 
-    for _, v in data_dict.items():
+    for v in data_dict.values():
+
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
@@ -254,7 +270,6 @@ def render_grid(df, title):
         return
 
     gb = GridOptionsBuilder.from_dataframe(df)
-
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
     AgGrid(
@@ -275,21 +290,21 @@ def create_excel(daily_df, weekly_df):
     output = BytesIO()
     wb = Workbook()
     ws = wb.active
-    ws.title = "Stock Dashboard"
+    ws.title = "Stock"
 
-    def write(df, title, start_row):
+    def write(df, title, start):
 
-        ws.cell(row=start_row, column=1, value=title).font = Font(bold=True)
+        ws.cell(row=start, column=1, value=title).font = Font(bold=True)
 
         rows = dataframe_to_rows(df, index=False, header=True)
 
-        r = start_row + 2
+        r = start + 2
 
         for i, row in enumerate(rows):
             for c, v in enumerate(row, 1):
                 ws.cell(row=r+i, column=c, value=v)
 
-        return r + len(df) + 4
+        return r + len(df) + 3
 
     next_row = write(daily_df, "DAILY STOCK", 1)
     write(weekly_df, "WEEKLY STOCK", next_row)
