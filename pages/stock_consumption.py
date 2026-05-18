@@ -21,12 +21,10 @@ header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; max-width:100% !important;}
 
-/* ✔ RESTORED YOUR ORIGINAL LOOK */
 .stApp {
     background: linear-gradient(135deg,#eef2f7,#d6e4ff);
 }
 
-/* BUTTON STYLE */
 div.stButton > button{
     height:55px;
     font-size:18px;
@@ -41,7 +39,6 @@ div.stButton > button:hover{
     border:1px solid #aab6ff;
 }
 
-/* INPUT BOX STYLE (clean modern) */
 input{
     border-radius:8px !important;
     border:1px solid #d0d7ff !important;
@@ -63,7 +60,7 @@ st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("tx_id", None)
 
 # -----------------------------
-# STEP BAR (SAME LOGIC)
+# STEP BAR
 # -----------------------------
 def step_bar(step):
     st.markdown(f"""
@@ -77,7 +74,7 @@ def step_bar(step):
     """, unsafe_allow_html=True)
 
 # -----------------------------
-# TITLE
+# TITLE (CHILLI RED KEPT)
 # -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
 
@@ -158,19 +155,18 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    # ✅ MOVED HERE (after stock buttons)
     if st.button("⬅ Back to Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
 
 # -----------------------------
-# BACK BUTTON + STEP BAR
+# BACK + STEP BAR
 # -----------------------------
 c1, c2 = st.columns([1, 3])
 
 with c1:
-    if st.button("⬅ Back to Mode select "):
+    if st.button("⬅ Back"):
         st.session_state.page = "mode_select"
         st.session_state.step = 1
         st.session_state.form_data = {}
@@ -249,6 +245,7 @@ elif st.session_state.step == 3:
         with st.spinner("Saving..."):
 
             tx = str(uuid.uuid4())[:8]
+            st.session_state.tx_id = tx
 
             st.markdown(f"""
             <div style="
@@ -269,6 +266,34 @@ elif st.session_state.step == 3:
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+            # ---------------- EMAIL RESTORED ----------------
+            report = f"""
+Stock Submission Report
+
+Submitted By: System Auto Entry
+Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Transaction ID: {tx}
+Branch: {st.session_state.get('selected_branch')}
+Mode: {st.session_state.mode}
+
+STATUS: STOCK SUBMITTED SUCCESSFULLY
+"""
+
+            sender_email = "yashu8088234@gmail.com"
+            sender_password = st.secrets["EMAIL_PASSWORD"]
+
+            msg = MIMEText(report)
+            msg["Subject"] = "New Stock Submission"
+            msg["From"] = sender_email
+            msg["To"] = "yash2002anitha@gmail.com"
+
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
+            server.quit()
+            # ---------------- EMAIL END ----------------
 
             time.sleep(4)
 
