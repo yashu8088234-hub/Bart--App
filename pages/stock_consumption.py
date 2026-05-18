@@ -193,7 +193,7 @@ if st.button("⬅ Back"):
 # -----------------------------
 # DATE
 # -----------------------------
-date = st.date_input("Select Date")
+date = st.date_input("Select Operation Date")
 date_str = str(date)
 
 # -----------------------------
