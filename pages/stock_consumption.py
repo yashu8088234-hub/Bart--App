@@ -3,13 +3,12 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
 import uuid
-from gspread import Cell
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 
 # -----------------------------
-# UI SETUP (RESTORED ORIGINAL COLOR THEME)
+# UI SETUP
 # -----------------------------
 st.set_page_config(page_title="Stock System", layout="wide")
 
@@ -91,19 +90,28 @@ tab_name = st.session_state.get("tab_name")
 
 if not sheet_id or not tab_name:
     st.error("Session expired")
+
     if st.button("⬅ Back to Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
+
     st.stop()
 
 # -----------------------------
 # GOOGLE SHEETS AUTH
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
+
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
 @st.cache_resource
 def client():
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        creds_dict,
+        scope
+    )
     return gspread.authorize(creds)
 
 gc = client()
@@ -115,7 +123,7 @@ def sheet():
 ws = sheet()
 
 # -----------------------------
-# DATA
+# LOAD DATA
 # -----------------------------
 def load_items(ws):
     data = ws.get_all_values()
@@ -128,11 +136,24 @@ def load_umo(ws):
 items = load_items(ws)
 umo_list = load_umo(ws)
 
-daily_start = next(i for i,v in enumerate(items) if v=="DAILY ITEM")
-weekly_start = next(i for i,v in enumerate(items) if v=="WEEKLY ITEM")
+# SAFE SECTION DETECTION
+daily_start = next(
+    (i for i, v in enumerate(items) if v == "DAILY ITEM"),
+    0
+)
+
+weekly_start = next(
+    (i for i, v in enumerate(items) if v == "WEEKLY ITEM"),
+    len(items)
+)
 
 mode = st.session_state.mode or "daily"
-filtered = items[daily_start+1:weekly_start] if mode=="daily" else items[weekly_start+1:]
+
+filtered = (
+    items[daily_start + 1:weekly_start]
+    if mode == "daily"
+    else items[weekly_start + 1:]
+)
 
 # -----------------------------
 # MODE SELECT
@@ -177,9 +198,14 @@ with c2:
     step_bar(st.session_state.step)
 
 # -----------------------------
-# 🔥 MODE INFO HEADER (MOVED HERE - BEFORE BACK BUTTON AS REQUESTED)
+# MODE INFO
 # -----------------------------
-mode_label = "Daily Stock" if mode == "daily" else "Weekly Stock"
+mode_label = (
+    "Daily Stock"
+    if mode == "daily"
+    else "Weekly Stock"
+)
+
 total_items = len(filtered)
 
 st.markdown(f"""
@@ -194,8 +220,19 @@ st.markdown(f"""
     font-size:16px;
     font-weight:600;
 ">
-    <div>Mode: <span style="color:#FF2400;">{mode_label}</span></div>
-    <div>Total Items: <span style="color:#1f4fff;">{total_items}</span></div>
+    <div>
+        Mode:
+        <span style="color:#FF2400;">
+            {mode_label}
+        </span>
+    </div>
+
+    <div>
+        Total Items:
+        <span style="color:#1f4fff;">
+            {total_items}
+        </span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -203,11 +240,16 @@ st.markdown(f"""
 # DATE
 # -----------------------------
 default_date = datetime.today().date() - timedelta(days=1)
-date = st.date_input("Select Operation Date", value=default_date)
+
+date = st.date_input(
+    "Select Operation Date",
+    value=default_date
+)
+
 date_str = str(date)
 
 # -----------------------------
-# STEP 1
+# STEP 1 - ENTRY
 # -----------------------------
 if st.session_state.step == 1:
 
@@ -218,13 +260,20 @@ if st.session_state.step == 1:
     with st.form("stock_form"):
 
         for i in range(0, len(filtered), 4):
+
             cols = st.columns(4)
 
             for j, col in enumerate(cols):
+
                 if i + j < len(filtered):
 
                     item = filtered[i + j]
-                    umo = umo_list[i + j] if i + j < len(umo_list) else ""
+
+                    umo = (
+                        umo_list[i + j]
+                        if i + j < len(umo_list)
+                        else ""
+                    )
 
                     inputs[item] = col.text_input(
                         f"{item} [{umo}]",
@@ -232,23 +281,29 @@ if st.session_state.step == 1:
                         placeholder="Enter quantity"
                     )
 
-        submitted = st.form_submit_button("➡ Continue to Review")
+        submitted = st.form_submit_button(
+            "➡ Continue to Review"
+        )
 
         if submitted:
+
             st.session_state.form_data = inputs
             st.session_state.draft_data = inputs
             st.session_state.step = 2
+
             st.rerun()
 
 # -----------------------------
-# STEP 2
+# STEP 2 - REVIEW
 # -----------------------------
 elif st.session_state.step == 2:
 
     st.markdown("## Review")
 
     for k, v in st.session_state.draft_data.items():
-        st.write(f"{k} → {v}")
+
+        if str(v).strip() != "":
+            st.write(f"{k} → {v}")
 
     c1, c2 = st.columns(2)
 
@@ -261,70 +316,191 @@ elif st.session_state.step == 2:
         st.rerun()
 
 # -----------------------------
-# STEP 3
+# STEP 3 - SUBMIT
 # -----------------------------
 elif st.session_state.step == 3:
 
     try:
+
         with st.spinner("Saving..."):
 
+            # -----------------------------
+            # TX ID
+            # -----------------------------
             tx = str(uuid.uuid4())[:8]
+
             st.session_state.tx_id = tx
 
+            submit_time = datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+
+            # -----------------------------
+            # SAVE TO GOOGLE SHEETS
+            # -----------------------------
+            rows_to_insert = []
+
+            for item, qty in st.session_state.draft_data.items():
+
+                if str(qty).strip() == "":
+                    continue
+
+                rows_to_insert.append([
+                    tx,
+                    submit_time,
+                    date_str,
+                    st.session_state.get("selected_branch"),
+                    st.session_state.mode.upper(),
+                    item,
+                    qty
+                ])
+
+            # -----------------------------
+            # CREATE / ACCESS SUBMISSIONS TAB
+            # -----------------------------
+            try:
+
+                log_ws = gc.open_by_key(sheet_id).worksheet(
+                    "SUBMISSIONS"
+                )
+
+            except:
+
+                log_ws = gc.open_by_key(sheet_id).add_worksheet(
+                    title="SUBMISSIONS",
+                    rows="5000",
+                    cols="20"
+                )
+
+                log_ws.append_row([
+                    "TX_ID",
+                    "TIMESTAMP",
+                    "OPERATION_DATE",
+                    "BRANCH",
+                    "MODE",
+                    "ITEM",
+                    "QTY"
+                ])
+
+            # -----------------------------
+            # APPEND ROWS
+            # -----------------------------
+            if rows_to_insert:
+                log_ws.append_rows(rows_to_insert)
+
+            # -----------------------------
+            # SUCCESS POPUP
+            # -----------------------------
             st.markdown(f"""
             <div style="
                 position:fixed;
-                top:0;left:0;width:100%;height:100%;
+                top:0;
+                left:0;
+                width:100%;
+                height:100%;
                 background:rgba(0,0,0,0.6);
-                display:flex;align-items:center;justify-content:center;
-                z-index:9999;">
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                z-index:9999;
+            ">
+
                 <div style="
                     background:white;
                     padding:40px;
                     border-radius:15px;
-                    text-align:center;">
-                    <div style="font-size:60px;">✔</div>
+                    text-align:center;
+                ">
+
+                    <div style="font-size:60px;">
+                        ✔
+                    </div>
+
                     <h2>SUBMITTED</h2>
-                    <p>TX: <b>{tx}</b></p>
+
+                    <p>
+                        TX:
+                        <b>{tx}</b>
+                    </p>
+
                     <p>Redirecting...</p>
+
                 </div>
+
             </div>
             """, unsafe_allow_html=True)
 
-            # EMAIL
+            # -----------------------------
+            # EMAIL REPORT
+            # -----------------------------
             report = f"""
 Stock Submission Report
 
 Submitted By: System Auto Entry
-Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Time: {submit_time}
+
 Transaction ID: {tx}
+
 Branch: {st.session_state.get('selected_branch')}
+
 Mode: {st.session_state.mode}
+
+Total Items Submitted: {len(rows_to_insert)}
 
 STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
 
             sender_email = "yashu8088234@gmail.com"
+
             sender_password = st.secrets["EMAIL_PASSWORD"]
 
+            receiver_email = "yash2002anitha@gmail.com"
+
             msg = MIMEText(report)
+
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
-            msg["To"] = "yash2002anitha@gmail.com"
+            msg["To"] = receiver_email
 
-            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server = smtplib.SMTP(
+                "smtp.gmail.com",
+                587
+            )
+
             server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
+
+            server.login(
+                sender_email,
+                sender_password
+            )
+
+            server.sendmail(
+                sender_email,
+                receiver_email,
+                msg.as_string()
+            )
+
             server.quit()
 
+            # -----------------------------
+            # WAIT
+            # -----------------------------
             time.sleep(4)
 
+            # -----------------------------
+            # RESET SESSION
+            # -----------------------------
             st.session_state.step = 1
             st.session_state.form_data = {}
             st.session_state.draft_data = {}
 
-            st.switch_page("pages/staff_dashboard.py")
+            # -----------------------------
+            # REDIRECT
+            # -----------------------------
+            st.switch_page(
+                "pages/staff_dashboard.py"
+            )
 
     except Exception as e:
-        st.error(str(e))
+
+        st.error(f"ERROR: {str(e)}")
