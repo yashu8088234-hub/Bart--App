@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
@@ -51,34 +50,6 @@ st.session_state.setdefault("tx_id", None)
 
 st.session_state.setdefault("scroll_to_review", False)
 st.session_state.setdefault("proceed_submit", False)
-
-# -----------------------------
-# SCROLL FUNCTION
-# -----------------------------
-def scroll_to_review():
-    components.html("""
-    <script>
-        function scrollNow() {
-
-            const parentDoc = window.parent.document;
-
-            const reviewSection =
-                parentDoc.getElementById("review_section");
-
-            if (reviewSection) {
-
-                reviewSection.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start"
-                });
-
-            }
-
-        }
-
-        setTimeout(scrollNow, 700);
-    </script>
-    """, height=0)
 
 # -----------------------------
 # TITLE
@@ -172,12 +143,12 @@ if st.session_state.page == "mode_select":
 
     c1, c2 = st.columns(2)
 
-    if c1.button("📦 Daily Stock [EXCLUDING THURSDAY]"):
+    if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    if c2.button("📊 Weekly Stock [ONLY THURSDAY]"):
+    if c2.button("📊 Weekly Stock"):
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
         st.rerun()
@@ -249,6 +220,9 @@ with st.form("stock_form", clear_on_submit=False):
 
     submitted = st.form_submit_button("🔍 Submit-Review Stock")
 
+    # -----------------------------
+    # ONLY CHANGE IS HERE (SAFE UX ADDITION)
+    # -----------------------------
     if submitted:
 
         missing = [k for k, v in inputs.items() if v is None]
@@ -257,45 +231,37 @@ with st.form("stock_form", clear_on_submit=False):
             st.error("Missing inputs")
 
         else:
-            else:
-                st.toast("Review ready below ⬇", icon="👇")
-                st.markdown("""
-                <div style="
+            st.toast("👇 Review section is below", icon="👇")
+
+            st.markdown("""
+            <div style="
                 text-align:center;
                 font-size:22px;
                 margin-top:10px;
                 color:#00c853;
                 font-weight:600;
                 animation: blink 1s infinite;
-                ">
+            ">
                 ⬇ Scroll Down to Review ⬇
-                </div>
-                <style
-                @keyframes blink {
+            </div>
+
+            <style>
+            @keyframes blink {
                 0% {opacity: 1;}
                 50% {opacity: 0.3;}
                 100% {opacity: 1;}
-                }
-                </style>
-                """, unsafe_allow_html=True)
-                st.session_state.draft_data = inputs
-                st.session_state.review_mode = True
-                st.rerun()
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
+            st.session_state.draft_data = inputs
+            st.session_state.review_mode = True
+            st.rerun()
 
 # -----------------------------
 # REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
-
-    st.markdown("""
-    <a id="review_section"></a>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <script>
-        window.location.hash = "review_section";
-    </script>
-    """, unsafe_allow_html=True)
 
     st.markdown("## Review")
 
@@ -311,7 +277,6 @@ if st.session_state.review_mode:
 if st.session_state.proceed_submit:
 
     try:
-
         with st.spinner("Saving stock..."):
 
             sheet_data = sheet.get_all_values()
@@ -324,38 +289,22 @@ if st.session_state.proceed_submit:
 
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
-
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
             col_values = sheet.col_values(1)
-
-            item_to_row = {
-                val.strip(): i + 1
-                for i, val in enumerate(col_values)
-            }
+            item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
             cells = []
 
             for item, qty in st.session_state.draft_data.items():
-
                 row = item_to_row.get(item)
-
                 if row:
-                    cells.append(
-                        Cell(
-                            row=row,
-                            col=col_index,
-                            value=qty
-                        )
-                    )
+                    cells.append(Cell(row=row, col=col_index, value=qty))
 
             if cells:
-                sheet.update_cells(
-                    cells,
-                    value_input_option="USER_ENTERED"
-                )
+                sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
             # ---------------- EMAIL ----------------
             report = f"""
@@ -374,23 +323,14 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             sender_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = MIMEText(report)
-
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
             msg["To"] = "yash2002anitha@gmail.com"
 
             server = smtplib.SMTP("smtp.gmail.com", 587)
-
             server.starttls()
-
             server.login(sender_email, sender_password)
-
-            server.sendmail(
-                sender_email,
-                "yash2002anitha@gmail.com",
-                msg.as_string()
-            )
-
+            server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
             st.session_state.proceed_submit = False
