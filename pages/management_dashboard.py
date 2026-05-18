@@ -182,12 +182,11 @@ with col2:
 
     if refresh_clicked:
 
-        with st.spinner("Fetching latest stock data from all branches..."):
+        with st.spinner("Hold on ..."):
 
             try:
 
-                st.cache_data.clear()
-                st.cache_resource.clear()
+                
 
                 client = get_client()
 
@@ -200,10 +199,10 @@ with col2:
                 st.session_state.last_force_refresh = time.time()
                 time.sleep(10)
 
-                st.success("✅ Latest stock data loaded successfully")
+                st.success("✅ Latest Stock-Loaded ")
+                st.rerun()
 
-                if st.button("🔄 Click Now to Refresh"):
-                    st.rerun()
+
 
             except:
                 show_api_error()
