@@ -166,7 +166,7 @@ if st.session_state.page == "mode_select":
 c1, c2 = st.columns([1, 3])
 
 with c1:
-    if st.button("⬅ Back"):
+    if st.button("⬅ Back to Mode Select "):
         st.session_state.page = "mode_select"
         st.session_state.step = 1
         st.session_state.form_data = {}
