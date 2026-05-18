@@ -578,7 +578,3 @@ st.download_button(
 )
 
 
-
-
-
-afer clicking thte buttton why  isnt my data is fetching giving proper data for firstt  time 
