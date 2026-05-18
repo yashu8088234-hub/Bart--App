@@ -107,9 +107,9 @@ def fetch_branch(branch):
         return branch["BranchName"], None
     return branch["BranchName"], fetch_sheet_range(sid)
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=60)
 def load_all_data(branches):
-    with ThreadPoolExecutor(max_workers=28) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         return list(ex.map(fetch_branch, branches))
 
 # =========================================================
