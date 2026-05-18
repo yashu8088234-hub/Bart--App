@@ -82,7 +82,7 @@ def step_bar(step):
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
-    f"<h2 style='text-align:center;color:##E11D48;margin-bottom:10px;'>{branch} - Stock System</h2>",
+    f"<h2 style='text-align:center;color:##B91C1C;margin-bottom:10px;'>{branch} - Stock System</h2>",
     unsafe_allow_html=True
 )
 
