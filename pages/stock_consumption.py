@@ -9,7 +9,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 # -----------------------------
-# UI SETUP (BACKGROUND REMOVED AS REQUESTED)
+# UI SETUP (RESTORED ORIGINAL COLOR THEME)
 # -----------------------------
 st.set_page_config(page_title="Stock System", layout="wide")
 
@@ -21,10 +21,31 @@ header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:0 !important; max-width:100% !important;}
 
+/* ✔ RESTORED YOUR ORIGINAL LOOK */
+.stApp {
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
+}
+
+/* BUTTON STYLE */
 div.stButton > button{
     height:55px;
     font-size:18px;
     border-radius:10px;
+    background: white;
+    border: 1px solid #d0d7ff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+div.stButton > button:hover{
+    background:#f5f7ff;
+    border:1px solid #aab6ff;
+}
+
+/* INPUT BOX STYLE (clean modern) */
+input{
+    border-radius:8px !important;
+    border:1px solid #d0d7ff !important;
+    padding:8px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -42,15 +63,11 @@ st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("tx_id", None)
 
 # -----------------------------
-# STEP BAR (UNCHANGED STYLE)
+# STEP BAR (SAME LOGIC)
 # -----------------------------
 def step_bar(step):
-    s1 = "✔ done" if step > 1 else "● active" if step == 1 else "○"
-    s2 = "✔ done" if step > 2 else "● active" if step == 2 else "○"
-    s3 = "● active" if step == 3 else "○"
-
     st.markdown(f"""
-    <div style="display:flex;align-items:center;gap:10px;margin:5px 0;">
+    <div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
         <b>{"✔ Entry" if step>1 else "1 Entry"}</b>
         ───▶
         <b>{"● Review" if step==2 else "2 Review"}</b>
@@ -65,7 +82,7 @@ def step_bar(step):
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
-    f"<h2 style='text-align:center;color:red;margin-bottom:10px;'>{branch} - Stock System</h2>",
+    f"<h2 style='text-align:center;color:#d10000;margin-bottom:10px;'>{branch} - Stock System</h2>",
     unsafe_allow_html=True
 )
 
@@ -99,7 +116,7 @@ def sheet():
 ws = sheet()
 
 # -----------------------------
-# DATA LOAD
+# DATA
 # -----------------------------
 def load_items(ws):
     data = ws.get_all_values()
@@ -144,7 +161,7 @@ if st.session_state.page == "mode_select":
     st.stop()
 
 # -----------------------------
-# BACK + STEP BAR SAME ROW
+# BACK BUTTON + STEP BAR
 # -----------------------------
 c1, c2 = st.columns([1, 3])
 
@@ -183,28 +200,21 @@ if st.session_state.step == 1:
                 if i + j < len(filtered):
 
                     item = filtered[i + j]
-
-                    # ✅ FIX: UMO RESTORED
                     umo = umo_list[i + j] if i + j < len(umo_list) else ""
 
                     inputs[item] = col.text_input(
-                        f"{item} [{umo}]",   # ✔ restored exactly as you had
+                        f"{item} [{umo}]",
                         value=inputs.get(item, ""),
                         placeholder="Enter quantity"
                     )
 
-        submitted = st.form_submit_button("➡ Continue")
+        submitted = st.form_submit_button("➡ Continue to Review")
 
         if submitted:
-            missing = [k for k,v in inputs.items() if v is None or v == ""]
-
-            if missing:
-                st.error("Missing inputs")
-            else:
-                st.session_state.form_data = inputs
-                st.session_state.draft_data = inputs
-                st.session_state.step = 2
-                st.rerun()
+            st.session_state.form_data = inputs
+            st.session_state.draft_data = inputs
+            st.session_state.step = 2
+            st.rerun()
 
 # -----------------------------
 # STEP 2
