@@ -3,14 +3,16 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
 import uuid
+from background import set_background
 from gspread import Cell
-from datetime import datetime, timedelta
+
 import smtplib
 from email.mime.text import MIMEText
 
 # -----------------------------
 # UI SETUP
 # -----------------------------
+set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
 
 st.markdown("""
@@ -29,20 +31,6 @@ div.stButton > button{
     height:55px;
     font-size:18px;
     border-radius:10px;
-    background: white;
-    border: 1px solid #d0d7ff;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-
-div.stButton > button:hover{
-    background:#f5f7ff;
-    border:1px solid #aab6ff;
-}
-
-input{
-    border-radius:8px !important;
-    border:1px solid #d0d7ff !important;
-    padding:8px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -54,10 +42,30 @@ if "page" not in st.session_state:
     st.session_state.page = "mode_select"
 
 st.session_state.setdefault("mode", None)
-st.session_state.setdefault("step", 1)
-st.session_state.setdefault("form_data", {})
+st.session_state.setdefault("review_mode", False)
 st.session_state.setdefault("draft_data", {})
+st.session_state.setdefault("show_success", False)
+st.session_state.setdefault("submitted", False)
 st.session_state.setdefault("tx_id", None)
+
+st.session_state.setdefault("scroll_to_review", False)
+st.session_state.setdefault("proceed_submit", False)
+
+# -----------------------------
+# SCROLL FUNCTION
+# -----------------------------
+def scroll_to_review():
+    st.markdown(
+        """
+        <script>
+            const el = document.getElementById("review_section");
+            if (el) {
+                el.scrollIntoView({behavior: "smooth"});
+            }
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
 
 # -----------------------------
 # TITLE
@@ -65,7 +73,7 @@ st.session_state.setdefault("tx_id", None)
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
-    f"<h2 style='text-align:center;color:#FF2400;margin-bottom:10px;'>{branch} - Stock System</h2>",
+    f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
     unsafe_allow_html=True
 )
 
@@ -76,63 +84,78 @@ sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
 if not sheet_id or not tab_name:
-    st.error("Session expired")
+    st.error("Session expired.")
+
     if st.button("⬅ Back to Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
+
     st.stop()
 
 # -----------------------------
 # GOOGLE SHEETS AUTH
 # -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
 
 @st.cache_resource
-def client():
+def get_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-gc = client()
+client = get_client()
 
 @st.cache_resource
-def sheet():
-    return gc.open_by_key(sheet_id).worksheet(tab_name)
+def get_sheet(sheet_id, tab_name):
+    return client.open_by_key(sheet_id).worksheet(tab_name)
 
-ws = sheet()
+sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# DATA
+# LOAD COLUMN A (UNCHANGED LOGIC)
 # -----------------------------
-def load_items(ws):
+def load_column_a(ws):
     data = ws.get_all_values()
-    return [r[0].strip() for r in data if r and r[0].strip()]
+    return [row[0].strip() for row in data if row and row[0].strip()]
 
-def load_umo(ws):
+items_list = load_column_a(sheet)
+
+# -----------------------------
+# ONLY ADDITION: LOAD COLUMN C (UMO)
+# -----------------------------
+def load_column_c(ws):
     data = ws.get_all_values()
-    return [row[2].strip() if len(row) >= 3 else "" for row in data[1:]]
+    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data[1:]]
 
-items = load_items(ws)
-umo_list = load_umo(ws)
+umo_list = load_column_c(sheet)
 
-daily_start = next(i for i,v in enumerate(items) if v=="DAILY ITEM")
-weekly_start = next(i for i,v in enumerate(items) if v=="WEEKLY ITEM")
+# -----------------------------
+# FIND SECTIONS
+# -----------------------------
+def find_index(items, name):
+    for i, v in enumerate(items):
+        if v.strip().upper() == name:
+            return i
+    return None
 
-mode = st.session_state.mode or "daily"
-filtered = items[daily_start+1:weekly_start] if mode=="daily" else items[weekly_start+1:]
+daily_start = find_index(items_list, "DAILY ITEM")
+weekly_start = find_index(items_list, "WEEKLY ITEM")
+
+if daily_start is None or weekly_start is None:
+    st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
+    st.stop()
 
 # -----------------------------
 # MODE SELECT
 # -----------------------------
 if st.session_state.page == "mode_select":
 
-    st.session_state.step = 1
-    st.session_state.form_data = {}
+    st.session_state.show_success = False
 
     st.markdown("## Select Option")
-
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
@@ -145,148 +168,141 @@ if st.session_state.page == "mode_select":
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    if st.button("⬅ Back to Dashboard"):
+    if st.button("⬅ Back to Staff"):
         st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
 
 # -----------------------------
-# BACK + INFO
+# STOCK ENTRY
 # -----------------------------
-c1, c2 = st.columns([1, 3])
+mode = st.session_state.mode
 
-with c1:
-    if st.button("⬅ Back to Mode Select"):
-        st.session_state.page = "mode_select"
-        st.session_state.step = 1
-        st.session_state.form_data = {}
-        st.rerun()
+if mode == "daily":
+    filtered_items = items_list[daily_start + 1 : weekly_start]
+else:
+    filtered_items = items_list[weekly_start + 1 :]
 
-with c2:
-    st.markdown(f"### Step {st.session_state.step}")
+st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
+
+if st.button("⬅ Back"):
+    st.session_state.page = "mode_select"
+    st.session_state.mode = None
+    st.rerun()
 
 # -----------------------------
 # DATE
 # -----------------------------
-default_date = datetime.today().date() - timedelta(days=1)
-date = st.date_input("Select Operation Date", value=default_date)
+date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# STEP 1
+# INPUT FORM
 # -----------------------------
-if st.session_state.step == 1:
+st.markdown("## Enter Stock")
 
-    st.markdown("## Enter Stock")
+inputs = {}
 
-    inputs = st.session_state.form_data
+with st.form("stock_form", clear_on_submit=False):
 
-    with st.form("stock_form"):
+    for i in range(0, len(filtered_items), 4):
+        cols = st.columns(4)
 
-        for i in range(0, len(filtered), 4):
-            cols = st.columns(4)
+        for j, col in enumerate(cols):
+            if i + j < len(filtered_items):
 
-            for j, col in enumerate(cols):
-                if i + j < len(filtered):
+                item = filtered_items[i + j]
 
-                    item = filtered[i + j]
-                    umo = umo_list[i + j] if i + j < len(umo_list) else ""
+                # ONLY UI ADDITION (NO LOGIC CHANGE)
+                umo = umo_list[i + j] if i + j < len(umo_list) else ""
+                label = f"{item} [{umo}]"
 
-                    inputs[item] = col.text_input(
-                        f"{item} [{umo}]",
-                        value=inputs.get(item, ""),
-                        placeholder="Enter quantity"
-                    )
+                value = col.text_input(
+                    label,
+                    placeholder="Enter quantity",
+                    key=f"{mode}_{item}"
+                )
 
-        submitted = st.form_submit_button("➡ Continue")
+                inputs[item] = value.strip() if value.strip() else None
 
-        if submitted:
-            st.session_state.form_data = inputs
+    submitted = st.form_submit_button("🔍 Review Stock")
+
+    if submitted:
+
+        missing = [k for k, v in inputs.items() if v is None]
+
+        if missing:
+            st.error("Missing inputs")
+        else:
             st.session_state.draft_data = inputs
-            st.session_state.step = 2
+            st.session_state.review_mode = True
+            st.session_state.scroll_to_review = True
             st.rerun()
 
 # -----------------------------
-# STEP 2
+# REVIEW SECTION
 # -----------------------------
-elif st.session_state.step == 2:
+if st.session_state.review_mode:
+
+    st.markdown('<div id="review_section"></div>', unsafe_allow_html=True)
 
     st.markdown("## Review")
 
     for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    c1, c2 = st.columns(2)
-
-    if c1.button("⬅ Back"):
-        st.session_state.step = 1
-        st.rerun()
-
-    if c2.button("✅ Submit"):
-        st.session_state.step = 3
-        st.rerun()
+    if st.button("✅ Submit"):
+        st.session_state.proceed_submit = True
 
 # -----------------------------
-# STEP 3 (FIXED GOOGLE SHEETS LOGIC)
+# AUTO SCROLL
 # -----------------------------
-elif st.session_state.step == 3:
+if st.session_state.scroll_to_review:
+    scroll_to_review()
+    st.session_state.scroll_to_review = False
+
+# -----------------------------
+# FINAL SUBMIT
+# -----------------------------
+if st.session_state.proceed_submit:
 
     try:
-        with st.spinner("Saving..."):
+        with st.spinner("Saving stock..."):
 
-            sheet_data = ws.get_all_values()
+            sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
 
-            tx = str(uuid.uuid4())[:8]
-            st.session_state.tx_id = tx
+            submission_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
-            submission_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if not st.session_state.tx_id:
+                st.session_state.tx_id = str(uuid.uuid4())[:8]
 
-            # -----------------------------
-            # FIND / CREATE DATE COLUMN
-            # -----------------------------
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
             else:
                 col_index = len(headers) + 1
-                ws.update_cell(1, col_index, date_str)
+                sheet.update_cell(1, col_index, date_str)
 
-            # -----------------------------
-            # MAP ITEM → ROW
-            # -----------------------------
-            col_values = ws.col_values(1)
+            col_values = sheet.col_values(1)
             item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
-            # -----------------------------
-            # BUILD CELLS
-            # -----------------------------
             cells = []
 
             for item, qty in st.session_state.draft_data.items():
-
-                if qty is None or qty == "":
-                    continue
-
                 row = item_to_row.get(item)
-
                 if row:
                     cells.append(Cell(row=row, col=col_index, value=qty))
 
-            # -----------------------------
-            # WRITE TO SHEET
-            # -----------------------------
             if cells:
-                ws.update_cells(cells, value_input_option="USER_ENTERED")
+                sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # -----------------------------
-            # EMAIL (UNCHANGED)
-            # -----------------------------
+            # ---------------- EMAIL ----------------
             report = f"""
 Stock Submission Report
 
 Submitted By: System Auto Entry
 Time: {submission_time}
-Transaction ID: {tx}
+Transaction ID: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
 Mode: {st.session_state.mode}
 
@@ -307,13 +323,61 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             server.sendmail(sender_email, "Ramees@bartksa.com", msg.as_string())
             server.quit()
 
-            time.sleep(2)
+            st.session_state.proceed_submit = False
+            st.session_state.review_mode = False
+            st.session_state.show_success = True
+            st.session_state.submitted = True
 
-            st.session_state.step = 1
-            st.session_state.form_data = {}
-            st.session_state.draft_data = {}
-
-            st.switch_page("pages/staff_dashboard.py")
+        st.rerun()
 
     except Exception as e:
-        st.error(f"ERROR: {e}")
+        st.error(f"Error: {e}")
+
+# -----------------------------
+# SUCCESS SCREEN
+# -----------------------------
+if st.session_state.show_success:
+
+    st.markdown("""
+    <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    ">
+        <div style="
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            text-align: center;
+            width: 500px;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.3);
+        ">
+            <div style="font-size: 90px; color: #00c853;">✔</div>
+            <div style="font-size: 36px; font-weight: 900;">SUBMITTED</div>
+            <div style="margin-top:10px; color: gray;">
+                Stock saved successfully
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
+
+    time.sleep(3)
+
+    st.session_state.page = "mode_select"
+    st.session_state.mode = None
+    st.session_state.review_mode = False
+    st.session_state.draft_data = {}
+    st.session_state.show_success = False
+    st.session_state.submitted = False
+    st.session_state.tx_id = None
+
+    st.switch_page("pages/staff_dashboard.py")
