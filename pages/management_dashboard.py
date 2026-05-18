@@ -10,7 +10,6 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 from gspread.exceptions import APIError
-import time
 
 # =========================================================
 # PAGE CONFIG
@@ -24,7 +23,7 @@ st.title("📦 BART - Stock Management (All Branches)")
 # =========================================================
 
 def show_api_error():
-    st.error("⚠️ API Error. Please try again later.")
+    st.error("⚠️ API Error")
     st.stop()
 
 # =========================================================
@@ -46,26 +45,19 @@ def get_client():
     )
     return gspread.authorize(creds)
 
-try:
-    client = get_client()
-except:
-    show_api_error()
+client = get_client()
 
 # =========================================================
-# BRANCHES
+# LOAD BRANCHES (ALL 28+)
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=300)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
     return [b for b in data if b.get("SheetID") and b.get("BranchName")]
 
-try:
-    branches = load_branches()
-except (APIError, Exception):
-    show_api_error()
-
+branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
@@ -76,59 +68,38 @@ branch_names = [b["BranchName"] for b in branches]
 def get_sheets(branches):
     cache = {}
     for b in branches:
-        sid = b.get("SheetID")
-        if sid:
-            try:
-                cache[sid] = client.open_by_key(sid)
-            except:
-                pass
+        sid = b["SheetID"]
+        try:
+            cache[sid] = client.open_by_key(sid)
+        except:
+            continue
     return cache
 
-try:
-    sheet_cache = get_sheets(branches)
-except:
-    show_api_error()
+sheet_cache = get_sheets(tuple(branches))
 
 # =========================================================
-# FETCH SHEETS
+# FETCH DATA
 # =========================================================
 
-@st.cache_data(ttl=None)
-def fetch_sheet_range(sheet_id):
+def fetch_sheet(sheet_id):
     try:
         ws = sheet_cache[sheet_id].worksheet("Stocks")
-        return ws.get("A1:ZZ1000")
+        return ws.get_all_values()
     except:
         return None
 
 def fetch_branch(branch):
-    sid = branch.get("SheetID")
-    if not sid or sid not in sheet_cache:
+    sid = branch["SheetID"]
+    if sid not in sheet_cache:
         return branch["BranchName"], None
-    return branch["BranchName"], fetch_sheet_range(sid)
+    return branch["BranchName"], fetch_sheet(sid)
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=300)
 def load_all_data(branches):
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
 
-# =========================================================
-# FIRST LOAD
-# =========================================================
-
-try:
-    all_data = load_all_data(branches)
-except:
-    show_api_error()
-
-# =========================================================
-# BACK BUTTON ONLY
-# =========================================================
-if st.button("🔙 Back"):
-    st.switch_page("app.py")
-    
-        
-
+all_data = load_all_data(tuple(branches))
 
 # =========================================================
 # DATE
@@ -141,7 +112,7 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 # PROCESS STOCK
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -211,11 +182,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
-daily_items, weekly_items = process_stock(
-    all_data,
-    selected_date_str,
-    branch_names
-)
+daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # =========================================================
 # DATAFRAME
@@ -238,7 +205,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# GRID UTIL
+# GRID
 # =========================================================
 
 def get_width(series, min_width):
@@ -247,7 +214,7 @@ def get_width(series, min_width):
         max_len = series.map(len).max()
         if pd.isna(max_len):
             return min_width
-        return max(min_width, int(max_len * 5 + 25))
+        return max(min_width, int(max_len * 6))
     except:
         return min_width
 
@@ -261,30 +228,13 @@ def render_grid(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column(
-        "Item Name",
-        pinned="left",
-        minWidth=get_width(df["Item Name"], 90)
-    )
-
-    gb.configure_column(
-        "SKU",
-        pinned="left",
-        minWidth=get_width(df["SKU"], 40)
-    )
-
-    gb.configure_column(
-        "UOM",
-        pinned="left",
-        minWidth=get_width(df["UOM"], 40)
-    )
+    gb.configure_column("Item Name", pinned="left", minWidth=get_width(df["Item Name"], 120))
+    gb.configure_column("SKU", pinned="left", minWidth=get_width(df["SKU"], 60))
+    gb.configure_column("UOM", pinned="left", minWidth=get_width(df["UOM"], 60))
 
     for col in branch_names:
         if col in df.columns:
-            gb.configure_column(
-                col,
-                minWidth=get_width(df[col], 120)
-            )
+            gb.configure_column(col, minWidth=get_width(df[col], 120))
 
     gb.configure_default_column(
         resizable=True,
@@ -296,13 +246,10 @@ def render_grid(df, title):
         df,
         gridOptions=gb.build(),
         theme="streamlit",
-        fit_columns_on_grid_load=False,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
         key=title
     )
-
-# =========================================================
-# DISPLAY
-# =========================================================
 
 render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
@@ -330,12 +277,8 @@ def create_excel(daily_df, weekly_df):
 
         total_cols = len(rows[0])
 
-        ws.merge_cells(
-            start_row=start_row,
-            start_column=1,
-            end_row=start_row,
-            end_column=total_cols
-        )
+        ws.merge_cells(start_row=start_row, start_column=1,
+                       end_row=start_row, end_column=total_cols)
 
         ws.cell(row=start_row, column=1, value=title).font = Font(bold=True, size=14)
 
@@ -353,8 +296,8 @@ def create_excel(daily_df, weekly_df):
 
         return row_idx + len(rows) + 3
 
-    next_row = write_section("📦 DAILY STOCK", daily_df, 1)
-    write_section("📦 WEEKLY STOCK", weekly_df, next_row)
+    next_row = write_section("DAILY STOCK", daily_df, 1)
+    write_section("WEEKLY STOCK", weekly_df, next_row)
 
     for col in ws.columns:
         try:
@@ -371,10 +314,8 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Excel)",
+    "📥 Download Excel",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
-
-
