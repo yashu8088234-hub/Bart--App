@@ -146,10 +146,6 @@ if st.session_state.page == "mode_select":
 
     st.markdown("## Select Option")
 
-    # ✅ ADDED BACK BUTTON (ONLY CHANGE)
-    if st.button("⬅ Back to Dashboard"):
-        st.switch_page("pages/staff_dashboard.py")
-
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
@@ -161,6 +157,10 @@ if st.session_state.page == "mode_select":
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
         st.rerun()
+
+    # ✅ MOVED HERE (after stock buttons)
+    if st.button("⬅ Back to Dashboard"):
+        st.switch_page("pages/staff_dashboard.py")
 
     st.stop()
 
@@ -227,10 +227,10 @@ elif st.session_state.step == 2:
 
     st.markdown("## Review")
 
-    for k,v in st.session_state.draft_data.items():
+    for k, v in st.session_state.draft_data.items():
         st.write(f"{k} → {v}")
 
-    c1,c2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
     if c1.button("⬅ Back"):
         st.session_state.step = 1
