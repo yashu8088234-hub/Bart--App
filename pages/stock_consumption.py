@@ -10,78 +10,28 @@ import smtplib
 from email.mime.text import MIMEText
 
 # -----------------------------
-# UI SETUP (BACKGROUND + CSS)
+# UI SETUP
 # -----------------------------
 set_background("barthomepage.jpg")
 st.set_page_config(page_title="Stock System", layout="wide")
 
 st.markdown("""
 <style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stSidebar"] {display:none;}
+.block-container {padding:0 !important; max-width:100% !important;}
 
-/* 🌈 Background */
 .stApp {
-    background: radial-gradient(circle at top left, #e0f2fe, #eef2ff, #f8fafc);
+    background: linear-gradient(135deg,#eef2f7,#d6e4ff);
 }
 
-/* 🧊 Glass effect */
-.glass {
-    background: rgba(255, 255, 255, 0.25);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-    padding: 20px;
+div.stButton > button{
+    height:55px;
+    font-size:18px;
+    border-radius:10px;
 }
-
-/* 🧠 Title */
-h1 {
-    font-weight: 800 !important;
-    letter-spacing: 1px;
-    text-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-
-/* 🧷 Buttons */
-div.stButton > button {
-    height: 52px;
-    font-size: 17px;
-    border-radius: 14px;
-    background: rgba(255,255,255,0.35);
-    border: 1px solid rgba(255,255,255,0.4);
-    backdrop-filter: blur(10px);
-    transition: all 0.25s ease-in-out;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
-}
-
-div.stButton > button:hover {
-    transform: translateY(-2px) scale(1.02);
-    background: rgba(255,255,255,0.55);
-}
-
-/* ✍️ Inputs */
-input {
-    border-radius: 12px !important;
-    background: rgba(255,255,255,0.4) !important;
-    border: 1px solid rgba(255,255,255,0.4) !important;
-}
-
-/* 📦 Layout spacing */
-.block-container {
-    padding-top: 1rem !important;
-    padding-bottom: 2rem !important;
-}
-
-/* 🧾 Headings */
-h2 {
-    font-weight: 700;
-    color: #1e293b;
-}
-
-/* 🪶 Alerts */
-.stAlert {
-    border-radius: 12px;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -102,17 +52,30 @@ st.session_state.setdefault("scroll_to_review", False)
 st.session_state.setdefault("proceed_submit", False)
 
 # -----------------------------
-# TITLE (GLASS HEADER)
+# SCROLL FUNCTION
+# -----------------------------
+def scroll_to_review():
+    st.markdown(
+        """
+        <script>
+            const el = document.getElementById("review_section");
+            if (el) {
+                el.scrollIntoView({behavior: "smooth"});
+            }
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
+
+# -----------------------------
+# TITLE
 # -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
 
-st.markdown(f"""
-<div class="glass" style="text-align:center;margin-bottom:20px;">
-    <h1 style="color:red;margin:0;">
-        {branch} - Stock System
-    </h1>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f"<h1 style='text-align:center;color:red;'>{branch} - Stock System</h1>",
+    unsafe_allow_html=True
+)
 
 # -----------------------------
 # SHEET CHECK
@@ -152,7 +115,7 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD DATA
+# LOAD COLUMN A (UNCHANGED LOGIC)
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
@@ -160,6 +123,9 @@ def load_column_a(ws):
 
 items_list = load_column_a(sheet)
 
+# -----------------------------
+# ONLY ADDITION: LOAD COLUMN C (UMO)
+# -----------------------------
 def load_column_c(ws):
     data = ws.get_all_values()
     return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data[1:]]
@@ -183,15 +149,13 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# MODE SELECT (GLASS UI)
+# MODE SELECT
 # -----------------------------
 if st.session_state.page == "mode_select":
 
     st.session_state.show_success = False
 
-    st.markdown('<div class="glass">', unsafe_allow_html=True)
     st.markdown("## Select Option")
-
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock"):
@@ -203,8 +167,6 @@ if st.session_state.page == "mode_select":
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
         st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if st.button("⬅ Back to Staff"):
         st.switch_page("pages/staff_dashboard.py")
@@ -237,11 +199,7 @@ date_str = str(date)
 # -----------------------------
 # INPUT FORM
 # -----------------------------
-st.markdown("""
-<div class="glass">
-    <h2>Enter Stock</h2>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Enter Stock")
 
 inputs = {}
 
@@ -254,13 +212,14 @@ with st.form("stock_form", clear_on_submit=False):
             if i + j < len(filtered_items):
 
                 item = filtered_items[i + j]
-                umo = umo_list[i + j] if i + j < len(umo_list) else ""
 
+                # ONLY UI ADDITION (NO LOGIC CHANGE)
+                umo = umo_list[i + j] if i + j < len(umo_list) else ""
                 label = f"{item} [{umo}]"
 
                 value = col.text_input(
                     label,
-                    placeholder=f"Enter qty for {item}",
+                    placeholder="Enter quantity",
                     key=f"{mode}_{item}"
                 )
 
@@ -281,36 +240,29 @@ with st.form("stock_form", clear_on_submit=False):
             st.rerun()
 
 # -----------------------------
-# REVIEW SECTION (GLASS UI)
+# REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
 
-    st.markdown('<div class="glass">', unsafe_allow_html=True)
+    st.markdown('<div id="review_section"></div>', unsafe_allow_html=True)
 
     st.markdown("## Review")
 
     for k, v in st.session_state.draft_data.items():
-        st.markdown(f"""
-        <div style="
-            padding:8px 12px;
-            margin:6px 0;
-            border-radius:10px;
-            background:rgba(255,255,255,0.4);
-            display:flex;
-            justify-content:space-between;
-        ">
-            <strong>{k}</strong>
-            <span>{v}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.write(f"{k} → {v}")
 
     if st.button("✅ Submit"):
         st.session_state.proceed_submit = True
 
-    st.markdown('</div>', unsafe_allow_html=True)
+# -----------------------------
+# AUTO SCROLL
+# -----------------------------
+if st.session_state.scroll_to_review:
+    scroll_to_review()
+    st.session_state.scroll_to_review = False
 
 # -----------------------------
-# FINAL SUBMIT (UNCHANGED LOGIC)
+# FINAL SUBMIT
 # -----------------------------
 if st.session_state.proceed_submit:
 
@@ -344,7 +296,7 @@ if st.session_state.proceed_submit:
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # EMAIL (unchanged)
+            # ---------------- EMAIL ----------------
             report = f"""
 Stock Submission Report
 
@@ -382,7 +334,7 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
         st.error(f"Error: {e}")
 
 # -----------------------------
-# SUCCESS SCREEN (GLASS OVERLAY)
+# SUCCESS SCREEN
 # -----------------------------
 if st.session_state.show_success:
 
@@ -393,32 +345,30 @@ if st.session_state.show_success:
         left: 0;
         width: 100%;
         height: 100vh;
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(12px);
+        background: rgba(0,0,0,0.7);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 9999;
     ">
         <div style="
-            background: rgba(255,255,255,0.85);
-            padding: 60px;
-            border-radius: 24px;
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
             text-align: center;
-            width: 420px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-            backdrop-filter: blur(12px);
+            width: 500px;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.3);
         ">
-            <div style="font-size: 90px;">✅</div>
-            <div style="font-size: 34px; font-weight: 800;">SUBMITTED</div>
-            <div style="margin-top:10px; color: #64748b;">
+            <div style="font-size: 90px; color: #00c853;">✔</div>
+            <div style="font-size: 36px; font-weight: 900;">SUBMITTED</div>
+            <div style="margin-top:10px; color: gray;">
                 Stock saved successfully
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.toast(f"✔ Submitted | TX: {st.session_state.tx_id}", icon="✨")
+    st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
 
     time.sleep(3)
 
@@ -431,3 +381,4 @@ if st.session_state.show_success:
     st.session_state.tx_id = None
 
     st.switch_page("pages/staff_dashboard.py")
+
