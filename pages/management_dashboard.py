@@ -125,9 +125,9 @@ except:
 # BACK BUTTON ONLY
 # =========================================================
 
-col1, col2, col3 = st.columns(3)
+col1= st.columns(1)
 
-with col3:
+with col1:
     if st.button("🔙 Back"):
         st.switch_page("app.py")
 
