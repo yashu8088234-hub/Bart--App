@@ -91,7 +91,7 @@ tab_name = st.session_state.get("tab_name")
 
 if not sheet_id or not tab_name:
     st.error("Session expired")
-    if st.button("⬅ Back to Dashboard"):
+    if st.button("⬅ Back to Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
     st.stop()
 
