@@ -42,10 +42,11 @@ if "page" not in st.session_state:
     st.session_state.page = "mode_select"
 
 st.session_state.setdefault("mode", None)
-st.session_state.setdefault("step", 1)   # ⭐ NEW STEP SYSTEM
+st.session_state.setdefault("step", 1)
 st.session_state.setdefault("draft_data", {})
+st.session_state.setdefault("form_data", {})   # ⭐ IMPORTANT FIX
+st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("tx_id", None)
-st.session_state.setdefault("submitted", False)
 
 # -----------------------------
 # TITLE
@@ -120,12 +121,12 @@ if daily_start is None or weekly_start is None:
     st.stop()
 
 # -----------------------------
-# MODE SELECT (RESET FLOW)
+# MODE SELECT
 # -----------------------------
 if st.session_state.page == "mode_select":
 
     st.session_state.step = 1
-    st.session_state.draft_data = {}
+    st.session_state.form_data = {}   # reset only here
     st.session_state.mode = None
 
     st.markdown("## Select Operation ")
@@ -145,7 +146,7 @@ if st.session_state.page == "mode_select":
     st.stop()
 
 # -----------------------------
-# STOCK DATA
+# STOCK ENTRY DATA
 # -----------------------------
 mode = st.session_state.mode
 
@@ -156,21 +157,18 @@ else:
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
-# -----------------------------
-# DATE (same logic kept)
-# -----------------------------
 default_date = datetime.today().date() - timedelta(days=1)
 date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
 
 # -----------------------------
-# STEP 1 → ENTRY
+# STEP 1 - ENTRY (PERSIST FIX HERE)
 # -----------------------------
 if st.session_state.step == 1:
 
     st.markdown("## Step 1: Enter Stock")
 
-    inputs = {}
+    inputs = st.session_state.form_data   # ⭐ restore old data
 
     with st.form("stock_form"):
 
@@ -188,6 +186,7 @@ if st.session_state.step == 1:
 
                     value = col.text_input(
                         label,
+                        value=inputs.get(item, ""),   # ⭐ PREFILL FIX
                         key=f"{mode}_{item}"
                     )
 
@@ -203,12 +202,13 @@ if st.session_state.step == 1:
                 st.error("Missing inputs")
 
             else:
+                st.session_state.form_data = inputs   # ⭐ SAVE DATA
                 st.session_state.draft_data = inputs
                 st.session_state.step = 2
                 st.rerun()
 
 # -----------------------------
-# STEP 2 → REVIEW
+# STEP 2 - REVIEW
 # -----------------------------
 elif st.session_state.step == 2:
 
@@ -228,7 +228,7 @@ elif st.session_state.step == 2:
         st.rerun()
 
 # -----------------------------
-# STEP 3 → SUBMIT
+# STEP 3 - SUBMIT
 # -----------------------------
 elif st.session_state.step == 3:
 
@@ -250,7 +250,6 @@ elif st.session_state.step == 3:
                 sheet.update_cell(1, col_index, date_str)
 
             col_values = sheet.col_values(1)
-
             item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
             cells = []
@@ -263,24 +262,21 @@ elif st.session_state.step == 3:
             if cells:
                 sheet.update_cells(cells, value_input_option="USER_ENTERED")
 
-            # EMAIL (UNCHANGED)
+            # EMAIL
             report = f"""
 Stock Submission Report
 
-Submitted By: System Auto Entry
 Time: {submission_time}
-Transaction ID: {st.session_state.tx_id}
+TX: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
 Mode: {st.session_state.mode}
-
-STATUS: STOCK SUBMITTED SUCCESSFULLY
 """
 
             sender_email = "yashu8088234@gmail.com"
             sender_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = MIMEText(report)
-            msg["Subject"] = "New Stock Submission"
+            msg["Subject"] = "Stock Submission"
             msg["From"] = sender_email
             msg["To"] = "yash2002anitha@gmail.com"
 
@@ -290,15 +286,15 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
-            st.success("🎉 STOCK SUBMITTED SUCCESSFULLY!")
-
+            st.success("🎉 Stock Submitted Successfully!")
             st.balloons()
 
             time.sleep(2)
 
-            # RESET FLOW
+            # RESET
             st.session_state.step = 1
             st.session_state.page = "mode_select"
+            st.session_state.form_data = {}
             st.session_state.draft_data = {}
             st.session_state.tx_id = None
 
