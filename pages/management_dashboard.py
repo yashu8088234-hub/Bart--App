@@ -20,13 +20,12 @@ st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
-# API ERROR SCREEN
+# ERROR HANDLER
 # =========================================================
 
 def show_api_error():
-    st.error("")
+    st.error("⚠️ API Error. Please try again later.")
     st.stop()
-    time.sleep(2)
 
 # =========================================================
 # GOOGLE AUTH
@@ -56,7 +55,7 @@ except:
 # BRANCHES
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=300)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -64,9 +63,7 @@ def load_branches():
 
 try:
     branches = load_branches()
-except APIError:
-    show_api_error()
-except:
+except (APIError, Exception):
     show_api_error()
 
 branch_names = [b["BranchName"] for b in branches]
@@ -77,18 +74,14 @@ branch_names = [b["BranchName"] for b in branches]
 
 @st.cache_resource
 def get_sheets(branches):
-
     cache = {}
-
     for b in branches:
         sid = b.get("SheetID")
-
         if sid:
             try:
                 cache[sid] = client.open_by_key(sid)
             except:
                 pass
-
     return cache
 
 try:
@@ -102,113 +95,22 @@ except:
 
 @st.cache_data(ttl=300)
 def fetch_sheet_range(sheet_id):
-
     try:
         ws = sheet_cache[sheet_id].worksheet("Stocks")
-        data = ws.get("A1:ZZ1000")
-        return data
-
+        return ws.get("A1:ZZ1000")
     except:
         return None
 
 def fetch_branch(branch):
-
     sid = branch.get("SheetID")
-
     if not sid or sid not in sheet_cache:
         return branch["BranchName"], None
-
     return branch["BranchName"], fetch_sheet_range(sid)
-
-# =========================================================
-# LOAD DATA
-# =========================================================
 
 @st.cache_data(ttl=200)
 def load_all_data(branches):
-
     with ThreadPoolExecutor(max_workers=10) as ex:
         return list(ex.map(fetch_branch, branches))
-
-# =========================================================
-# REFRESH CONTROL
-# =========================================================
-
-REFRESH_COOLDOWN = 90
-
-if "last_force_refresh" not in st.session_state:
-    st.session_state.last_force_refresh = 0
-
-if "hide_refresh_button" not in st.session_state:
-    st.session_state.hide_refresh_button = False
-
-remaining = REFRESH_COOLDOWN - (
-    time.time() - st.session_state.last_force_refresh
-)
-
-can_force_refresh = remaining <= 0
-
-# =========================================================
-# DATE
-# =========================================================
-
-selected_date = st.date_input("📅 Select Date")
-selected_date_str = selected_date.strftime("%Y-%m-%d")
-
-# =========================================================
-# BUTTONS
-# =========================================================
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("🔄 Refresh Date Only"):
-        st.rerun()
-
-with col2:
-
-    if st.session_state.hide_refresh_button:
-
-        st.info(f"⏳ Wait {max(int(remaining), 0)} sec")
-
-        if can_force_refresh:
-            st.session_state.hide_refresh_button = False
-            st.rerun()
-
-    else:
-
-        refresh_clicked = st.button(
-            "🔴 Refresh Stock",
-            disabled=not can_force_refresh
-        )
-
-        if refresh_clicked and can_force_refresh:
-
-            st.session_state.hide_refresh_button = True
-            st.session_state.last_force_refresh = time.time()
-
-            with st.spinner("Hold on ..."):
-
-                try:
-                    client = get_client()
-                    branches = load_branches()
-                    sheet_cache = get_sheets(branches)
-                    all_data = load_all_data(branches)
-
-                    st.session_state.last_force_refresh = time.time()
-
-                    time.sleep(10)  # ✅ ONLY CHANGE
-
-                    st.success("✅ Latest Stock-Loaded ")
-
-                except:
-                    show_api_error()
-
-            st.rerun()
-
-with col3:
-    if st.button("🔙 Back"):
-        st.switch_page("app.py")
 
 # =========================================================
 # FIRST LOAD
@@ -220,10 +122,17 @@ except:
     show_api_error()
 
 # =========================================================
+# DATE
+# =========================================================
+
+selected_date = st.date_input("📅 Select Date")
+selected_date_str = selected_date.strftime("%Y-%m-%d")
+
+# =========================================================
 # PROCESS STOCK
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=300)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
@@ -237,7 +146,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(h).strip() for h in raw[0]]
 
         date_index = None
-
         for i, h in enumerate(headers):
             if h == selected_date_str:
                 date_index = i
@@ -271,22 +179,18 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             key = f"{item}_{sku}_{uom}"
-
             target = daily if current_section == "daily" else weekly
 
             if key not in target:
-
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
-
                 for bn in branch_names:
                     target[key][bn] = 0
 
             qty = 0
-
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
@@ -309,49 +213,34 @@ daily_items, weekly_items = process_stock(
 # =========================================================
 
 def build_df(data_dict):
-
     rows = []
-
     for _, v in data_dict.items():
-
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
             "UOM": v["UOM"]
         }
-
         for b in branch_names:
             row[b] = v.get(b, 0)
-
         rows.append(row)
-
     return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # =========================================================
-# WIDTH FUNCTION (UNCHANGED)
+# GRID UTIL
 # =========================================================
 
 def get_width(series, min_width):
-
     try:
         series = series.fillna("").astype(str)
         max_len = series.map(len).max()
-
-        if pd.isna(max_len) or max_len is None:
+        if pd.isna(max_len):
             return min_width
-
-        width = int(max_len * 5 + 25)
-        return max(width, min_width)
-
+        return max(min_width, int(max_len * 5 + 25))
     except:
         return min_width
-
-# =========================================================
-# AGGRID (UNCHANGED AUTO WIDTH LOGIC)
-# =========================================================
 
 def render_grid(df, title):
 
@@ -410,13 +299,12 @@ render_grid(daily_df, "📦 Daily Items Stock")
 render_grid(weekly_df, "📦 Weekly Items Stock")
 
 # =========================================================
-# EXCEL EXPORT (UNCHANGED)
+# EXCEL EXPORT
 # =========================================================
 
 def create_excel(daily_df, weekly_df):
 
     output = BytesIO()
-
     wb = Workbook()
     ws = wb.active
     ws.title = "Stock Dashboard"
@@ -428,7 +316,6 @@ def create_excel(daily_df, weekly_df):
     def write_section(title, df, start_row):
 
         rows = list(dataframe_to_rows(df, index=False, header=True))
-
         if not rows:
             return start_row + 2
 
@@ -447,14 +334,13 @@ def create_excel(daily_df, weekly_df):
 
         for r_i, row in enumerate(rows):
             for c_i, val in enumerate(row, 1):
-
-                c = ws.cell(row=row_idx + r_i, column=c_i, value=val)
-                c.alignment = align_center
+                cell = ws.cell(row=row_idx + r_i, column=c_i, value=val)
+                cell.alignment = align_center
 
                 if r_i == 0:
-                    c.font = header_font
+                    cell.font = header_font
                 elif r_i % 2 == 0:
-                    c.fill = zebra_fill
+                    cell.fill = zebra_fill
 
         return row_idx + len(rows) + 3
 
@@ -462,22 +348,12 @@ def create_excel(daily_df, weekly_df):
     write_section("📦 WEEKLY STOCK", weekly_df, next_row)
 
     for col in ws.columns:
-
-        max_length = 0
-
         try:
-            column = get_column_letter(col[0].column)
+            col_letter = get_column_letter(col[0].column)
+            max_length = max(len(str(cell.value)) for cell in col if cell.value)
+            ws.column_dimensions[col_letter].width = max_length + 3
         except:
-            continue
-
-        for cell in col:
-            try:
-                if cell.value:
-                    max_length = max(max_length, len(str(cell.value)))
-            except:
-                pass
-
-        ws.column_dimensions[column].width = max_length + 3
+            pass
 
     wb.save(output)
     output.seek(0)
@@ -486,8 +362,18 @@ def create_excel(daily_df, weekly_df):
 excel_file = create_excel(daily_df, weekly_df)
 
 st.download_button(
-    "📥 Download Stock Report (Daily + Weekly Excel)",
+    "📥 Download Stock Report (Excel)",
     excel_file,
     file_name="stock_report.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+
+# =========================================================
+# BACK BUTTON ONLY
+# =========================================================
+
+col1, col2, col3 = st.columns(3)
+
+with col3:
+    if st.button("🔙 Back"):
+        st.switch_page("app.py")
