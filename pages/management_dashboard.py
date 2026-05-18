@@ -128,7 +128,7 @@ def fetch_branch(branch):
 # LOAD DATA
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=200)
 def load_all_data(branches):
 
     with ThreadPoolExecutor(max_workers=10) as ex:
