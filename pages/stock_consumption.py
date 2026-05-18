@@ -135,12 +135,10 @@ if st.session_state.page == "mode_select":
     if c1.button("📦 Daily Stock"):
         st.session_state.mode = "daily"
         st.session_state.page = "stock_entry"
-        st.rerun()
 
     if c2.button("📊 Weekly Stock"):
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
-        st.rerun()
 
     if st.button("⬅ Back to Staff Dashboard"):
         st.switch_page("pages/staff_dashboard.py")
@@ -159,13 +157,10 @@ else:
 
 st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
 
-# ✅ RESTORED BACK BUTTON (THIS WAS MISSING)
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
     st.session_state.step = 1
     st.session_state.form_data = {}
-    st.session_state.draft_data = {}
-    st.rerun()
 
 # -----------------------------
 # DATE
@@ -195,10 +190,9 @@ if st.session_state.step == 1:
 
                     item = filtered_items[i + j]
                     umo = umo_list[i + j] if i + j < len(umo_list) else ""
-                    label = f"{item} [{umo}]"
 
                     value = col.text_input(
-                        label,
+                        f"{item} [{umo}]",
                         value=inputs.get(item, ""),
                         key=f"{mode}_{item}"
                     )
@@ -218,7 +212,7 @@ if st.session_state.step == 1:
                 st.session_state.form_data = inputs
                 st.session_state.draft_data = inputs
                 st.session_state.step = 2
-                st.rerun()
+                st.stop()   # ✅ reduced rerun
 
 # -----------------------------
 # STEP 2 - REVIEW
@@ -234,11 +228,11 @@ elif st.session_state.step == 2:
 
     if c1.button("⬅ Back"):
         st.session_state.step = 1
-        st.rerun()
+        st.stop()   # ✅ no rerun
 
     if c2.button("✅ Confirm Submit"):
         st.session_state.step = 3
-        st.rerun()
+        st.stop()   # ✅ no rerun
 
 # -----------------------------
 # STEP 3 - SUBMIT
@@ -299,7 +293,6 @@ Mode: {st.session_state.mode}
             server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
             server.quit()
 
-            # SUCCESS POPUP (UNCHANGED)
             st.markdown("""
             <div style="
                 position: fixed;
@@ -319,7 +312,6 @@ Mode: {st.session_state.mode}
                     border-radius: 20px;
                     text-align: center;
                     box-shadow: 0px 10px 40px rgba(0,0,0,0.3);
-                    animation: pop 0.25s ease-in-out;
                 ">
                     <div style="font-size:70px;">✔</div>
                     <div style="font-size:28px;font-weight:700;margin-top:10px;">
@@ -330,18 +322,10 @@ Mode: {st.session_state.mode}
                     </div>
                 </div>
             </div>
-
-            <style>
-            @keyframes pop {
-                from {transform: scale(0.7); opacity: 0;}
-                to {transform: scale(1); opacity: 1;}
-            }
-            </style>
             """, unsafe_allow_html=True)
 
             time.sleep(2)
 
-            # RESET
             st.session_state.step = 1
             st.session_state.page = "mode_select"
             st.session_state.form_data = {}
