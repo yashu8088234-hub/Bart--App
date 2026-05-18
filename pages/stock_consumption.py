@@ -158,12 +158,12 @@ if st.session_state.page == "mode_select":
     st.markdown("## Select Option")
     c1, c2 = st.columns(2)
 
-    if c1.button("📦 Daily Stock"):
+    if c1.button("📦 Daily Stock [EXCLUDING THURSDAY]"):
         st.session_state.mode = "daily"
         st.session_state.page = "stock_entry"
         st.rerun()
 
-    if c2.button("📊 Weekly Stock"):
+    if c2.button("📊 Weekly Stock [ONLY THURSDAY]"):
         st.session_state.mode = "weekly"
         st.session_state.page = "stock_entry"
         st.rerun()
