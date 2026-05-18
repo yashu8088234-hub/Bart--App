@@ -3,14 +3,14 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
 import uuid
-from background import set_background
 from gspread import Cell
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 
-# ---------------- UI ----------------
-set_background("barthomepage.jpg")
+# -----------------------------
+# UI SETUP (BACKGROUND REMOVED AS REQUESTED)
+# -----------------------------
 st.set_page_config(page_title="Stock System", layout="wide")
 
 st.markdown("""
@@ -29,7 +29,9 @@ div.stButton > button{
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- SESSION ----------------
+# -----------------------------
+# SESSION INIT
+# -----------------------------
 if "page" not in st.session_state:
     st.session_state.page = "mode_select"
 
@@ -39,21 +41,17 @@ st.session_state.setdefault("form_data", {})
 st.session_state.setdefault("draft_data", {})
 st.session_state.setdefault("tx_id", None)
 
-# ---------------- STEP BAR (INLINE STYLE - NO EXTRA SPACE) ----------------
+# -----------------------------
+# STEP BAR (UNCHANGED STYLE)
+# -----------------------------
 def step_bar(step):
-    status = {
-        1: ("✔", "done"),
-        2: ("●", "active"),
-        3: ("○", "inactive")
-    }
-
     s1 = "✔ done" if step > 1 else "● active" if step == 1 else "○"
     s2 = "✔ done" if step > 2 else "● active" if step == 2 else "○"
-    s3 = "● active" if step == 3 else "○ inactive"
+    s3 = "● active" if step == 3 else "○"
 
     st.markdown(f"""
     <div style="display:flex;align-items:center;gap:10px;margin:5px 0;">
-        <b>{"✔" if step>1 else "1 Entry"}</b>
+        <b>{"✔ Entry" if step>1 else "1 Entry"}</b>
         ───▶
         <b>{"● Review" if step==2 else "2 Review"}</b>
         ───▶
@@ -61,7 +59,9 @@ def step_bar(step):
     </div>
     """, unsafe_allow_html=True)
 
-# ---------------- TITLE ----------------
+# -----------------------------
+# TITLE
+# -----------------------------
 branch = st.session_state.get("selected_branch", "Branch")
 
 st.markdown(
@@ -69,7 +69,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ---------------- SHEET ----------------
+# -----------------------------
+# SHEET CHECK
+# -----------------------------
 sheet_id = st.session_state.get("sheet_id")
 tab_name = st.session_state.get("tab_name")
 
@@ -77,7 +79,9 @@ if not sheet_id or not tab_name:
     st.error("Session expired")
     st.stop()
 
-# ---------------- GOOGLE ----------------
+# -----------------------------
+# GOOGLE SHEETS AUTH
+# -----------------------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
 
@@ -94,12 +98,19 @@ def sheet():
 
 ws = sheet()
 
-# ---------------- DATA ----------------
+# -----------------------------
+# DATA LOAD
+# -----------------------------
 def load_items(ws):
     data = ws.get_all_values()
     return [r[0].strip() for r in data if r and r[0].strip()]
 
+def load_umo(ws):
+    data = ws.get_all_values()
+    return [row[2].strip() if len(row) >= 3 else "" for row in data[1:]]
+
 items = load_items(ws)
+umo_list = load_umo(ws)
 
 daily_start = next(i for i,v in enumerate(items) if v=="DAILY ITEM")
 weekly_start = next(i for i,v in enumerate(items) if v=="WEEKLY ITEM")
@@ -108,9 +119,9 @@ mode = st.session_state.mode or "daily"
 
 filtered = items[daily_start+1:weekly_start] if mode=="daily" else items[weekly_start+1:]
 
-umo = [""] * len(filtered)
-
-# ---------------- MODE ----------------
+# -----------------------------
+# MODE SELECT
+# -----------------------------
 if st.session_state.page == "mode_select":
 
     st.session_state.step = 1
@@ -132,25 +143,31 @@ if st.session_state.page == "mode_select":
 
     st.stop()
 
-# ---------------- BACK BUTTON + STEP BAR SAME ROW ----------------
-col1, col2 = st.columns([1, 3])
+# -----------------------------
+# BACK + STEP BAR SAME ROW
+# -----------------------------
+c1, c2 = st.columns([1, 3])
 
-with col1:
+with c1:
     if st.button("⬅ Back"):
         st.session_state.page = "mode_select"
         st.session_state.step = 1
         st.session_state.form_data = {}
         st.rerun()
 
-with col2:
+with c2:
     step_bar(st.session_state.step)
 
-# ---------------- DATE ----------------
+# -----------------------------
+# DATE
+# -----------------------------
 default_date = datetime.today().date() - timedelta(days=1)
 date = st.date_input("Select Operation Date", value=default_date)
 date_str = str(date)
 
-# ---------------- STEP 1 ----------------
+# -----------------------------
+# STEP 1
+# -----------------------------
 if st.session_state.step == 1:
 
     st.markdown("## Enter Stock")
@@ -166,12 +183,14 @@ if st.session_state.step == 1:
                 if i + j < len(filtered):
 
                     item = filtered[i + j]
-                    umo_val = umo[i + j]
+
+                    # ✅ FIX: UMO RESTORED
+                    umo = umo_list[i + j] if i + j < len(umo_list) else ""
 
                     inputs[item] = col.text_input(
-                        f"{item} [{umo_val}]",
+                        f"{item} [{umo}]",   # ✔ restored exactly as you had
                         value=inputs.get(item, ""),
-                        placeholder="Enter quantity"   # ✅ RESTORED
+                        placeholder="Enter quantity"
                     )
 
         submitted = st.form_submit_button("➡ Continue")
@@ -187,7 +206,9 @@ if st.session_state.step == 1:
                 st.session_state.step = 2
                 st.rerun()
 
-# ---------------- STEP 2 ----------------
+# -----------------------------
+# STEP 2
+# -----------------------------
 elif st.session_state.step == 2:
 
     st.markdown("## Review")
@@ -205,7 +226,9 @@ elif st.session_state.step == 2:
         st.session_state.step = 3
         st.rerun()
 
-# ---------------- STEP 3 ----------------
+# -----------------------------
+# STEP 3
+# -----------------------------
 elif st.session_state.step == 3:
 
     try:
