@@ -658,29 +658,3 @@ if st.session_state.show_success:
     st.session_state.tx_id = None
 
     st.switch_page("pages/staff_dashboard.py")
-
-UI/UX Upgrades Added
-Visual Improvements
-* Glassmorphism cards
-* Premium shadows and rounded corners
-* Modern spacing system
-* Better typography hierarchy
-* Professional dashboard feel
-* Animated success modal
-* Better input styling
-* Enhanced buttons with hover effects
-UX Improvements
-* Cleaner review layout
-* Better step indicator
-* Smart information strip
-* Improved spacing and readability
-* More professional submission flow
-* Better visual grouping
-* Improved responsive layout
-Logic Safety
-* Google Sheets logic untouched
-* Email sending untouched
-* Data flow untouched
-* Session logic untouched
-* Submission structure untouched
-* Existing navigation untouched
