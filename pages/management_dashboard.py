@@ -101,7 +101,7 @@ except:
 # FETCH SHEETS
 # =========================================================
 
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=300)
 def fetch_sheet_range(sheet_id):
 
     try:
