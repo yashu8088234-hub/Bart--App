@@ -155,7 +155,7 @@ if st.session_state.page == "mode_select":
 
     st.session_state.show_success = False
 
-    st.markdown("## Select Option")
+    st.markdown("## Select Operation ")
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock [EXCLUDING THURSDAY]"):
