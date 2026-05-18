@@ -55,17 +55,25 @@ st.session_state.setdefault("proceed_submit", False)
 # SCROLL FUNCTION
 # -----------------------------
 def scroll_to_review():
-    st.markdown(
-        """
-        <script>
-            const el = document.getElementById("review_section");
-            if (el) {
-                el.scrollIntoView({behavior: "smooth"});
-            }
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <script>
+    setTimeout(function() {
+
+        const reviewSection =
+            window.parent.document.getElementById("review_section");
+
+        if (reviewSection) {
+
+            reviewSection.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+
+        }
+
+    }, 300);
+    </script>
+    """, unsafe_allow_html=True)
 
 # -----------------------------
 # TITLE
@@ -115,7 +123,7 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A (UNCHANGED LOGIC)
+# LOAD COLUMN A
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
@@ -124,7 +132,7 @@ def load_column_a(ws):
 items_list = load_column_a(sheet)
 
 # -----------------------------
-# ONLY ADDITION: LOAD COLUMN C (UMO)
+# LOAD COLUMN C (UMO)
 # -----------------------------
 def load_column_c(ws):
     data = ws.get_all_values()
@@ -156,6 +164,7 @@ if st.session_state.page == "mode_select":
     st.session_state.show_success = False
 
     st.markdown("## Select Operation ")
+
     c1, c2 = st.columns(2)
 
     if c1.button("📦 Daily Stock [EXCLUDING THURSDAY]"):
@@ -193,14 +202,14 @@ if st.button("⬅ Back"):
 # -----------------------------
 # DATE
 # -----------------------------
-# Default = yesterday
 default_date = datetime.today().date() - timedelta(days=1)
 
-# Still user can change manually
 date = st.date_input(
     "Select Operation Date",
     value=default_date
 )
+
+date_str = str(date)
 
 # -----------------------------
 # INPUT FORM
@@ -212,15 +221,17 @@ inputs = {}
 with st.form("stock_form", clear_on_submit=False):
 
     for i in range(0, len(filtered_items), 4):
+
         cols = st.columns(4)
 
         for j, col in enumerate(cols):
+
             if i + j < len(filtered_items):
 
                 item = filtered_items[i + j]
 
-                # ONLY UI ADDITION (NO LOGIC CHANGE)
                 umo = umo_list[i + j] if i + j < len(umo_list) else ""
+
                 label = f"{item} [{umo}]"
 
                 value = col.text_input(
@@ -239,12 +250,16 @@ with st.form("stock_form", clear_on_submit=False):
 
         if missing:
             st.error("Missing inputs")
+
         else:
             st.toast("Review section ready below ✔", icon="📋")
+
             st.session_state.draft_data = inputs
             st.session_state.review_mode = True
             st.session_state.scroll_to_review = True
+
             time.sleep(0.5)
+
             st.rerun()
 
 # -----------------------------
@@ -252,7 +267,11 @@ with st.form("stock_form", clear_on_submit=False):
 # -----------------------------
 if st.session_state.review_mode:
 
-    st.markdown('<div id="review_section"></div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div id="review_section" style="
+        padding-top:20px;
+    "></div>
+    """, unsafe_allow_html=True)
 
     st.markdown("## Review")
 
@@ -275,6 +294,7 @@ if st.session_state.scroll_to_review:
 if st.session_state.proceed_submit:
 
     try:
+
         with st.spinner("Saving stock..."):
 
             sheet_data = sheet.get_all_values()
@@ -287,22 +307,38 @@ if st.session_state.proceed_submit:
 
             if date_str in headers:
                 col_index = headers.index(date_str) + 1
+
             else:
                 col_index = len(headers) + 1
                 sheet.update_cell(1, col_index, date_str)
 
             col_values = sheet.col_values(1)
-            item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
+
+            item_to_row = {
+                val.strip(): i + 1
+                for i, val in enumerate(col_values)
+            }
 
             cells = []
 
             for item, qty in st.session_state.draft_data.items():
+
                 row = item_to_row.get(item)
+
                 if row:
-                    cells.append(Cell(row=row, col=col_index, value=qty))
+                    cells.append(
+                        Cell(
+                            row=row,
+                            col=col_index,
+                            value=qty
+                        )
+                    )
 
             if cells:
-                sheet.update_cells(cells, value_input_option="USER_ENTERED")
+                sheet.update_cells(
+                    cells,
+                    value_input_option="USER_ENTERED"
+                )
 
             # ---------------- EMAIL ----------------
             report = f"""
@@ -321,14 +357,23 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
             sender_password = st.secrets["EMAIL_PASSWORD"]
 
             msg = MIMEText(report)
+
             msg["Subject"] = "New Stock Submission"
             msg["From"] = sender_email
             msg["To"] = "yash2002anitha@gmail.com"
 
             server = smtplib.SMTP("smtp.gmail.com", 587)
+
             server.starttls()
+
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, "yash2002anitha@gmail.com", msg.as_string())
+
+            server.sendmail(
+                sender_email,
+                "yash2002anitha@gmail.com",
+                msg.as_string()
+            )
+
             server.quit()
 
             st.session_state.proceed_submit = False
@@ -368,15 +413,29 @@ if st.session_state.show_success:
             box-shadow: 0px 10px 30px rgba(0,0,0,0.3);
         ">
             <div style="font-size: 90px; color: #00c853;">✔</div>
-            <div style="font-size: 36px; font-weight: 900;">SUBMITTED</div>
-            <div style="margin-top:10px; color: gray;">
+
+            <div style="
+                font-size: 36px;
+                font-weight: 900;
+            ">
+                SUBMITTED
+            </div>
+
+            <div style="
+                margin-top:10px;
+                color: gray;
+            ">
                 Stock saved successfully
             </div>
+
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
+    st.toast(
+        f"Submitted ✔ | TX: {st.session_state.tx_id}",
+        icon="✔"
+    )
 
     time.sleep(3)
 
