@@ -30,21 +30,58 @@ header {visibility:hidden;}
     background: linear-gradient(135deg,#eef2f7,#d6e4ff);
 }
 
+/* HEADER TEXT */
 h1, h2, h3 {
     text-align: center;
+    font-family: Arial;
+}
+
+/* CARD STYLE */
+.card {
+    background: white;
+    padding: 18px;
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    margin-bottom: 15px;
+}
+
+/* BUTTON POLISH */
+.stButton>button {
+    width: 100%;
+    border-radius: 10px;
+    padding: 0.6rem;
+    font-weight: 600;
+    border: none;
+}
+
+/* PRIMARY BUTTON LOOK */
+div.stButton > button:hover {
+    transform: scale(1.02);
+    transition: 0.2s;
+}
+
+/* LOGIN BOX */
+.login-box {
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+}
+
+/* CENTER HEADER */
+.header-box {
+    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
+    padding: 22px;
+    border-radius: 14px;
+    text-align: center;
+    margin-bottom: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
 st.markdown("""
-<div style="
-    background: linear-gradient(90deg, #1f1f2e, #4b6cb7);
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    margin-bottom: 20px;
-">
+<div class="header-box">
 <h1 style='color:white; margin:0;'>BART Staff Dashboard</h1>
 <p style='color:#e0e0e0; margin:0;'>Select Branch & Access Operations</p>
 </div>
@@ -89,7 +126,6 @@ def check_timeout():
             st.session_state.auth_branch = None
             st.session_state.last_activity = None
             st.warning("⏱️ Logged out due to inactivity.")
-            st.rerun()
 
 check_timeout()
 
@@ -122,12 +158,17 @@ if st.session_state.selected_branch == "-- Select Branch --":
     st.session_state.auth_branch = None
     st.session_state.last_activity = None
 
-    with st.popover("Choose Branch"):
-        selected_branch = st.radio("Branch List", branch_options, index=0)
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        if selected_branch != "-- Select Branch --":
-            st.session_state.selected_branch = selected_branch
-            st.rerun()
+        with st.popover("Choose Branch"):
+            selected_branch = st.radio("Branch List", branch_options, index=0)
+
+            if selected_branch != "-- Select Branch --":
+                st.session_state.selected_branch = selected_branch
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     st.success(f"Selected Branch: {st.session_state.selected_branch}")
@@ -207,6 +248,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
     passwords = load_passwords()
 
     if not st.session_state.authenticated:
+
+        st.markdown('<div class="login-box">', unsafe_allow_html=True)
         st.subheader("Branch Login")
 
         password = st.text_input("Password", type="password")
@@ -233,8 +276,11 @@ if st.session_state.selected_branch != "-- Select Branch --":
             if st.button("Reset Password"):
                 st.session_state.reset_mode = True
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # ---------------- RESET PASSWORD ----------------
     if st.session_state.reset_mode:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
         st.subheader("Reset Password")
 
         admin_pass = st.text_input("Admin Password", type="password")
@@ -248,18 +294,19 @@ if st.session_state.selected_branch != "-- Select Branch --":
             else:
                 st.error("Wrong admin password")
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # ---------------- AFTER LOGIN ----------------
     if st.session_state.authenticated:
 
         st.success(f"Logged in: {st.session_state.selected_branch}")
 
-        col1,  col2 = st.columns(2)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
 
         if col1.button("📦 Stock Record"):
             refresh_activity()
             st.switch_page("pages/stock_consumption.py")
-
-        
 
         if col2.button("🔍 Stock View"):
             refresh_activity()
@@ -274,7 +321,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
             daily = []
             weekly = []
-
             current_section = None
 
             for row in data:
@@ -304,8 +350,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
                 total = 0
 
                 for i, v in enumerate(values):
-
-                    # ✅ FIX: first 3 columns untouched
                     if i < 3:
                         cleaned.append(v)
                         continue
@@ -336,8 +380,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
             st.subheader("📦 Weekly Items Stock")
             st.dataframe(pd.DataFrame(weekly), use_container_width=True, height=400)
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
 # ---------------- BACK ----------------
 if st.button("⬅ Back"):
     st.switch_page("app.py")
-
-
