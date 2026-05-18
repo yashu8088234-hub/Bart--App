@@ -23,12 +23,12 @@ header {visibility:hidden;}
 [data-testid="stSidebar"] {display:none;}
 .block-container {padding:10px !important; max-width:100% !important;}
 
-/* ===== BACKGROUND ===== */
+/* BACKGROUND */
 .stApp {
     background: radial-gradient(circle at top left, #e0eafc, #cfdef3, #d6e4ff);
 }
 
-/* ===== GLASS CARD ===== */
+/* GLASS CARD */
 .glass-card {
     background: rgba(255, 255, 255, 0.25);
     border-radius: 20px;
@@ -41,7 +41,7 @@ header {visibility:hidden;}
     animation: fadeIn 0.4s ease-in-out;
 }
 
-/* ===== INPUTS ===== */
+/* INPUTS */
 input, textarea {
     background: rgba(255,255,255,0.6) !important;
     border-radius: 12px !important;
@@ -53,7 +53,7 @@ input:focus {
     box-shadow: 0 0 10px rgba(122,167,255,0.4) !important;
 }
 
-/* ===== BUTTONS ===== */
+/* BUTTONS */
 .stButton > button {
     height: 55px;
     font-size: 18px;
@@ -70,13 +70,13 @@ input:focus {
     box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
-/* ===== ANIMATION ===== */
+/* ANIMATION */
 @keyframes fadeIn {
     from {opacity: 0; transform: translateY(10px);}
     to {opacity: 1; transform: translateY(0);}
 }
 
-/* ===== MOBILE ===== */
+/* MOBILE */
 @media (max-width: 768px) {
     .stButton > button {
         width: 100%;
@@ -97,9 +97,9 @@ if "step" not in st.session_state:
 
 st.session_state.setdefault("mode", None)
 st.session_state.setdefault("draft_data", {})
-st.session_state.setdefault("show_success", False)
 st.session_state.setdefault("proceed_submit", False)
 st.session_state.setdefault("tx_id", None)
+st.session_state.setdefault("show_success", False)
 
 # -----------------------------
 # TITLE
@@ -145,7 +145,7 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# DATA LOAD
+# LOAD DATA
 # -----------------------------
 def load_column_a(ws):
     data = ws.get_all_values()
@@ -168,8 +168,20 @@ daily_start = find_index(items_list, "DAILY ITEM")
 weekly_start = find_index(items_list, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
-    st.error("Missing markers")
+    st.error("Missing DAILY/WEEKLY markers")
     st.stop()
+
+# -----------------------------
+# MODE
+# -----------------------------
+mode = st.session_state.mode
+
+if mode == "daily":
+    filtered_items = items_list[daily_start + 1 : weekly_start]
+else:
+    filtered_items = items_list[weekly_start + 1 :]
+
+mode_label = "DAILY" if mode == "daily" else "WEEKLY"
 
 # -----------------------------
 # STEP PROGRESS
@@ -178,12 +190,22 @@ st.markdown(f"## Step {st.session_state.step}/3")
 st.progress(st.session_state.step / 3)
 
 # -----------------------------
-# STEP 1: MODE SELECT
+# 🔥 RESTORED STATUS BAR (FIX)
+# -----------------------------
+st.markdown(f"""
+<div class="glass-card" style="text-align:center;">
+    <h3>📊 Mode: {mode_label} STOCK</h3>
+    <p><b>Total Items:</b> {len(filtered_items)}</p>
+</div>
+""", unsafe_allow_html=True)
+
+# -----------------------------
+# STEP 1
 # -----------------------------
 if st.session_state.step == 1:
 
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown("### Select Stock Mode")
+    st.markdown("### Select Mode")
 
     c1, c2 = st.columns(2)
 
@@ -201,22 +223,13 @@ if st.session_state.step == 1:
     st.stop()
 
 # -----------------------------
-# ITEMS FILTER
+# DATE
 # -----------------------------
-mode = st.session_state.mode
-
-if mode == "daily":
-    filtered_items = items_list[daily_start + 1 : weekly_start]
-else:
-    filtered_items = items_list[weekly_start + 1 :]
-
-umo_map = {i: umo_list[i] if i < len(umo_list) else "" for i in range(len(filtered_items))}
-
 date = st.date_input("Select Date")
 date_str = str(date)
 
 # -----------------------------
-# STEP 2: ENTRY
+# STEP 2
 # -----------------------------
 if st.session_state.step == 2:
 
@@ -248,9 +261,7 @@ if st.session_state.step == 2:
     st.markdown("</div>", unsafe_allow_html=True)
 
     if submitted:
-        missing = [k for k, v in inputs.items() if v is None]
-
-        if missing:
+        if any(v is None for v in inputs.values()):
             st.error("Missing values")
         else:
             st.session_state.draft_data = inputs
@@ -262,7 +273,7 @@ if st.session_state.step == 2:
         st.rerun()
 
 # -----------------------------
-# STEP 3: REVIEW
+# STEP 3
 # -----------------------------
 if st.session_state.step == 3:
 
@@ -272,13 +283,13 @@ if st.session_state.step == 3:
     for k, v in st.session_state.draft_data.items():
         st.write(f"**{k}** → {v}")
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    if col1.button("⬅ Edit"):
+    if c1.button("⬅ Edit"):
         st.session_state.step = 2
         st.rerun()
 
-    if col2.button("✅ Submit"):
+    if c2.button("✅ Submit"):
         st.session_state.proceed_submit = True
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -289,7 +300,7 @@ if st.session_state.step == 3:
 if st.session_state.proceed_submit:
 
     try:
-        with st.spinner("Saving..."):
+        with st.spinner("Saving stock..."):
 
             sheet_data = sheet.get_all_values()
             headers = sheet_data[0]
@@ -321,6 +332,7 @@ if st.session_state.proceed_submit:
 Stock Submitted
 TX: {st.session_state.tx_id}
 Branch: {st.session_state.get('selected_branch')}
+Mode: {mode_label}
 """
 
             msg = MIMEText(report)
@@ -345,7 +357,7 @@ Branch: {st.session_state.get('selected_branch')}
         st.error(f"Error: {e}")
 
 # -----------------------------
-# SUCCESS SCREEN
+# SUCCESS
 # -----------------------------
 if st.session_state.show_success:
 
@@ -364,8 +376,8 @@ if st.session_state.show_success:
         
         <div class="glass-card" style="width:420px;text-align:center;">
             <div style="font-size:80px;color:#00c853;">✔</div>
-            <h2>SUCCESS</h2>
-            <p>Stock submitted successfully</p>
+            <h2>SUBMITTED</h2>
+            <p>Stock saved successfully</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
