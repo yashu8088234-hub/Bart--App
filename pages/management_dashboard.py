@@ -515,8 +515,8 @@ def make_grid(df, key):
         "SKU",
         pinned="left",
         lockPinned=True,
-        minWidth=120,
-        maxWidth=180,
+        minWidth=100,
+        maxWidth=100,
         wrapText=True,
         autoHeight=True
     )
