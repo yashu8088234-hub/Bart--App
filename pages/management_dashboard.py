@@ -487,8 +487,8 @@ def make_grid(df, key):
         sortable=True,
         filter=True,
         editable=False,
-        wrapText=True,
-        autoHeight=True,
+        wrapText=False,
+        autoHeight=False,
         cellStyle={
             "whiteSpace": "normal",
             "lineHeight": "10px",
@@ -507,7 +507,8 @@ def make_grid(df, key):
         lockPinned=True,
         minWidth=220,
         maxWidth=450,
-        wrapText=True,
+        wrapText=False,
+        Height=10,
         autoHeight=False
     )
 
@@ -517,7 +518,8 @@ def make_grid(df, key):
         lockPinned=True,
         minWidth=80,
         maxWidth=80,
-        wrapText=True,
+        Height=10,
+        wrapText=False,
         autoHeight=False
     )
 
@@ -527,7 +529,8 @@ def make_grid(df, key):
         lockPinned=True,
         minWidth=70,
         maxWidth=90,
-        wrapText=True,
+        wrapText=False,
+        Height=10,
         autoHeight=False
     )
 
