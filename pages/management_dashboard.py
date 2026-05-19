@@ -425,24 +425,50 @@ MISC_ITEMS = set([
 ])
 
 # ========================================================
+# NORMALIZE TEXT
+# ========================================================
+
+def normalize_text(value):
+
+    return (
+        str(value)
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .strip()
+        .lower()
+    )
+
+# ========================================================
+# PRE-NORMALIZED CATEGORY SETS
+# ========================================================
+
+NORMALIZED_FOOD_ITEMS = {
+    normalize_text(x) for x in FOOD_ITEMS
+}
+
+NORMALIZED_DRY_ITEMS = {
+    normalize_text(x) for x in DRY_ITEMS
+}
+
+NORMALIZED_MISC_ITEMS = {
+    normalize_text(x) for x in MISC_ITEMS
+}
+
+# ========================================================
 # CATEGORY DETECTION
 # ========================================================
 
 def detect_category(name):
 
-    item_name = str(name).strip().lower()
+    item_name = normalize_text(name)
 
-    food_items = {x.strip().lower() for x in FOOD_ITEMS}
-    dry_items = {x.strip().lower() for x in DRY_ITEMS}
-    misc_items = {x.strip().lower() for x in MISC_ITEMS}
-
-    if item_name in food_items:
+    if item_name in NORMALIZED_FOOD_ITEMS:
         return "FOOD ITEMS"
 
-    if item_name in dry_items:
+    if item_name in NORMALIZED_DRY_ITEMS:
         return "DRY ITEMS"
 
-    if item_name in misc_items:
+    if item_name in NORMALIZED_MISC_ITEMS:
         return "Miscellaneous"
 
     return "Miscellaneous"
@@ -598,7 +624,7 @@ def make_grid(df, key):
         enable_enterprise_modules=False,
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
-        reload_data=False,
+        reload_data=True,
         height=500,
         width="100%",
         key=key
