@@ -536,6 +536,7 @@ def make_grid(df, key):
         "Item Name",
         pinned="left",
         lockPinned=True,
+        width=350, minWidth=350, maxWidth=350,
         width=250
     )
 
@@ -543,6 +544,7 @@ def make_grid(df, key):
         "SKU",
         pinned="left",
         lockPinned=True,
+        width=350, minWidth=350, maxWidth=350,
         width=90
     )
 
@@ -550,6 +552,7 @@ def make_grid(df, key):
         "UOM",
         pinned="left",
         lockPinned=True,
+        width=350, minWidth=350, maxWidth=350,
         width=90
     )
 
@@ -564,6 +567,7 @@ def make_grid(df, key):
             type=["numericColumn"],
             width=105,
             wrapText=False,
+            width=350, minWidth=350, maxWidth=350,
             autoHeight=False,
             cellStyle={
                 "textAlign": "center",
