@@ -10,6 +10,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 import time
+import re
 
 # ========================================================
 # PAGE CONFIG
@@ -39,7 +40,7 @@ def get_client():
 
 client = get_client()
 
-# =========================================================
+# ========================================================
 # BRANCHES
 # =========================================================
 
@@ -49,7 +50,6 @@ def load_branches():
     data = sheet.get_all_records()
 
     branches = []
-
     for b in data:
         if b.get("SheetID") and b.get("BranchName"):
             branches.append({
@@ -63,51 +63,29 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
-# RETRY CONFIG
+# RETRY SYSTEM
 # =========================================================
 
 MAX_RETRIES = 10
 RETRY_DELAY = 60
-
 branch_cache = {}
 
-# ========================================================
-# FETCH BRANCH
-# =========================================================
-
 def fetch_branch(branch):
-    branch_name = branch["BranchName"]
+    name = branch["BranchName"]
 
     try:
         ws = client.open_by_key(branch["SheetID"]).worksheet("Stocks")
         data = ws.get_all_values()
 
-        branch_cache[branch_name] = data
+        branch_cache[name] = data
 
-        return {
-            "branch": branch_name,
-            "success": True,
-            "data": data
-        }
+        return {"branch": name, "success": True, "data": data}
 
-    except Exception as e:
+    except Exception:
+        if name in branch_cache:
+            return {"branch": name, "success": False, "data": branch_cache[name]}
 
-        if branch_name in branch_cache:
-            return {
-                "branch": branch_name,
-                "success": False,
-                "data": branch_cache[branch_name]
-            }
-
-        return {
-            "branch": branch_name,
-            "success": False,
-            "data": []
-        }
-
-# ========================================================
-# LOAD ALL DATA (ROBUST)
-# =========================================================
+        return {"branch": name, "success": False, "data": []}
 
 @st.cache_data(ttl=600)
 def load_all_data(branches):
@@ -120,67 +98,57 @@ def load_all_data(branches):
 
     # INITIAL LOAD
     with ThreadPoolExecutor(max_workers=3) as ex:
-
         futures = {ex.submit(fetch_branch, b): b for b in branches}
 
         done = 0
 
         for f in as_completed(futures):
+            r = f.result()
+            name = r["branch"]
 
-            res = f.result()
-            name = res["branch"]
-
-            if res["success"] or res["data"]:
-                completed[name] = res["data"]
+            if r["success"] or r["data"]:
+                completed[name] = r["data"]
             else:
                 failed.append(futures[f])
 
             done += 1
             progress.progress(done / len(branches))
 
-    # RETRY LOOP (compact UI)
-    retry_round = 1
+    # RETRY LOOP
+    round_no = 1
 
-    while failed and retry_round <= MAX_RETRIES:
+    while failed and round_no <= MAX_RETRIES:
 
         failed_names = [b["BranchName"] for b in failed]
 
         with status.container():
-            st.info(
-                f"Retry {retry_round}/{MAX_RETRIES}\n\nFailed: {', '.join(failed_names)}"
-            )
+            st.info(f"Retry {round_no}/{MAX_RETRIES} → {', '.join(failed_names)}")
 
         time.sleep(RETRY_DELAY)
 
         new_failed = []
 
         with ThreadPoolExecutor(max_workers=3) as ex:
-
             futures = {ex.submit(fetch_branch, b): b for b in failed}
 
             for f in as_completed(futures):
+                r = f.result()
+                name = r["branch"]
 
-                res = f.result()
-                name = res["branch"]
-
-                if res["success"] or res["data"]:
-                    completed[name] = res["data"]
+                if r["success"] or r["data"]:
+                    completed[name] = r["data"]
                 else:
                     new_failed.append(futures[f])
 
         failed = new_failed
-        retry_round += 1
+        round_no += 1
 
     if failed:
         status.warning("Some branches still failed")
     else:
         status.empty()
 
-    ordered = []
-    for b in branches:
-        ordered.append((b["BranchName"], completed.get(b["BranchName"], [])))
-
-    return ordered
+    return [(b["BranchName"], completed.get(b["BranchName"], [])) for b in branches]
 
 all_data = load_all_data(branches)
 
@@ -224,7 +192,7 @@ def process_stock(all_data, selected_date_str, branch_names):
                 date_index = i
                 break
 
-        current = None
+        mode = None
 
         for row in raw:
 
@@ -234,14 +202,14 @@ def process_stock(all_data, selected_date_str, branch_names):
             text = " ".join(str(x) for x in row).lower()
 
             if "daily item" in text:
-                current = "daily"
+                mode = "daily"
                 continue
 
             if "weekly item" in text:
-                current = "weekly"
+                mode = "weekly"
                 continue
 
-            if not current:
+            if not mode:
                 continue
 
             item = str(row[0]).strip() if len(row) > 0 else ""
@@ -253,12 +221,12 @@ def process_stock(all_data, selected_date_str, branch_names):
 
             key = f"{item}_{sku}_{uom}"
 
-            target = daily if current == "daily" else weekly
+            target = daily if mode == "daily" else weekly
 
             if key not in target:
                 target[key] = {"Item Name": item, "SKU": sku, "UOM": uom}
-                for bn in branch_names:
-                    target[key][bn] = 0
+                for b in branch_names:
+                    target[key][b] = 0
 
             qty = 0
             try:
@@ -279,45 +247,41 @@ daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_na
 # =========================================================
 
 def build_df(data_dict):
-
     rows = []
     for _, v in data_dict.items():
-
-        row = {
-            "Item Name": v["Item Name"],
-            "SKU": v["SKU"],
-            "UOM": v["UOM"]
-        }
-
+        row = {"Item Name": v["Item Name"], "SKU": v["SKU"], "UOM": v["UOM"]}
         for b in branch_names:
             row[b] = v.get(b, 0)
-
         rows.append(row)
-
     return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY SYSTEM (NEW ADDITION ONLY)
-# =========================================================
+# ✅ FIXED CATEGORY SYSTEM (IMPORTANT FIX)
+# ========================================================
 
-CATEGORY_MAP = {
+def normalize(text):
+    text = str(text).lower()
+    text = re.sub(r"[^a-z0-9 ]", " ", text)
+    return text
+
+CATEGORY_RULES = {
     "Food Items": [
-        "cake","sauce","bread","chocolate","ice cream","juice",
-        "coffee","milk","syrup","oil","egg","kunafa","kitkat",
-        "nutella","kinder","galaxy","vanilla","cinnamon","sugar"
+        "cake","sauce","bread","chocolate","ice cream","juice","coffee",
+        "milk","syrup","oil","egg","kunafa","kitkat","nutella","kinder",
+        "galaxy","vanilla","cinnamon","sugar","pudding","lotus"
     ],
 
     "Packaging Items": [
-        "cup","lid","box","tray","bag","holder","sticker",
-        "paper cup","plastic cup","container","napkin","roll"
+        "cup","cups","lid","lids","box","boxes","tray","trays","bag","bags",
+        "holder","holders","sticker","stickers","container","napkin","roll"
     ],
 
     "Cleaning & Hygiene": [
-        "glove","mask","apron","tissue","sanitizer",
-        "scotch","sponge","hair net","cleaner"
+        "glove","gloves","mask","masks","apron","tissue","tissues",
+        "sanitizer","scotch","sponge","hair net","cleaner"
     ],
 
     "Miscellaneous": [
@@ -327,19 +291,28 @@ CATEGORY_MAP = {
 
 def detect_category(name):
 
-    name = str(name).lower()
+    name = normalize(name)
 
-    for cat, keys in CATEGORY_MAP.items():
+    best = "Miscellaneous"
+    best_score = 0
+
+    for cat, keys in CATEGORY_RULES.items():
+
+        score = 0
+
         for k in keys:
             if k in name:
-                return cat
+                score += 1
 
-    return "Miscellaneous"
+        if score > best_score:
+            best_score = score
+            best = cat
 
+    return best
 
 def build_category(df):
 
-    categories = {
+    cats = {
         "Food Items": [],
         "Packaging Items": [],
         "Cleaning & Hygiene": [],
@@ -349,15 +322,15 @@ def build_category(df):
     for _, row in df.iterrows():
 
         cat = detect_category(row["Item Name"])
-        categories[cat].append(row)
+        cats[cat].append(row)
 
-    for k in categories:
-        categories[k] = sorted(categories[k], key=lambda x: str(x["Item Name"]).lower())
+    for k in cats:
+        cats[k] = sorted(cats[k], key=lambda x: str(x["Item Name"]).lower())
 
-    return categories
+    return cats
 
 # ========================================================
-# CATEGORY UI (NEW TOP SECTION)
+# CATEGORY UI (FIXED)
 # =========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -376,23 +349,18 @@ for cat, rows in category_data.items():
 
         gb = GridOptionsBuilder.from_dataframe(df)
 
-        gb.configure_column("Item Name", pinned="left", minWidth=150)
+        gb.configure_column("Item Name", pinned="left")
         gb.configure_column("SKU", minWidth=80)
         gb.configure_column("UOM", minWidth=80)
 
-        for col in branch_names:
-            if col in df.columns:
-                gb.configure_column(col, minWidth=100)
+        for b in branch_names:
+            if b in df.columns:
+                gb.configure_column(b, minWidth=100)
 
         gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-        AgGrid(
-            df,
-            gridOptions=gb.build(),
-            theme="streamlit",
-            fit_columns_on_grid_load=True,
-            key=f"cat_{cat}"
-        )
+        AgGrid(df, gridOptions=gb.build(), theme="streamlit",
+               fit_columns_on_grid_load=True, key=f"cat_{cat}")
 
 # ========================================================
 # DAILY / WEEKLY (UNCHANGED)
@@ -412,12 +380,15 @@ def render(df, title):
     gb.configure_column("SKU", pinned="left")
     gb.configure_column("UOM", pinned="left")
 
-    for col in branch_names:
-        gb.configure_column(col, minWidth=120)
+    for b in branch_names:
+        gb.configure_column(b, minWidth=120)
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(), theme="streamlit", fit_columns_on_grid_load=True, key=title)
+    AgGrid(df, gridOptions=gb.build(),
+           theme="streamlit",
+           fit_columns_on_grid_load=True,
+           key=title)
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
