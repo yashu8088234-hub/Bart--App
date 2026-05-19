@@ -537,7 +537,7 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=350, minWidth=350, maxWidth=350,
-        width=250
+        
     )
 
     gb.configure_column(
@@ -545,7 +545,7 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=350, minWidth=350, maxWidth=350,
-        width=90
+        
     )
 
     gb.configure_column(
@@ -553,7 +553,7 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=350, minWidth=350, maxWidth=350,
-        width=90
+        
     )
 
     # ====================================================
@@ -565,7 +565,7 @@ def make_grid(df, key):
         gb.configure_column(
             b,
             type=["numericColumn"],
-            width=105,
+            
             wrapText=False,
             width=350, minWidth=350, maxWidth=350,
             autoHeight=False,
