@@ -16,6 +16,7 @@ import time
 # =========================================================
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
+
 st.title("📦 BART - Stock Management (All Branches)")
 
 # =========================================================
@@ -39,18 +40,25 @@ scope = [
 
 @st.cache_resource
 def get_client():
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        creds_dict,
+        scope
+    )
+
     return gspread.authorize(creds)
 
 client = get_client()
 
 # =========================================================
-# BRANCHES (FORCE ALL)
+# BRANCHES
 # =========================================================
 
 @st.cache_data(ttl=600)
 def load_branches():
+
     sheet = client.open("MASTERBRANCHSHEET").sheet1
+
     data = sheet.get_all_records()
 
     branches = []
@@ -71,13 +79,22 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # =========================================================
-# FETCH SHEETS (ROBUST RETRY)
+# RETRY SETTINGS
 # =========================================================
 
 MAX_RETRIES = 10
+
 RETRY_DELAY = 60
 
+# =========================================================
+# BRANCH CACHE
+# =========================================================
+
 branch_cache = {}
+
+# =========================================================
+# FETCH BRANCH
+# =========================================================
 
 def fetch_branch(branch):
 
@@ -85,10 +102,9 @@ def fetch_branch(branch):
 
     try:
 
-        ws = client.open_by_key(branch["SheetID"]).worksheet("Stocks")
-
-        # OPTIONAL OPTIMIZATION
-        # data = ws.get("A1:AZ500")
+        ws = client.open_by_key(
+            branch["SheetID"]
+        ).worksheet("Stocks")
 
         data = ws.get_all_values()
 
@@ -119,14 +135,20 @@ def fetch_branch(branch):
             "error": str(e)
         }
 
+# =========================================================
+# LOAD ALL DATA
+# =========================================================
+
 @st.cache_data(ttl=600)
 def load_all_data(branches):
 
     completed = {}
+
     failed = []
 
     progress_bar = st.progress(0)
-    status_text = st.empty()
+
+    status_placeholder = st.empty()
 
     # =====================================================
     # INITIAL LOAD
@@ -157,32 +179,35 @@ def load_all_data(branches):
 
             completed_count += 1
 
-            progress_bar.progress(completed_count / len(branches))
-
-            status_text.info(
-                f"Loaded {completed_count}/{len(branches)} branches"
+            progress_bar.progress(
+                completed_count / len(branches)
             )
 
     # =====================================================
-    # RETRY FAILED BRANCHES
+    # RETRY FAILED
     # =====================================================
 
     retry_round = 1
 
     while failed and retry_round <= MAX_RETRIES:
 
-        failed_names = [b["BranchName"] for b in failed]
+        failed_names = [
+            b["BranchName"]
+            for b in failed
+        ]
 
-        st.warning(
-            f"""
-Retry Round {retry_round}/{MAX_RETRIES}
+        with status_placeholder.container():
 
-Failed Branches:
-{', '.join(failed_names)}
+            st.info(
+                f"""
+⚠️ Retry Round {retry_round}/{MAX_RETRIES}
 
-Retrying in {RETRY_DELAY} seconds...
+Failed:
+{", ".join(failed_names)}
+
+Retrying in {RETRY_DELAY} sec...
 """
-        )
+            )
 
         time.sleep(RETRY_DELAY)
 
@@ -205,14 +230,10 @@ Retrying in {RETRY_DELAY} seconds...
 
                     completed[branch_name] = result["data"]
 
-                    st.success(f"✅ Recovered: {branch_name}")
-
                 else:
 
-                    retry_failed.append(futures[future])
-
-                    st.error(
-                        f"❌ Failed: {branch_name}"
+                    retry_failed.append(
+                        futures[future]
                     )
 
         failed = retry_failed
@@ -225,21 +246,28 @@ Retrying in {RETRY_DELAY} seconds...
 
     if failed:
 
-        failed_names = [b["BranchName"] for b in failed]
+        failed_names = [
+            b["BranchName"]
+            for b in failed
+        ]
 
-        st.error(
-            f"""
-Some branches failed after {MAX_RETRIES} retries:
+        with status_placeholder.container():
 
-{', '.join(failed_names)}
+            st.warning(
+                f"""
+⚠️ Failed Branches:
+
+{", ".join(failed_names)}
 """
-        )
+            )
 
     else:
 
-        st.success("✅ All branches loaded successfully")
+        status_placeholder.empty()
 
-    # maintain original order
+    # =====================================================
+    # ORDER
+    # =====================================================
 
     ordered = []
 
@@ -248,7 +276,10 @@ Some branches failed after {MAX_RETRIES} retries:
         ordered.append(
             (
                 b["BranchName"],
-                completed.get(b["BranchName"], [])
+                completed.get(
+                    b["BranchName"],
+                    []
+                )
             )
         )
 
@@ -283,7 +314,11 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 # =========================================================
 
 @st.cache_data(ttl=600)
-def process_stock(all_data, selected_date_str, branch_names):
+def process_stock(
+    all_data,
+    selected_date_str,
+    branch_names
+):
 
     daily = {}
 
@@ -294,7 +329,10 @@ def process_stock(all_data, selected_date_str, branch_names):
         if not raw or len(raw) < 2:
             continue
 
-        headers = [str(x).strip() for x in raw[0]]
+        headers = [
+            str(x).strip()
+            for x in raw[0]
+        ]
 
         date_index = None
 
@@ -313,7 +351,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not row:
                 continue
 
-            text = " ".join([str(x) for x in row]).lower()
+            text = " ".join(
+                [str(x) for x in row]
+            ).lower()
 
             if "daily item" in text:
 
@@ -330,18 +370,34 @@ def process_stock(all_data, selected_date_str, branch_names):
             if current_section is None:
                 continue
 
-            item = str(row[0]).strip() if len(row) > 0 else ""
+            item = (
+                str(row[0]).strip()
+                if len(row) > 0
+                else ""
+            )
 
-            sku = str(row[1]).strip() if len(row) > 1 else ""
+            sku = (
+                str(row[1]).strip()
+                if len(row) > 1
+                else ""
+            )
 
-            uom = str(row[2]).strip() if len(row) > 2 else ""
+            uom = (
+                str(row[2]).strip()
+                if len(row) > 2
+                else ""
+            )
 
             if not item:
                 continue
 
             key = f"{item}_{sku}_{uom}"
 
-            target = daily if current_section == "daily" else weekly
+            target = (
+                daily
+                if current_section == "daily"
+                else weekly
+            )
 
             if key not in target:
 
@@ -359,11 +415,18 @@ def process_stock(all_data, selected_date_str, branch_names):
 
             try:
 
-                if date_index is not None and len(row) > date_index:
+                if (
+                    date_index is not None
+                    and len(row) > date_index
+                ):
 
                     val = row[date_index]
 
-                    qty = 0 if val in ["", None] else float(val)
+                    qty = (
+                        0
+                        if val in ["", None]
+                        else float(val)
+                    )
 
             except:
 
@@ -380,7 +443,7 @@ daily_items, weekly_items = process_stock(
 )
 
 # =========================================================
-# DF
+# BUILD DF
 # =========================================================
 
 def build_df(data_dict):
@@ -415,7 +478,10 @@ def get_width(series, min_width):
 
     try:
 
-        series = series.fillna("").astype(str)
+        series = (
+            series.fillna("")
+            .astype(str)
+        )
 
         return max(
             min_width,
@@ -441,26 +507,38 @@ def render_grid(df, title):
     gb.configure_column(
         "Item Name",
         pinned="left",
-        minWidth=get_width(df["Item Name"], 120)
+        minWidth=get_width(
+            df["Item Name"],
+            120
+        )
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
-        minWidth=get_width(df["SKU"], 80)
+        minWidth=get_width(
+            df["SKU"],
+            80
+        )
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
-        minWidth=get_width(df["UOM"], 80)
+        minWidth=get_width(
+            df["UOM"],
+            80
+        )
     )
 
     for col in branch_names:
 
         if col in df.columns:
 
-            gb.configure_column(col, minWidth=120)
+            gb.configure_column(
+                col,
+                minWidth=120
+            )
 
     gb.configure_default_column(
         resizable=True,
@@ -476,15 +554,24 @@ def render_grid(df, title):
         key=title
     )
 
-render_grid(daily_df, "📦 Daily Items Stock")
+render_grid(
+    daily_df,
+    "📦 Daily Items Stock"
+)
 
-render_grid(weekly_df, "📦 Weekly Items Stock")
+render_grid(
+    weekly_df,
+    "📦 Weekly Items Stock"
+)
 
 # =========================================================
 # EXCEL
 # =========================================================
 
-def create_excel(daily_df, weekly_df):
+def create_excel(
+    daily_df,
+    weekly_df
+):
 
     output = BytesIO()
 
@@ -561,20 +648,34 @@ def create_excel(daily_df, weekly_df):
 
         return r0 + len(rows) + 3
 
-    n = write("DAILY", daily_df, 1)
+    n = write(
+        "DAILY",
+        daily_df,
+        1
+    )
 
-    write("WEEKLY", weekly_df, n)
+    write(
+        "WEEKLY",
+        weekly_df,
+        n
+    )
 
     for col in ws.columns:
 
         try:
 
-            letter = get_column_letter(col[0].column)
+            letter = get_column_letter(
+                col[0].column
+            )
 
-            ws.column_dimensions[letter].width = max(
-                len(str(c.value or ""))
-                for c in col
-            ) + 3
+            ws.column_dimensions[
+                letter
+            ].width = (
+                max(
+                    len(str(c.value or ""))
+                    for c in col
+                ) + 3
+            )
 
         except:
             pass
