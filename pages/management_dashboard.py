@@ -562,7 +562,7 @@ def make_grid(df, key):
         gb.configure_column(
             b,
             type=["numericColumn"],
-            width=125,
+            width=105,
             wrapText=False,
             autoHeight=False,
             cellStyle={
