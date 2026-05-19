@@ -491,7 +491,7 @@ def make_grid(df, key):
         autoHeight=True,
         cellStyle={
             "whiteSpace": "normal",
-            "lineHeight": "20px",
+            "lineHeight": "10px",
             "display": "flex",
             "alignItems": "center"
         }
