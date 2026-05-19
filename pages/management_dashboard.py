@@ -430,15 +430,19 @@ MISC_ITEMS = set([
 
 def detect_category(name):
 
-    item_name = str(name).strip()
+    item_name = str(name).strip().lower()
 
-    if item_name in FOOD_ITEMS:
+    food_items = {x.strip().lower() for x in FOOD_ITEMS}
+    dry_items = {x.strip().lower() for x in DRY_ITEMS}
+    misc_items = {x.strip().lower() for x in MISC_ITEMS}
+
+    if item_name in food_items:
         return "FOOD ITEMS"
 
-    if item_name in DRY_ITEMS:
+    if item_name in dry_items:
         return "DRY ITEMS"
 
-    if item_name in MISC_ITEMS:
+    if item_name in misc_items:
         return "Miscellaneous"
 
     return "Miscellaneous"
@@ -490,48 +494,37 @@ def make_grid(df, key):
         wrapText=False,
         autoHeight=False,
         cellStyle={
-            "whiteSpace": "normal",
-            "lineHeight": "10px",
             "display": "flex",
-            "alignItems": "center"
+            "alignItems": "center",
+            "fontSize": "13px",
+            "paddingTop": "0px",
+            "paddingBottom": "0px"
         }
     )
 
     # ====================================================
-    # FIX FIRST 3 COLUMNS
+    # FIRST 3 COLUMNS LOCKED
     # ====================================================
 
     gb.configure_column(
         "Item Name",
         pinned="left",
         lockPinned=True,
-        minWidth=220,
-        maxWidth=450,
-        wrapText=False,
-        Height=10,
-        autoHeight=False
+        width=250
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
         lockPinned=True,
-        minWidth=80,
-        maxWidth=80,
-        Height=10,
-        wrapText=False,
-        autoHeight=False
+        width=90
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
         lockPinned=True,
-        minWidth=70,
-        maxWidth=90,
-        wrapText=False,
-        Height=10,
-        autoHeight=False
+        width=70
     )
 
     # ====================================================
@@ -543,20 +536,18 @@ def make_grid(df, key):
         gb.configure_column(
             b,
             type=["numericColumn"],
-            minWidth=90,
-            maxWidth=130,
-            wrapText=True,
-            autoHeight=True,
-            suppressSizeToFit=False,
+            width=85,
+            wrapText=False,
+            autoHeight=False,
             cellStyle={
                 "textAlign": "center",
-                "whiteSpace": "normal",
-                "lineHeight": "20px",
                 "display": "flex",
                 "alignItems": "center",
-                "justifyContent": "center"
-            },
-            headerClass="wrap-header"
+                "justifyContent": "center",
+                "fontSize": "13px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px"
+            }
         )
 
     # ====================================================
@@ -564,13 +555,11 @@ def make_grid(df, key):
     # ====================================================
 
     gb.configure_grid_options(
-        domLayout="normal",
+        headerHeight=38,
+        rowHeight=32,
         suppressHorizontalScroll=False,
         alwaysShowHorizontalScroll=True,
-        alwaysShowVerticalScroll=True,
-        headerHeight=70,
-        rowHeight=60,
-        enableCellTextSelection=True
+        alwaysShowVerticalScroll=True
     )
 
     # ====================================================
@@ -580,26 +569,19 @@ def make_grid(df, key):
     custom_css = {
 
         ".ag-header-cell-label": {
-            "white-space": "normal !important",
-            "line-height": "20px",
-            "text-align": "center",
             "justify-content": "center",
-            "align-items": "center",
-            "display": "flex"
+            "font-size": "12px",
+            "font-weight": "600"
         },
 
         ".ag-header-cell": {
-            "padding-top": "5px",
-            "padding-bottom": "5px"
+            "padding-top": "0px",
+            "padding-bottom": "0px"
         },
 
         ".ag-cell": {
-            "display": "flex",
-            "align-items": "center"
-        },
-
-        ".ag-row": {
-            "max-height": "none !important"
+            "padding-top": "0px",
+            "padding-bottom": "0px"
         }
     }
 
@@ -612,12 +594,12 @@ def make_grid(df, key):
         gridOptions=gb.build(),
         custom_css=custom_css,
         theme="streamlit",
-        enable_enterprise_modules=False,
         fit_columns_on_grid_load=False,
+        enable_enterprise_modules=False,
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
         reload_data=False,
-        height=650,
+        height=500,
         width="100%",
         key=key
     )
