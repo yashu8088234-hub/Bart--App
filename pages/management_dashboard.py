@@ -513,7 +513,7 @@ def make_grid(df, key):
     # ====================================================
 
     gb.configure_default_column(
-        resizable=True,
+        resizable=False,
         sortable=True,
         filter=True,
         editable=False,
@@ -624,7 +624,7 @@ def make_grid(df, key):
         enable_enterprise_modules=False,
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
-        reload_data=True,
+        reload_data=False,
         height=500,
         width="100%",
         key=key
