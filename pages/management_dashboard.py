@@ -170,17 +170,22 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # ========================================================
-# TEXT CLEANING
+# CLEANING + TOKEN SYSTEM (FIXED)
 # ========================================================
 
 def clean_text(text):
     text = str(text).lower()
     text = re.sub(r"[\u0600-\u06FF]+", " ", text)
     text = re.sub(r"[^a-z0-9 ]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
+
+def normalize_tokens(text):
+    return set(clean_text(text).split())
+
 # ========================================================
-# STOCK PROCESSING
+# STOCK PROCESSING (UNCHANGED LOGIC)
 # ========================================================
 
 @st.cache_data(ttl=600)
@@ -259,7 +264,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # ========================================================
-# DATAFRAME BUILDER
+# DATAFRAME BUILDER (UNCHANGED)
 # ========================================================
 
 def build_df(data_dict):
@@ -284,7 +289,7 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY SYSTEM (FIXED)
+# CATEGORY RULES (UNCHANGED)
 # ========================================================
 
 CATEGORY_RULES = {
@@ -309,8 +314,14 @@ CATEGORY_RULES = {
     ]
 }
 
+# ========================================================
+# CATEGORY FIXED ENGINE (MAIN FIX)
+# ========================================================
+
 def detect_category(name):
-    text = clean_text(name)
+
+    text_tokens = normalize_tokens(name)
+    text_clean = clean_text(name)
 
     best_category = "Miscellaneous"
     best_score = 0
@@ -319,7 +330,13 @@ def detect_category(name):
         score = 0
 
         for k in keywords:
-            if k in text:
+            k_clean = clean_text(k)
+            k_tokens = set(k_clean.split())
+
+            # SMART MATCH (token overlap OR substring fallback)
+            if k_tokens & text_tokens:
+                score += 1
+            elif k_clean in text_clean:
                 score += 1
 
         if score > best_score:
@@ -342,6 +359,7 @@ def build_category(df):
         cat = detect_category(row["Item Name"])
         cats[cat].append(row)
 
+    # alphabetical sorting
     for k in cats:
         cats[k] = sorted(
             cats[k],
@@ -351,7 +369,7 @@ def build_category(df):
     return cats
 
 # ========================================================
-# CATEGORY UI
+# CATEGORY UI (FIXED AGGRID)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -370,15 +388,14 @@ for cat, rows in category_data.items():
 
         gb = GridOptionsBuilder.from_dataframe(df)
 
-        gb.configure_column("Item Name", pinned="left")
-        gb.configure_column("SKU", minWidth=80)
-        gb.configure_column("UOM", minWidth=80)
+        gb.configure_default_column(
+            resizable=True,
+            sortable=True,
+            filter=True,
+            minWidth=90
+        )
 
-        for b in branch_names:
-            if b in df.columns:
-                gb.configure_column(b, minWidth=100)
-
-        gb.configure_default_column(resizable=True, sortable=True, filter=True)
+        gb.configure_grid_options(domLayout='autoHeight')
 
         AgGrid(
             df,
@@ -389,7 +406,7 @@ for cat, rows in category_data.items():
         )
 
 # ========================================================
-# DAILY / WEEKLY TABLES
+# DAILY / WEEKLY TABLES (FIXED AGGRID)
 # ========================================================
 
 def render(df, title):
@@ -402,14 +419,14 @@ def render(df, title):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_column("Item Name", pinned="left")
-    gb.configure_column("SKU", pinned="left")
-    gb.configure_column("UOM", pinned="left")
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True,
+        minWidth=90
+    )
 
-    for b in branch_names:
-        gb.configure_column(b, minWidth=120)
-
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+    gb.configure_grid_options(domLayout='autoHeight')
 
     AgGrid(
         df,
