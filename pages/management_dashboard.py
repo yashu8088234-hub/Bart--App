@@ -543,14 +543,14 @@ def make_grid(df, key):
         "SKU",
         pinned="left",
         lockPinned=True,
-        width=120
+        width=90
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
         lockPinned=True,
-        width=120
+        width=90
     )
 
     # ====================================================
