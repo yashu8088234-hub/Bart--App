@@ -505,30 +505,30 @@ def make_grid(df, key):
         "Item Name",
         pinned="left",
         lockPinned=True,
-        minWidth=280,
+        minWidth=220,
         maxWidth=450,
         wrapText=True,
-        autoHeight=True
+        autoHeight=False
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
         lockPinned=True,
-        minWidth=100,
-        maxWidth=100,
+        minWidth=80,
+        maxWidth=80,
         wrapText=True,
-        autoHeight=True
+        autoHeight=False
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
         lockPinned=True,
-        minWidth=90,
-        maxWidth=120,
+        minWidth=70,
+        maxWidth=90,
         wrapText=True,
-        autoHeight=True
+        autoHeight=False
     )
 
     # ====================================================
