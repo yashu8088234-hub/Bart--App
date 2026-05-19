@@ -536,14 +536,14 @@ def make_grid(df, key):
         "Item Name",
         pinned="left",
         lockPinned=True,
-        width=250
+        width=350
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
         lockPinned=True,
-        width=130
+        width=180
     )
 
     gb.configure_column(
@@ -562,7 +562,7 @@ def make_grid(df, key):
         gb.configure_column(
             b,
             type=["numericColumn"],
-            width=125,
+            width=175,
             wrapText=False,
             autoHeight=False,
             cellStyle={
