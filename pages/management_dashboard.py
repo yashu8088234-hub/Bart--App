@@ -5,10 +5,6 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder
 from io import BytesIO
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.utils import get_column_letter
 import time
 import re
 
@@ -114,39 +110,6 @@ def load_all_data(branches):
             done += 1
             progress.progress(done / len(branches))
 
-    round_no = 1
-
-    while failed and round_no <= MAX_RETRIES:
-
-        failed_names = [b["BranchName"] for b in failed]
-
-        with status.container():
-            st.info(f"Retry {round_no}/{MAX_RETRIES} → {', '.join(failed_names)}")
-
-        time.sleep(RETRY_DELAY)
-
-        new_failed = []
-
-        with ThreadPoolExecutor(max_workers=3) as ex:
-            futures = {ex.submit(fetch_branch, b): b for b in failed}
-
-            for f in as_completed(futures):
-                r = f.result()
-                name = r["branch"]
-
-                if r["success"] or r["data"]:
-                    completed[name] = r["data"]
-                else:
-                    new_failed.append(futures[f])
-
-        failed = new_failed
-        round_no += 1
-
-    if failed:
-        status.warning("Some branches still failed")
-    else:
-        status.empty()
-
     return [(b["BranchName"], completed.get(b["BranchName"], [])) for b in branches]
 
 
@@ -174,15 +137,12 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 # ========================================================
 
 def clean_text(text):
-    text = str(text).lower()
+    text = str(text).replace("\xa0", " ")
+    text = text.lower()
     text = re.sub(r"[\u0600-\u06FF]+", " ", text)
     text = re.sub(r"[^a-z0-9 ]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
-
-
-def normalize_tokens(text):
-    return set(clean_text(text).split())
 
 # ========================================================
 # STOCK PROCESSING
@@ -192,7 +152,6 @@ def normalize_tokens(text):
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
-    weekly = {}
 
     for branch_name, raw in all_data:
 
@@ -220,10 +179,6 @@ def process_stock(all_data, selected_date_str, branch_names):
                 mode = "daily"
                 continue
 
-            if "weekly item" in text:
-                mode = "weekly"
-                continue
-
             if not mode:
                 continue
 
@@ -236,17 +191,15 @@ def process_stock(all_data, selected_date_str, branch_names):
 
             key = f"{item}_{sku}_{uom}"
 
-            target = daily if mode == "daily" else weekly
-
-            if key not in target:
-                target[key] = {
+            if key not in daily:
+                daily[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
 
                 for b in branch_names:
-                    target[key][b] = 0
+                    daily[key][b] = 0
 
             qty = 0
             try:
@@ -256,15 +209,15 @@ def process_stock(all_data, selected_date_str, branch_names):
             except:
                 qty = 0
 
-            target[key][branch_name] = qty
+            daily[key][branch_name] = qty
 
-    return daily, weekly
+    return daily
 
 
-daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
+daily_items = process_stock(all_data, selected_date_str, branch_names)
 
 # ========================================================
-# DATAFRAME BUILDER
+# DATAFRAME
 # ========================================================
 
 def build_df(data_dict):
@@ -286,99 +239,37 @@ def build_df(data_dict):
     return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
-weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY LISTS (NEW SYSTEM)
-# ========================================================
-
-FOOD_ITEMS = set([
-"ARWA Water 330ML","BART French Toast Brioche","BELCHOCO Feuilletine Flakes",
-"Berry Ice Tea","Bidfood - EMBORG Cooking Cream 12*1L","CARLEX Spray Release Agent 6 x 600 ML",
-"Chocolate Pudding Cup","Cinnamon powder","Code Blue Syrup","Code Red Syrup",
-"Coffee - Blend DR - DR","Coffee - Blend U- U","Crunchy Chocolate Cake Slice","DAM Dubai Filling",
-"FRICHILI Cooking Cream 20% FAT 12x1Kg","Frozen Whole Egg Liquid","Galaxy Chocolate Bars",
-"Hibiscus Ice Tea","Igloo Evens Chocolate","KDD Vanilla Soft Ice Cream","Kinder Sauce",
-"KitKat 18x36x20.5g","Lotus Crumble 250gm","M&M's Chocolate (24*45gm)","Mango Juice Gallon",
-"Nadec - UHT Milk FF 12 x 1L","Nestle Sauce","Nutella Sauce","Peach Ice Tea Syrup",
-"Pecan Sauce","Pudding Sauce","Red Bull Watermelon Slush","Roasted Kunafa","Salt SASA 750 gm",
-"Vanilla Powder"
-])
-
-DRY_ITEMS = set([
-"Apron","BART Cinnamoroll Ice Cream Holder","BART MM Ice Cream Holder",
-"BART PPG Paper Cup 12 Oz (Dark Pink)","BART PPG Paper Cup 12 Oz (Green)",
-"BART PPG Paper Cup 12 Oz (Light Pink)","BART Plastic Cold Cup 12oz",
-"BART White Paper Cup 16oz","Baladiya Bag","Bart Galaxy Paper Cup 12 Oz",
-"Black Plastic Knife (pp)","Black Straw 4 ML (20 x 200 Pcs)","Black Straw 8 ML (20 x 100 Pcs)",
-"Cloudy Gift Cup 16Oz (INNER WHITE CUP)","Cloudy Gift Cup 16Oz (OUTER GRAPHIC CUP)",
-"Coffee Filter Papers","Cup 2 Tray- Bart","Cup 4 Tray- Bart","Cups for Ice Cream Test",
-"Date Sticker","Flat Lid for Cold Cup","French Toast Holder 2 Holes - Bart","Gloves",
-"HDPE Poly Gloves (100 Packet x 50 Pcs)","HK French Toast Holder 2 Holes - Bart",
-"Hair Net","Ice Cream Black Spoon","Ice Cream Plastic Cup","Ice Cream Plastic Cup 3 Oz",
-"Ice Cream Plastic Cup Cover","Injection Lid for Paper Cup","Kinder Paper Cup 12oz",
-"Kinder Sticker Label","Kitchen Tissue Roll","Lid for Ice Cream Plastic Cup 3 Oz",
-"Lid for Ice Cream Test Cup","⁠Nutella Sticker Label","Mask","POS Roll",
-"PP Flat Black Lid for 12 Oz Plastic Cup","Plastic Cups 12 Oz","Plastic Fork Black (20*50)(pp)",
-"Printed Paper Bag W/ Handle - Bart","Printed Paper Cup 12oz - Bart","SCOTCH FOR SAJ",
-"Scotch Bright","Shrink Naylon Film","Small Cake Box","Sticker BART","T. NAP 30X30 1P",
-"Thermal Coffee Container","Trash bags 20 Gallon","White Lid for Paper Cup 12oz - Bart"
-])
-
-MISC_ITEMS = set([
-"BART PPG Figurine","BART PPG Figurines (Toys)","BART Stainless Steel Forks",
-"Bart Black Shovel Spoon","Cloudy Figurine Toy","Kuromi Sanrio Acrylic Keychain",
-"Shovel Spoon","Staff Chicken Strips Bag","Wooden Coffee Stirrers - Bart"
-])
-
-# ========================================================
-# CATEGORY ENGINE (EXACT MATCH)
+# CATEGORY SYSTEM (KEEPING SIMPLE)
 # ========================================================
 
 def detect_category(name):
-
-    name_clean = clean_text(name)
-
-    def match(item_set):
-        for i in item_set:
-            if clean_text(i) == name_clean:
-                return True
-        return False
-
-    if match(FOOD_ITEMS):
-        return "FOOD ITEMS"
-
-    if match(DRY_ITEMS):
-        return "DRY ITEMS"
-
-    if match(MISC_ITEMS):
-        return "Miscellaneous"
-
-    return "Miscellaneous"
-
-# ========================================================
-# CATEGORY BUILDER
-# ========================================================
+    return "FOOD ITEMS"
 
 def build_category(df):
-
-    cats = {
-        "FOOD ITEMS": [],
-        "DRY ITEMS": [],
-        "Miscellaneous": []
-    }
-
-    for _, row in df.iterrows():
-        cat = detect_category(row["Item Name"])
-        cats[cat].append(row)
-
-    for k in cats:
-        cats[k] = sorted(cats[k], key=lambda x: clean_text(x["Item Name"]))
-
-    return cats
+    return {"FOOD ITEMS": df.to_dict("records")}
 
 # ========================================================
-# AGGRID (FIXED LAYOUT + PINNING + SCROLL)
+# TOTAL ROW BUILDER (NEW)
+# ========================================================
+
+def build_total_row(df):
+
+    total = {
+        "Item Name": "TOTAL",
+        "SKU": "",
+        "UOM": ""
+    }
+
+    for col in df.columns:
+        if col not in ["Item Name", "SKU", "UOM"]:
+            total[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).sum()
+
+    return total
+
+# ========================================================
+# GRID (STICKY + PIN + TOTAL ROW)
 # ========================================================
 
 def make_grid(df, key):
@@ -389,23 +280,31 @@ def make_grid(df, key):
         resizable=True,
         sortable=True,
         filter=True,
-        wrapText=False
+        wrapText=False,
+        autoHeight=True
     )
 
+    # PIN FIRST 3
     gb.configure_column("Item Name", pinned="left")
     gb.configure_column("SKU", pinned="left")
     gb.configure_column("UOM", pinned="left")
 
+    # STICKY HEADER
     gb.configure_grid_options(
-        domLayout='normal'
+        domLayout='normal',
+        suppressColumnVirtualisation=False,
+        enableStickyHeader=True
     )
+
+    # TOTAL ROW (PINNED BOTTOM)
+    pinned_bottom = [build_total_row(df)]
 
     AgGrid(
         df,
         gridOptions=gb.build(),
         theme="streamlit",
-        fit_columns_on_grid_load=True,
-        height=500,
+        height=550,
+        pinnedBottomRowData=pinned_bottom,
         key=key
     )
 
@@ -421,27 +320,12 @@ for cat, rows in category_data.items():
 
     with st.expander(f"📂 {cat} ({len(rows)})"):
 
-        if not rows:
-            st.info("No items")
-            continue
-
         df = pd.DataFrame(rows)
         make_grid(df, f"cat_{cat}")
 
 # ========================================================
-# DAILY / WEEKLY TABLES
+# TABLE
 # ========================================================
 
-def render(df, title):
-
-    st.subheader(title)
-
-    if df.empty:
-        st.warning("No Data")
-        return
-
-    make_grid(df, title)
-
-
-render(daily_df, "📦 Daily Items Stock")
-render(weekly_df, "📦 Weekly Items Stock")
+st.subheader("📦 Daily Items Stock")
+make_grid(daily_df, "daily")
