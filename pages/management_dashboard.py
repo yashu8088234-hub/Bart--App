@@ -14,14 +14,14 @@ import re
 
 # ========================================================
 # PAGE CONFIG
-# =========================================================
+# ========================================================
 
 st.set_page_config(layout="wide", page_title="Stock Overview")
 st.title("📦 BART - Stock Management (All Branches)")
 
-# =========================================================
+# ========================================================
 # GOOGLE AUTH
-# =========================================================
+# ========================================================
 
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
@@ -42,7 +42,7 @@ client = get_client()
 
 # ========================================================
 # BRANCHES
-# =========================================================
+# ========================================================
 
 @st.cache_data(ttl=600)
 def load_branches():
@@ -64,7 +64,7 @@ branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
 # RETRY SYSTEM
-# =========================================================
+# ========================================================
 
 MAX_RETRIES = 10
 RETRY_DELAY = 60
@@ -87,6 +87,7 @@ def fetch_branch(branch):
 
         return {"branch": name, "success": False, "data": []}
 
+
 @st.cache_data(ttl=600)
 def load_all_data(branches):
 
@@ -96,7 +97,6 @@ def load_all_data(branches):
     progress = st.progress(0)
     status = st.empty()
 
-    # INITIAL LOAD
     with ThreadPoolExecutor(max_workers=3) as ex:
         futures = {ex.submit(fetch_branch, b): b for b in branches}
 
@@ -114,7 +114,6 @@ def load_all_data(branches):
             done += 1
             progress.progress(done / len(branches))
 
-    # RETRY LOOP
     round_no = 1
 
     while failed and round_no <= MAX_RETRIES:
@@ -150,11 +149,12 @@ def load_all_data(branches):
 
     return [(b["BranchName"], completed.get(b["BranchName"], [])) for b in branches]
 
+
 all_data = load_all_data(branches)
 
 # ========================================================
 # REFRESH
-# =========================================================
+# ========================================================
 
 if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
@@ -164,14 +164,35 @@ if st.button("🔄 Refresh Data"):
 
 # ========================================================
 # DATE
-# =========================================================
+# ========================================================
 
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # ========================================================
-# PROCESS STOCK
-# =========================================================
+# 🔥 FIX: ARABIC IGNORE + FIRST ENGLISH WORD EXTRACTION
+# ========================================================
+
+def extract_first_english_word(text):
+    text = str(text)
+
+    # remove Arabic completely
+    text = re.sub(r"[\u0600-\u06FF]+", " ", text)
+
+    # keep only English letters/numbers/spaces
+    text = re.sub(r"[^a-zA-Z0-9 ]", " ", text)
+
+    words = text.strip().split()
+
+    for w in words:
+        if re.search(r"[a-zA-Z]", w):
+            return w.lower()
+
+    return ""
+
+# ========================================================
+# STOCK PROCESSING
+# ========================================================
 
 @st.cache_data(ttl=600)
 def process_stock(all_data, selected_date_str, branch_names):
@@ -224,7 +245,12 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if mode == "daily" else weekly
 
             if key not in target:
-                target[key] = {"Item Name": item, "SKU": sku, "UOM": uom}
+                target[key] = {
+                    "Item Name": item,
+                    "SKU": sku,
+                    "UOM": uom
+                }
+
                 for b in branch_names:
                     target[key][b] = 0
 
@@ -240,32 +266,37 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
+
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # ========================================================
-# DATAFRAME
-# =========================================================
+# DATAFRAME BUILDER
+# ========================================================
 
 def build_df(data_dict):
+
     rows = []
+
     for _, v in data_dict.items():
-        row = {"Item Name": v["Item Name"], "SKU": v["SKU"], "UOM": v["UOM"]}
+        row = {
+            "Item Name": v["Item Name"],
+            "SKU": v["SKU"],
+            "UOM": v["UOM"]
+        }
+
         for b in branch_names:
             row[b] = v.get(b, 0)
+
         rows.append(row)
+
     return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# ✅ FIXED CATEGORY SYSTEM (IMPORTANT FIX)
+# CATEGORY SYSTEM (FIXED)
 # ========================================================
-
-def normalize(text):
-    text = str(text).lower()
-    text = re.sub(r"[^a-z0-9 ]", " ", text)
-    return text
 
 CATEGORY_RULES = {
     "Food Items": [
@@ -291,7 +322,10 @@ CATEGORY_RULES = {
 
 def detect_category(name):
 
-    name = normalize(name)
+    first_word = extract_first_english_word(name)
+
+    if not first_word:
+        return "Miscellaneous"
 
     best = "Miscellaneous"
     best_score = 0
@@ -301,7 +335,7 @@ def detect_category(name):
         score = 0
 
         for k in keys:
-            if k in name:
+            if k.lower() in first_word:
                 score += 1
 
         if score > best_score:
@@ -309,6 +343,7 @@ def detect_category(name):
             best = cat
 
     return best
+
 
 def build_category(df):
 
@@ -324,14 +359,18 @@ def build_category(df):
         cat = detect_category(row["Item Name"])
         cats[cat].append(row)
 
+    # SORT A → Z BY FIRST ENGLISH WORD
     for k in cats:
-        cats[k] = sorted(cats[k], key=lambda x: str(x["Item Name"]).lower())
+        cats[k] = sorted(
+            cats[k],
+            key=lambda x: extract_first_english_word(x["Item Name"])
+        )
 
     return cats
 
 # ========================================================
-# CATEGORY UI (FIXED)
-# =========================================================
+# CATEGORY UI
+# ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
@@ -359,12 +398,17 @@ for cat, rows in category_data.items():
 
         gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-        AgGrid(df, gridOptions=gb.build(), theme="streamlit",
-               fit_columns_on_grid_load=True, key=f"cat_{cat}")
+        AgGrid(
+            df,
+            gridOptions=gb.build(),
+            theme="streamlit",
+            fit_columns_on_grid_load=True,
+            key=f"cat_{cat}"
+        )
 
 # ========================================================
-# DAILY / WEEKLY (UNCHANGED)
-# =========================================================
+# DAILY / WEEKLY TABLES
+# ========================================================
 
 def render(df, title):
 
@@ -385,10 +429,14 @@ def render(df, title):
 
     gb.configure_default_column(resizable=True, sortable=True, filter=True)
 
-    AgGrid(df, gridOptions=gb.build(),
-           theme="streamlit",
-           fit_columns_on_grid_load=True,
-           key=title)
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        fit_columns_on_grid_load=True,
+        key=title
+    )
+
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
