@@ -170,7 +170,7 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # ========================================================
-# CLEANING + TOKEN SYSTEM (FIXED)
+# CLEANING
 # ========================================================
 
 def clean_text(text):
@@ -185,7 +185,7 @@ def normalize_tokens(text):
     return set(clean_text(text).split())
 
 # ========================================================
-# STOCK PROCESSING (UNCHANGED LOGIC)
+# STOCK PROCESSING
 # ========================================================
 
 @st.cache_data(ttl=None)
@@ -264,7 +264,7 @@ def process_stock(all_data, selected_date_str, branch_names):
 daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
 
 # ========================================================
-# DATAFRAME BUILDER (UNCHANGED)
+# DATAFRAME BUILDER
 # ========================================================
 
 def build_df(data_dict):
@@ -289,69 +289,82 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY RULES (UNCHANGED)
+# CATEGORY LISTS (NEW SYSTEM)
 # ========================================================
 
-CATEGORY_RULES = {
-    "Food Items": [
-        "cake","sauce","bread","chocolate","ice cream","juice","coffee",
-        "milk","syrup","oil","egg","kunafa","kitkat","nutella","kinder",
-        "galaxy","vanilla","cinnamon","sugar","pudding","lotus"
-    ],
+FOOD_ITEMS = set([
+"ARWA Water 330ML","BART French Toast Brioche","BELCHOCO Feuilletine Flakes",
+"Berry Ice Tea","Bidfood - EMBORG Cooking Cream 12*1L","CARLEX Spray Release Agent 6 x 600 ML",
+"Chocolate Pudding Cup","Cinnamon powder","Code Blue Syrup","Code Red Syrup",
+"Coffee - Blend DR - DR","Coffee - Blend U- U","Crunchy Chocolate Cake Slice","DAM Dubai Filling",
+"FRICHILI Cooking Cream 20% FAT 12x1Kg","Frozen Whole Egg Liquid","Galaxy Chocolate Bars",
+"Hibiscus Ice Tea","Igloo Evens Chocolate","KDD Vanilla Soft Ice Cream","Kinder Sauce",
+"KitKat 18x36x20.5g","Lotus Crumble 250gm","M&M's Chocolate (24*45gm)","Mango Juice Gallon",
+"Nadec - UHT Milk FF 12 x 1L","Nestle Sauce","Nutella Sauce","Peach Ice Tea Syrup",
+"Pecan Sauce","Pudding Sauce","Red Bull Watermelon Slush","Roasted Kunafa","Salt SASA 750 gm",
+"Vanilla Powder"
+])
 
-    "Packaging Items": [
-        "cup","cups","lid","lids","box","boxes","tray","trays","bag","bags",
-        "holder","holders","sticker","stickers","container","napkin","roll"
-    ],
+DRY_ITEMS = set([
+"Apron","BART Cinnamoroll Ice Cream Holder","BART MM Ice Cream Holder",
+"BART PPG Paper Cup 12 Oz (Dark Pink)","BART PPG Paper Cup 12 Oz (Green)",
+"BART PPG Paper Cup 12 Oz (Light Pink)","BART Plastic Cold Cup 12oz",
+"BART White Paper Cup 16oz","Baladiya Bag","Bart Galaxy Paper Cup 12 Oz",
+"Black Plastic Knife (pp)","Black Straw 4 ML (20 x 200 Pcs)","Black Straw 8 ML (20 x 100 Pcs)",
+"Cloudy Gift Cup 16Oz (INNER WHITE CUP)","Cloudy Gift Cup 16Oz (OUTER GRAPHIC CUP)",
+"Coffee Filter Papers","Cup 2 Tray- Bart","Cup 4 Tray- Bart","Cups for Ice Cream Test",
+"Date Sticker","Flat Lid for Cold Cup","French Toast Holder 2 Holes - Bart","Gloves",
+"HDPE Poly Gloves (100 Packet x 50 Pcs)","HK French Toast Holder 2 Holes - Bart",
+"Hair Net","Ice Cream Black Spoon","Ice Cream Plastic Cup","Ice Cream Plastic Cup 3 Oz",
+"Ice Cream Plastic Cup Cover","Injection Lid for Paper Cup","Kinder Paper Cup 12oz",
+"Kinder Sticker Label","Kitchen Tissue Roll","Lid for Ice Cream Plastic Cup 3 Oz",
+"Lid for Ice Cream Test Cup","⁠Nutella Sticker Label","Mask","POS Roll",
+"PP Flat Black Lid for 12 Oz Plastic Cup","Plastic Cups 12 Oz","Plastic Fork Black (20*50)(pp)",
+"Printed Paper Bag W/ Handle - Bart","Printed Paper Cup 12oz - Bart","SCOTCH FOR SAJ",
+"Scotch Bright","Shrink Naylon Film","Small Cake Box","Sticker BART","T. NAP 30X30 1P",
+"Thermal Coffee Container","Trash bags 20 Gallon","White Lid for Paper Cup 12oz - Bart"
+])
 
-    "Cleaning & Hygiene": [
-        "glove","gloves","mask","masks","apron","tissue","tissues",
-        "sanitizer","scotch","sponge","hair net","cleaner"
-    ],
-
-    "Miscellaneous": [
-        "toy","figurine","keychain","tool","plug","accessory"
-    ]
-}
+MISC_ITEMS = set([
+"BART PPG Figurine","BART PPG Figurines (Toys)","BART Stainless Steel Forks",
+"Bart Black Shovel Spoon","Cloudy Figurine Toy","Kuromi Sanrio Acrylic Keychain",
+"Shovel Spoon","Staff Chicken Strips Bag","Wooden Coffee Stirrers - Bart"
+])
 
 # ========================================================
-# CATEGORY FIXED ENGINE (MAIN FIX)
+# CATEGORY ENGINE (EXACT MATCH)
 # ========================================================
 
 def detect_category(name):
 
-    text_tokens = normalize_tokens(name)
-    text_clean = clean_text(name)
+    name_clean = clean_text(name)
 
-    best_category = "Miscellaneous"
-    best_score = 0
+    def match(item_set):
+        for i in item_set:
+            if clean_text(i) == name_clean:
+                return True
+        return False
 
-    for category, keywords in CATEGORY_RULES.items():
-        score = 0
+    if match(FOOD_ITEMS):
+        return "FOOD ITEMS"
 
-        for k in keywords:
-            k_clean = clean_text(k)
-            k_tokens = set(k_clean.split())
+    if match(DRY_ITEMS):
+        return "DRY ITEMS"
 
-            # SMART MATCH (token overlap OR substring fallback)
-            if k_tokens & text_tokens:
-                score += 1
-            elif k_clean in text_clean:
-                score += 1
+    if match(MISC_ITEMS):
+        return "Miscellaneous"
 
-        if score > best_score:
-            best_score = score
-            best_category = category
+    return "Miscellaneous"
 
-    return best_category
-
+# ========================================================
+# CATEGORY BUILDER
+# ========================================================
 
 def build_category(df):
 
     cats = {
-        "Food Items": [],
-        "Packaging Items": [],
-        "Cleaning & Hygiene": [],
+        "FOOD ITEMS": [],
+        "DRY ITEMS": [],
         "Miscellaneous": []
     }
 
@@ -359,17 +372,45 @@ def build_category(df):
         cat = detect_category(row["Item Name"])
         cats[cat].append(row)
 
-    # alphabetical sorting
     for k in cats:
-        cats[k] = sorted(
-            cats[k],
-            key=lambda x: clean_text(x["Item Name"])
-        )
+        cats[k] = sorted(cats[k], key=lambda x: clean_text(x["Item Name"]))
 
     return cats
 
 # ========================================================
-# CATEGORY UI (FIXED AGGRID)
+# AGGRID (FIXED LAYOUT + PINNING + SCROLL)
+# ========================================================
+
+def make_grid(df, key):
+
+    gb = GridOptionsBuilder.from_dataframe(df)
+
+    gb.configure_default_column(
+        resizable=True,
+        sortable=True,
+        filter=True,
+        wrapText=False
+    )
+
+    gb.configure_column("Item Name", pinned="left")
+    gb.configure_column("SKU", pinned="left")
+    gb.configure_column("UOM", pinned="left")
+
+    gb.configure_grid_options(
+        domLayout='normal'
+    )
+
+    AgGrid(
+        df,
+        gridOptions=gb.build(),
+        theme="streamlit",
+        fit_columns_on_grid_load=True,
+        height=500,
+        key=key
+    )
+
+# ========================================================
+# CATEGORY UI
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -385,28 +426,10 @@ for cat, rows in category_data.items():
             continue
 
         df = pd.DataFrame(rows)
-
-        gb = GridOptionsBuilder.from_dataframe(df)
-
-        gb.configure_default_column(
-            resizable=True,
-            sortable=True,
-            filter=True,
-            minWidth=90
-        )
-
-        gb.configure_grid_options(domLayout='autoHeight')
-
-        AgGrid(
-            df,
-            gridOptions=gb.build(),
-            theme="streamlit",
-            fit_columns_on_grid_load=True,
-            key=f"cat_{cat}"
-        )
+        make_grid(df, f"cat_{cat}")
 
 # ========================================================
-# DAILY / WEEKLY TABLES (FIXED AGGRID)
+# DAILY / WEEKLY TABLES
 # ========================================================
 
 def render(df, title):
@@ -417,24 +440,7 @@ def render(df, title):
         st.warning("No Data")
         return
 
-    gb = GridOptionsBuilder.from_dataframe(df)
-
-    gb.configure_default_column(
-        resizable=True,
-        sortable=True,
-        filter=True,
-        minWidth=90
-    )
-
-    gb.configure_grid_options(domLayout='autoHeight')
-
-    AgGrid(
-        df,
-        gridOptions=gb.build(),
-        theme="streamlit",
-        fit_columns_on_grid_load=True,
-        key=title
-    )
+    make_grid(df, title)
 
 
 render(daily_df, "📦 Daily Items Stock")
