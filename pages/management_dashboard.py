@@ -170,25 +170,14 @@ selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # ========================================================
-# 🔥 FIX: ARABIC IGNORE + FIRST ENGLISH WORD EXTRACTION
+# TEXT CLEANING
 # ========================================================
 
-def extract_first_english_word(text):
-    text = str(text)
-
-    # remove Arabic completely
+def clean_text(text):
+    text = str(text).lower()
     text = re.sub(r"[\u0600-\u06FF]+", " ", text)
-
-    # keep only English letters/numbers/spaces
-    text = re.sub(r"[^a-zA-Z0-9 ]", " ", text)
-
-    words = text.strip().split()
-
-    for w in words:
-        if re.search(r"[a-zA-Z]", w):
-            return w.lower()
-
-    return ""
+    text = re.sub(r"[^a-z0-9 ]", " ", text)
+    return text
 
 # ========================================================
 # STOCK PROCESSING
@@ -321,28 +310,23 @@ CATEGORY_RULES = {
 }
 
 def detect_category(name):
+    text = clean_text(name)
 
-    first_word = extract_first_english_word(name)
-
-    if not first_word:
-        return "Miscellaneous"
-
-    best = "Miscellaneous"
+    best_category = "Miscellaneous"
     best_score = 0
 
-    for cat, keys in CATEGORY_RULES.items():
-
+    for category, keywords in CATEGORY_RULES.items():
         score = 0
 
-        for k in keys:
-            if k.lower() in first_word:
+        for k in keywords:
+            if k in text:
                 score += 1
 
         if score > best_score:
             best_score = score
-            best = cat
+            best_category = category
 
-    return best
+    return best_category
 
 
 def build_category(df):
@@ -355,15 +339,13 @@ def build_category(df):
     }
 
     for _, row in df.iterrows():
-
         cat = detect_category(row["Item Name"])
         cats[cat].append(row)
 
-    # SORT A → Z BY FIRST ENGLISH WORD
     for k in cats:
         cats[k] = sorted(
             cats[k],
-            key=lambda x: extract_first_english_word(x["Item Name"])
+            key=lambda x: clean_text(x["Item Name"])
         )
 
     return cats
