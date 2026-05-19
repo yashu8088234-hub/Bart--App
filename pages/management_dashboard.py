@@ -44,7 +44,7 @@ client = get_client()
 # BRANCHES
 # ========================================================
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=None)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -88,7 +88,7 @@ def fetch_branch(branch):
         return {"branch": name, "success": False, "data": []}
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=None)
 def load_all_data(branches):
 
     completed = {}
@@ -188,7 +188,7 @@ def normalize_tokens(text):
 # STOCK PROCESSING (UNCHANGED LOGIC)
 # ========================================================
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=None)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
