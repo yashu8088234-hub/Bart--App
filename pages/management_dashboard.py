@@ -510,7 +510,7 @@ def make_grid(df, key):
         "Item Name",
         pinned="left",
         lockPinned=True,
-        width=350
+        width=250
     )
 
     gb.configure_column(
