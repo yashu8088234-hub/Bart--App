@@ -10,7 +10,10 @@ import time
 # PAGE CONFIG
 # ========================================================
 
-st.set_page_config(layout="wide", page_title="Stock Overview")
+st.set_page_config(
+    layout="wide",
+    page_title="Stock Overview"
+)
 
 st.title("📦 BART - Stock Management (All Branches)")
 
@@ -66,13 +69,17 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
-# RETRY SYSTEM
+# RETRY SETTINGS
 # ========================================================
 
 MAX_RETRIES = 10
 RETRY_DELAY = 10
 
 branch_cache = {}
+
+# ========================================================
+# FETCH BRANCH
+# ========================================================
 
 def fetch_branch(branch):
 
@@ -109,6 +116,10 @@ def fetch_branch(branch):
             "success": False,
             "data": []
         }
+
+# ========================================================
+# LOAD ALL DATA
+# ========================================================
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
@@ -221,7 +232,7 @@ if st.button("🔄 Refresh Data"):
     st.rerun()
 
 # ========================================================
-# DATE PICKER
+# DATE SELECTOR
 # ========================================================
 
 selected_date = st.date_input("📅 Select Date")
@@ -414,7 +425,7 @@ MISC_ITEMS = set([
 ])
 
 # ========================================================
-# CATEGORY ENGINE
+# CATEGORY DETECTION
 # ========================================================
 
 def detect_category(name):
@@ -433,7 +444,7 @@ def detect_category(name):
     return "Miscellaneous"
 
 # ========================================================
-# CATEGORY BUILDER
+# BUILD CATEGORY
 # ========================================================
 
 def build_category(df):
@@ -468,41 +479,56 @@ def make_grid(df, key):
     gb = GridOptionsBuilder.from_dataframe(df)
 
     # ====================================================
-    # DEFAULT SETTINGS
+    # DEFAULT COLUMN SETTINGS
     # ====================================================
 
     gb.configure_default_column(
         resizable=True,
         sortable=True,
         filter=True,
+        editable=False,
         wrapText=True,
         autoHeight=True,
-        editable=False
+        cellStyle={
+            "whiteSpace": "normal",
+            "lineHeight": "20px",
+            "display": "flex",
+            "alignItems": "center"
+        }
     )
 
     # ====================================================
-    # LOCK FIRST 3 COLUMNS
+    # FIX FIRST 3 COLUMNS
     # ====================================================
 
     gb.configure_column(
         "Item Name",
         pinned="left",
         lockPinned=True,
-        width=350
+        minWidth=280,
+        maxWidth=450,
+        wrapText=True,
+        autoHeight=True
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
         lockPinned=True,
-        width=180
+        minWidth=120,
+        maxWidth=180,
+        wrapText=True,
+        autoHeight=True
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
         lockPinned=True,
-        width=120
+        minWidth=90,
+        maxWidth=120,
+        wrapText=True,
+        autoHeight=True
     )
 
     # ====================================================
@@ -513,8 +539,21 @@ def make_grid(df, key):
 
         gb.configure_column(
             b,
-            width=120,
-            type=["numericColumn"]
+            type=["numericColumn"],
+            minWidth=90,
+            maxWidth=130,
+            wrapText=True,
+            autoHeight=True,
+            suppressSizeToFit=False,
+            cellStyle={
+                "textAlign": "center",
+                "whiteSpace": "normal",
+                "lineHeight": "20px",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center"
+            },
+            headerClass="wrap-header"
         )
 
     # ====================================================
@@ -525,19 +564,57 @@ def make_grid(df, key):
         domLayout="normal",
         suppressHorizontalScroll=False,
         alwaysShowHorizontalScroll=True,
-        alwaysShowVerticalScroll=True
+        alwaysShowVerticalScroll=True,
+        headerHeight=70,
+        rowHeight=60,
+        enableCellTextSelection=True
     )
+
+    # ====================================================
+    # CUSTOM CSS
+    # ====================================================
+
+    custom_css = {
+
+        ".ag-header-cell-label": {
+            "white-space": "normal !important",
+            "line-height": "20px",
+            "text-align": "center",
+            "justify-content": "center",
+            "align-items": "center",
+            "display": "flex"
+        },
+
+        ".ag-header-cell": {
+            "padding-top": "5px",
+            "padding-bottom": "5px"
+        },
+
+        ".ag-cell": {
+            "display": "flex",
+            "align-items": "center"
+        },
+
+        ".ag-row": {
+            "max-height": "none !important"
+        }
+    }
+
+    # ====================================================
+    # SHOW GRID
+    # ====================================================
 
     AgGrid(
         df,
         gridOptions=gb.build(),
+        custom_css=custom_css,
         theme="streamlit",
         enable_enterprise_modules=False,
-        fit_columns_on_grid_load=True,
+        fit_columns_on_grid_load=False,
         update_mode=GridUpdateMode.NO_UPDATE,
         allow_unsafe_jscode=True,
         reload_data=False,
-        height=550,
+        height=650,
         width="100%",
         key=key
     )
@@ -582,7 +659,7 @@ for cat, rows in category_data.items():
         make_grid(df, f"cat_{cat}")
 
 # ========================================================
-# DAILY / WEEKLY TABLES
+# MAIN TABLES
 # ========================================================
 
 def render(df, title):
