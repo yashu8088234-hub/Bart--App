@@ -47,7 +47,7 @@ client = get_client()
 # BRANCHES (FORCE ALL)
 # =========================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
@@ -74,7 +74,7 @@ def fetch_branch(branch):
     except Exception:
         return branch["BranchName"], []
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def load_all_data(branches):
     results = []
     with ThreadPoolExecutor(max_workers=5) as ex:
@@ -111,7 +111,7 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 # PROCESS
 # =========================================================
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def process_stock(all_data, selected_date_str, branch_names):
 
     daily = {}
