@@ -12,28 +12,40 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS ARCHITECTURE (WITH MAP OVERLAY)
+# CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
-/* Forces transparency */
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
-
-/* Background Layer: Centers orbits + Adds World Map */
-.background-layer { 
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
-    overflow: hidden; background-color: #FFFFFF;
-    display: flex; justify-content: center; align-items: center;
-    /* World Map SVG Pattern */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23E2E8F0' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
-    background-size: cover;
-    background-position: center;
-    opacity: 0.8;
+/* Force transparency across all Streamlit containers */
+.stApp, .stAppViewContainer, .main, .block-container, [data-testid="stAppViewContainer"] {
+    background: transparent !important;
 }
-.orbit-wrap { position: relative; }
+
+/* Background Layer */
+.background-layer {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    z-index: -9999 !important;
+    background-color: #FFFFFF !important;
+    background-image: url("https://upload.wikimedia.org/wikipedia/commons/8/83/World_map_blank_gmt.svg") !important;
+    background-size: cover !important;
+    background-position: center !important;
+    opacity: 0.15 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    pointer-events: none !important;
+}
+
+/* Orbits */
+.orbit-wrap { position: relative !important; }
 .orbit { 
-    position: absolute; border: 1px solid rgba(46, 212, 122, 0.25); border-radius: 50%; 
-    animation: spin linear infinite;
-    left: 50%; top: 50%; transform: translate(-50%, -50%);
+    position: absolute !important; 
+    border: 1px solid rgba(46, 212, 122, 0.25) !important; 
+    border-radius: 50% !important; 
+    animation: spin linear infinite !important;
+    left: 50% !important; top: 50% !important; 
+    transform: translate(-50%, -50%) !important;
 }
 .o1 { width: 200px; height: 200px; animation-duration: 20s; }
 .o2 { width: 350px; height: 350px; animation-duration: 30s; }
@@ -42,6 +54,7 @@ st.markdown("""<style>
 .o5 { width: 800px; height: 800px; animation-duration: 65s; }
 .o6 { width: 950px; height: 950px; animation-duration: 85s; }
 .o7 { width: 1100px; height: 1100px; animation-duration: 110s; }
+
 @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes counter { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 .icon { animation: counter linear infinite; font-size: 24px; position: absolute; top: -12px; left: 50%; margin-left: -12px; }
@@ -82,7 +95,7 @@ def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
 # =========================================================
-# ANIMATED BACKGROUND LAYER
+# BACKGROUND LAYER
 # =========================================================
 st.markdown("""
 <div class="background-layer">
@@ -99,26 +112,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# ANIMATED HEADER & UI (Unchanged)
+# UI CONTENT (Original Structure)
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 st.markdown("""<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'><span class='bart-logo'>B A R T</span></h1>""", unsafe_allow_html=True)
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
-st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
+st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART.</p>", unsafe_allow_html=True)
 
-# ... (Rest of your original code remains exactly the same) ...
-# =========================================================
-# CARDS
-# =========================================================
 grid_left, grid_right = st.columns(2, gap="large")
 with grid_left:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">Staff Control """, unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"): st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div></div>', unsafe_allow_html=True)
 with grid_right:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HQ Administration""", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
     if is_mgmt_locked():
         remaining = int(st.session_state.mgmt_lock_until - time.time())
         st.button(f"Console Locked ({remaining}s) 🔒", disabled=True, use_container_width=True, key="mgmt_btn")
@@ -128,17 +135,12 @@ with grid_right:
             st.rerun()
     st.markdown('</div></div>', unsafe_allow_html=True)
 
-# =========================================================
-# PASSWORD VERIFICATION
-# =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
-    st.components.v1.html("""<script>setTimeout(function() {var el = window.parent.document.getElementById('security_form'); if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }}, 100);</script>""", height=0)
     sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
     with sheet_center:
         with st.form("pass_form", clear_on_submit=True):
-            st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
             password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
             if st.form_submit_button("Verify & Open", use_container_width=True):
                 if password_input == st.secrets["MANAGER_PASSWORD"]:
