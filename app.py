@@ -76,48 +76,54 @@ div.stButton > button {
 
 /* 
    =========================================================
-   CHARCOAL CHASSIS WITH SOLID WHITE BOLD TEXT
+   ULTIMATE SPECIFICITY CHARCOAL CHASSIS WITH INTENSE GLOW
    =========================================================
 */
-/* Target outer button wrapper layout structural block */
-div.stButton > button[key="staff_btn"], 
-div[data-testid="stHorizontalBlock"] div.stButton > button:first-child {
+/* 
+   Target button structural container across key attributes, 
+   element types, and position variations to guarantee render capture.
+*/
+div.stButton > button[key="staff_btn"],
+div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button,
+button[data-testid="stBaseButton-secondary"] {
     background: #1C1D22 !important; /* Premium Matte Charcoal Base */
     border: 2px solid #FF0033 !important; /* Blazing Red Laser Border */
     box-shadow: 0 0 15px rgba(255, 0, 51, 0.4), inset 0 0 12px rgba(255, 0, 51, 0.2) !important;
     animation: tacticalGlow 2.5s infinite alternate cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* Aggressively force inner elements to stay big, bold, and solid white */
-div.stButton > button[key="staff_btn"] *, 
-div.stButton > button[key="staff_btn"] p,
-div.stButton > button[key="staff_btn"] div,
-div.stButton > button[key="staff_btn"] span,
-div.stButton > button[key="staff_btn"] small {
+/* 
+   Deep-nest child override targeting all interior rendering spans, 
+   paragraphs, paragraphs inside divs, buttons frames, and text targets 
+   to securely lock the color layout to bold white.
+*/
+div.stButton > button[key="staff_btn"] *,
+div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button *,
+button[data-testid="stBaseButton-secondary"] * {
     color: #FFFFFF !important;
-    font-size: 18px !important; /* Upgraded text size */
-    font-weight: 800 !important; /* Heavy thick bold alignment */
+    font-size: 19px !important; /* Noticeably Big Typography */
+    font-weight: 900 !important; /* Ultra-Thick Massive Bold Weight */
     text-transform: uppercase !important;
-    letter-spacing: 1.5px !important;
-    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.6) !important; /* Sharp readability filter */
+    letter-spacing: 2px !important;
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.8) !important; /* Clear typography split */
 }
 
 /* Hyper-kinetic reactive hover states */
 div.stButton > button[key="staff_btn"]:hover,
-div[data-testid="stHorizontalBlock"] div.stButton > button:first-child:hover {
+div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button:hover,
+button[data-testid="stBaseButton-secondary"]:hover {
     transform: translateY(-4px) scale(1.02) !important;
     background: #FF0033 !important; /* Morph completely to Blazing Red on hover */
     border-color: #FF0033 !important;
     box-shadow: 0 12px 30px rgba(255, 0, 51, 0.6), 0 0 15px rgba(255, 0, 51, 0.4) !important;
 }
 
-/* Maintain font layout options under layout hover morph actions */
+/* Maintain font color properties cleanly during dynamic hover event transformation */
 div.stButton > button[key="staff_btn"]:hover *,
-div.stButton > button[key="staff_btn"]:hover p,
-div.stButton > button[key="staff_btn"]:hover div,
-div.stButton > button[key="staff_btn"]:hover span {
-    color: #FFFFFF !important; /* Keeps typography locked white on hover */
-    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3) !important;
+div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button:hover *,
+button[data-testid="stBaseButton-secondary"]:hover * {
+    color: #FFFFFF !important; 
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.4) !important;
 }
 
 div.stButton > button[key="staff_btn"]:active {
@@ -127,12 +133,12 @@ div.stButton > button[key="staff_btn"]:active {
 /* Breathing ambient perimeter energy beam effect */
 @keyframes tacticalGlow {
     0% {
-        box-shadow: 0 0 12px rgba(255, 0, 51, 0.3), inset 0 0 8px rgba(255, 0, 51, 0.1);
+        box-shadow: 0 0 12px rgba(255, 0, 51, 0.35), inset 0 0 8px rgba(255, 0, 51, 0.15);
         filter: brightness(0.95);
     }
     100% {
-        box-shadow: 0 0 25px rgba(255, 0, 51, 0.65), inset 0 0 18px rgba(255, 0, 51, 0.35);
-        filter: brightness(1.1);
+        box-shadow: 0 0 25px rgba(255, 0, 51, 0.75), inset 0 0 18px rgba(255, 0, 51, 0.45);
+        filter: brightness(1.15);
     }
 }
 /* ========================================================= */
