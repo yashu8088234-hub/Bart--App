@@ -464,9 +464,6 @@ weekly_df = build_df(weekly_items, branch_names)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
-if st.button("🔄 Refresh"):
-    st.rerun()
-
 
 # Build categories keeping them as clean DataFrames
 category_dfs = build_category_dfs(daily_df)
