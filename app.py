@@ -39,7 +39,7 @@ def data_missing():
     )
 
 # =========================================================
-# REFINED BRAND BRAND COLOR CSS
+# BRAND COLOUR PILL BUTTON CSS
 # =========================================================
 st.markdown("""<style>
 /* Reset boilerplate elements */
@@ -67,7 +67,7 @@ div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {
     border: 1px solid #ECEFF1 !important;
 }
 
-/* --- BUTTON ARCHITECTURE --- */
+/* --- MASTER BUTTON ARCHITECTURE --- */
 div.stButton > button {
     height: 54px !important;
     border-radius: 50px !important; /* Premium Atlas Pill Style */
@@ -75,35 +75,26 @@ div.stButton > button {
     font-weight: 700 !important;
     letter-spacing: -0.2px !important;
     transition: all 0.2s ease-in-out !important;
+    border: none !important;
 }
 
-/* Pill 1: Your Deep Charcoal/Crimson Combo (Floor Staff Button) */
-div.stButton > button[key="staff_btn"] {
+/* Apply Your Gradient Palette to BOTH Buttons */
+div.stButton > button[key="staff_btn"], 
+div.stButton > button[key="mgmt_btn"] {
     background: linear-gradient(135deg, #2C2A28, #C0392B) !important;
     color: #FFFFFF !important;
-    border: none !important;
     box-shadow: 0 4px 14px rgba(192, 57, 43, 0.2) !important;
 }
-div.stButton > button[key="staff_btn"]:hover {
+
+/* Hover effects for both buttons */
+div.stButton > button[key="staff_btn"]:hover, 
+div.stButton > button[key="mgmt_btn"]:hover {
     transform: translateY(-2px) !important;
-    opacity: 0.95 !important;
+    opacity: 0.93 !important;
     box-shadow: 0 6px 20px rgba(192, 57, 43, 0.35) !important;
 }
 
-/* Pill 2: Your Brand Outline Style (Management HQ Button) */
-div.stButton > button[key="mgmt_btn"] {
-    background: transparent !important;
-    color: #C0392B !important;
-    border: 2px solid #C0392B !important;
-}
-div.stButton > button[key="mgmt_btn"]:hover {
-    transform: translateY(-2px) !important;
-    background: #C0392B !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 6px 20px rgba(192, 57, 43, 0.25) !important;
-}
-
-/* Locked Admin State Styling */
+/* Locked Admin State Styling Overrides */
 div.stButton > button[key="mgmt_btn"]:disabled {
     background: #F1F3F5 !important;
     color: #ADB5BD !important;
@@ -138,7 +129,7 @@ div[data-testid="stTextInput"] input:focus {
     box-shadow: 0 0 0 1px #C0392B !important;
 }
 
-/* Style the Abort Login submit button to look clean and neutral */
+/* Override form buttons to look smaller and cohesive */
 div[data-testid="stForm"] div.stButton > button {
     height: 48px !important;
 }
