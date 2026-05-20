@@ -76,49 +76,39 @@ div.stButton > button {
 
 /* 
    =========================================================
-   ULTIMATE SPECIFICITY CHARCOAL CHASSIS WITH INTENSE GLOW
+   ULTIMATE SPECIFICITY: RED CHASSIS WITH CHARCOAL HOVER
    =========================================================
-*/
-/* 
-   Target button structural container across key attributes, 
-   element types, and position variations to guarantee render capture.
 */
 div.stButton > button[key="staff_btn"],
 div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button,
 button[data-testid="stBaseButton-secondary"] {
-    background: #1C1D22 !important; /* Premium Matte Charcoal Base */
-    border: 2px solid #FF0033 !important; /* Blazing Red Laser Border */
+    background: #FF0033 !important; /* Blazing Red Base */
+    border: 2px solid #FF0033 !important; 
     box-shadow: 0 0 15px rgba(255, 0, 51, 0.4), inset 0 0 12px rgba(255, 0, 51, 0.2) !important;
     animation: tacticalGlow 2.5s infinite alternate cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* 
-   Deep-nest child override targeting all interior rendering spans, 
-   paragraphs, paragraphs inside divs, buttons frames, and text targets 
-   to securely lock the color layout to bold white.
-*/
 div.stButton > button[key="staff_btn"] *,
 div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button *,
 button[data-testid="stBaseButton-secondary"] * {
     color: #FFFFFF !important;
-    font-size: 14px !important; /* Noticeably Big Typography */
-    font-weight: 900 !important; /* Ultra-Thick Massive Bold Weight */
+    font-size: 14px !important;
+    font-weight: 900 !important;
     text-transform: uppercase !important;
     letter-spacing: 2px !important;
-    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.8) !important; /* Clear typography split */
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.8) !important;
 }
 
-/* Hyper-kinetic reactive hover states */
+/* Hyper-kinetic reactive hover states: Flip to Charcoal */
 div.stButton > button[key="staff_btn"]:hover,
 div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button:hover,
 button[data-testid="stBaseButton-secondary"]:hover {
     transform: translateY(-4px) scale(1.02) !important;
-    background: #FF0033 !important; /* Morph completely to Blazing Red on hover */
-    border-color: #FF0033 !important;
-    box-shadow: 0 12px 30px rgba(255, 0, 51, 0.6), 0 0 15px rgba(255, 0, 51, 0.4) !important;
+    background: #1C1D22 !important; /* Morph to Charcoal on hover */
+    border-color: #1C1D22 !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* Maintain font color properties cleanly during dynamic hover event transformation */
 div.stButton > button[key="staff_btn"]:hover *,
 div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button:hover *,
 button[data-testid="stBaseButton-secondary"]:hover * {
@@ -141,7 +131,6 @@ div.stButton > button[key="staff_btn"]:active {
         filter: brightness(1.15);
     }
 }
-/* ========================================================= */
 
 /* Pill 2: Ghost Outline Button (Management HQ) */
 div.stButton > button[key="mgmt_btn"] {
@@ -196,14 +185,11 @@ div[data-testid="stTextInput"] input:focus {
 # =========================================================
 # PREMIUM SAAS VISUAL HEADER
 # =========================================================
-
-# Clean Category Badge Accent
 st.markdown(
     "<div style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; uppercase; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", 
     unsafe_allow_html=True
 )
 
-# Main Title Headline Structure
 st.markdown(
     "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
     "Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span>"
@@ -211,14 +197,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Meta Info Text Description Block
 st.markdown(
     "<p style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto; line-height: 1.6;'>"
     "Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters."
     "</p>", 
     unsafe_allow_html=True
 )
-
 
 # =========================================================
 # HIGH-END DUAL EXECUTIVE CARDS
@@ -230,7 +214,6 @@ with grid_left:
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Floor Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     
-    # Render action controller button
     if st.button("Access Floor Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -247,7 +230,6 @@ with grid_right:
         if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
     st.markdown('</div>', unsafe_allow_html=True)
-
 
 # =========================================================
 # MODERN SLIDE-IN PASSWORD VERIFICATION SHEET
