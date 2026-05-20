@@ -31,10 +31,9 @@ def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
 # =========================================================
-# CSS ARCHITECTURE (ANIMATED & GLOWING)
+# CSS ARCHITECTURE (ANIMATED HEADER + GLOW BUTTONS)
 # =========================================================
 st.markdown("""<style>
-/* Reset boilerplate elements */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
@@ -49,43 +48,28 @@ st.markdown("""<style>
 .delay-3 { animation-delay: 0.6s; }
 .delay-4 { animation-delay: 0.8s; }
 
-/* Card Glow Effect */
-.card-glow {
-    position: relative;
-    padding: 2px;
-    background: #F1F3F5;
-    border-radius: 22px;
-    overflow: hidden;
-}
-.card-glow::before {
-    content: '';
-    position: absolute;
-    top: -50%; left: -50%;
-    width: 200%; height: 200%;
-    background: conic-gradient(transparent, #2ED47A, transparent 30%);
-    animation: rotate 4s linear infinite;
-}
-.card-content {
-    position: relative;
-    background: #FFFFFF;
-    border-radius: 20px;
-    padding: 30px;
-    z-index: 1;
-}
+/* Glow Button Effect */
 @keyframes rotate { 100% { transform: rotate(360deg); } }
-
-/* Global Button Architecture */
 div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
-    height: 54px !important; border-radius: 50px !important; transition: 0.3s !important;
-    border: none !important; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%) !important;
-    color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important;
-    letter-spacing: 2px !important; box-shadow: 0 4px 15px rgba(46, 212, 122, 0.3) !important;
+    position: relative;
+    height: 54px !important; border-radius: 50px !important;
+    border: none !important; background: #20C997 !important;
+    color: #FFFFFF !important; font-weight: 900 !important;
+    text-transform: uppercase !important; letter-spacing: 2px !important;
+    overflow: hidden; z-index: 1;
 }
-div.stButton > button:hover { transform: translateY(-4px) scale(1.02) !important; }
+div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::before {
+    content: ''; position: absolute; z-index: -1;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: conic-gradient(transparent, #2ED47A, transparent 50%);
+    animation: rotate 3s linear infinite;
+}
+div.stButton > button:hover { transform: translateY(-2px); }
 
-/* Global Styling */
+/* Containers */
 .stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 .block-container {max-width: 900px !important; padding-top: 5rem !important;}
+div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {background-color: #F8F9FA !important; border-radius: 20px !important; padding: 30px !important; border: 1px solid #ECEFF1 !important;}
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
@@ -99,20 +83,20 @@ st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-si
 st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
 # =========================================================
-# GLOW CARDS
+# CARDS
 # =========================================================
 grid_left, grid_right = st.columns(2, gap="large")
 
 with grid_left:
-    st.markdown('<div class="card-glow"><div class="card-content">', unsafe_allow_html=True)
+    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Staff Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
-    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with grid_right:
-    st.markdown('<div class="card-glow"><div class="card-content">', unsafe_allow_html=True)
+    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>HQ Administration</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
     
@@ -123,7 +107,7 @@ with grid_right:
         if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
             st.rerun()
-    st.markdown('</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
 # PASSWORD SHEET
