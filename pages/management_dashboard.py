@@ -479,27 +479,59 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (PURE DATAFRAME HANDLING)
+# CATEGORY LOGIC (FIXED FOR MISSING ITEMS)
 # ========================================================
 
-st.subheader("📊 Category Wise Stock Overview")
+def normalize_sku(value):
+    return str(value).strip().upper()
 
-# Build categories keeping them as clean DataFrames
-category_dfs = build_category_dfs(daily_df)
+def detect_category(sku):
+    s = normalize_sku(sku)
+    if not s or s == "-":
+        return "FOOD ITEMS" # Matches your top entry in FOOD_SKUS
+        
+    # Check for exact matches first
+    if s in FOOD_SKUS:
+        return "FOOD ITEMS"
+    if s in DRY_SKUS:
+        return "DRY ITEMS"
+    if s in MISC_SKUS or s == "ΤΟΥ1": # Catches both regular and Greek character typo variants
+        return "MISC ITEMS"
+        
+    # Fallback prefix matching (e.g., if SKU is 'B034-A', match it to 'FOOD ITEMS' because it starts with 'B')
+    if s.startswith(('B', 'F', 'K', 'CB', 'CF', 'S')):
+        return "FOOD ITEMS"
+    if s.startswith(('C', 'P', 'IC', 'RS')):
+        return "DRY ITEMS"
+    if s.startswith(('T', 'SVP')):
+        return "MISC ITEMS"
+        
+    # Ultimate fallback so they don't hide in MISC
+    return "UNCATEGORIZED"
 
-# Create 3 tabs, calculating the count using len(df) directly from the filtered DataFrame
-tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
-tabs = st.tabs(tab_titles)
+def build_category_dfs(df):
+    """Filters the main DataFrame into distinct DataFrames while preserving structure."""
+    cats = {
+        "FOOD ITEMS": pd.DataFrame(columns=df.columns),
+        "DRY ITEMS": pd.DataFrame(columns=df.columns),
+        "MISC ITEMS": pd.DataFrame(columns=df.columns),
+        "UNCATEGORIZED": pd.DataFrame(columns=df.columns) # Added debug tab
+    }
+    
+    if df.empty:
+        return cats
 
-# Loop and distribute grids inside the tabs safely
-for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
-    with tab:
-        if not sub_df.empty:
-            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat)
-            # Pass the pure, healthy subset DataFrame straight into your grid maker
-            make_grid(sub_df, unique_grid_key)
-        else:
-            st.info(f"No items in {cat}")
+    category_series = df["SKU"].apply(detect_category)
+    
+    for cat_name in cats.keys():
+        sub_df = df[category_series == cat_name]
+        cats[cat_name] = sub_df.sort_values(by="Item Name", key=lambda col: col.str.lower())
+        
+    # If no items ended up uncategorized, remove the empty tab so it stays clean
+    if cats["UNCATEGORIZED"].empty:
+        del cats["UNCATEGORIZED"]
+        
+    return cats
 # ========================================================
 # MAIN TABLES
 # ========================================================
