@@ -34,103 +34,60 @@ def is_mgmt_locked():
 # CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
-/* --- ANIMATED BACKGROUND --- */
-.background-container {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    z-index: -9999; overflow: hidden; pointer-events: none;
-    background-color: #FFFFFF; /* Ensure base is white */
-}
-.orbit {
-    position: absolute; top: 50%; left: 50%;
-    width: 600px; height: 300px; border: 1px dashed rgba(46, 212, 122, 0.15);
-    border-radius: 50%; animation: spin 20s linear infinite;
-    transform: translate(-50%, -50%);
-}
-.icon {
-    position: absolute; top: -15px; left: 50%; font-size: 20px;
-    animation: counter-spin 20s linear infinite;
-}
-@keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
-@keyframes counter-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-
-/* --- OVERRIDE STREAMLIT BACKGROUNDS --- */
-.stApp { background: transparent !important; }
-div[data-testid="stAppViewContainer"] { background: transparent !important; }
-div[data-testid="stMainBlockContainer"] { background: transparent !important; }
+/* --- ANIMATED BACKGROUND INJECTION --- */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
+.background-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; overflow: hidden; background: #FFFFFF; }
+.map-bg { position: absolute; width: 100%; height: 100%; opacity: 0.05; background-image: radial-gradient(#2ED47A 1px, transparent 1px); background-size: 50px 50px; }
+.orbit-wrap { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.orbit { position: absolute; border: 1px solid rgba(46, 212, 122, 0.25); border-radius: 50%; animation: spin linear infinite; transform: translate(-50%, -50%); }
+.orbit-1 { width: 200px; height: 200px; animation-duration: 15s; }
+.orbit-2 { width: 350px; height: 350px; animation-duration: 25s; }
+.orbit-3 { width: 500px; height: 500px; animation-duration: 35s; }
+.orbit-4 { width: 650px; height: 650px; animation-duration: 45s; }
+.orbit-5 { width: 800px; height: 800px; animation-duration: 60s; }
+.orbit-6 { width: 950px; height: 950px; animation-duration: 80s; }
+.orbit-7 { width: 1100px; height: 1100px; animation-duration: 100s; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes counter { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+.icon { animation: counter linear infinite; font-size: 24px; position: absolute; top: -12px; left: 50%; margin-left: -12px; }
 
 /* --- ORIGINAL CSS --- */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
-
-/* Header Animations */
-@keyframes fadeInUp {
-    0% { opacity: 0; transform: translateY(30px); }
-    100% { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
 .animate-text { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
 .delay-1 { animation-delay: 0.2s; }
 .delay-2 { animation-delay: 0.4s; }
 .delay-3 { animation-delay: 0.6s; }
 .delay-4 { animation-delay: 0.8s; }
-
-/* Enhanced High-Impact BART Pulse */
-@keyframes breathe-bold {
-    0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); }
-    50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); }
-}
-.bart-logo {
-    display: inline-block; animation: breathe-bold 2s ease-in-out infinite;
-    background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    cursor: default; font-weight: 900 !important; letter-spacing: -2px;
-}
-
-/* Glow Card Effect */
+@keyframes breathe-bold { 0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); } }
+.bart-logo { display: inline-block; animation: breathe-bold 2s ease-in-out infinite; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
 @keyframes rotate { 100% { transform: rotate(360deg); } }
-.card-glow {
-    position: relative; padding: 2px;
-    background: #F8F9FA; border-radius: 22px; overflow: hidden;
-}
-.card-glow::before {
-    content: ''; position: absolute;
-    top: -50%; left: -50%; width: 200%; height: 200%;
-    background: conic-gradient(transparent, #2ED47A, transparent 30%);
-    animation: rotate 4s linear infinite;
-}
-.card-content {
-    position: relative; background: #F8F9FA;
-    border-radius: 20px; padding: 30px; z-index: 1;
-}
-
-/* Glow Button Effect */
-div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
-    position: relative;
-    height: 54px !important; border-radius: 50px !important;
-    border: none !important; background: #20C997 !important;
-    color: #FFFFFF !important; font-weight: 900 !important;
-    text-transform: uppercase !important; letter-spacing: 2px !important;
-    overflow: hidden; z-index: 1;
-}
-div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::before {
-    content: ''; position: absolute; z-index: -1;
-    top: -50%; left: -50%; width: 200%; height: 200%;
-    background: conic-gradient(transparent, #2ED47A, transparent 50%);
-    animation: rotate 3s linear infinite;
-}
+.card-glow { position: relative; padding: 2px; background: #F8F9FA; border-radius: 22px; overflow: hidden; }
+.card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
+.card-content { position: relative; background: #F8F9FA; border-radius: 20px; padding: 30px; z-index: 1; }
+div.stButton > button, div[data-testid="stFormSubmitButton"] > button { position: relative; height: 54px !important; border-radius: 50px !important; border: none !important; background: #20C997 !important; color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; overflow: hidden; z-index: 1; }
+div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::before { content: ''; position: absolute; z-index: -1; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 50%); animation: rotate 3s linear infinite; }
 div.stButton > button:hover { transform: translateY(-2px); }
-
-/* Containers */
+.stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 .block-container {max-width: 900px !important; padding-top: 5rem !important;}
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
 
-# Inject Background
+# Inject Background HTML
 st.markdown("""
 <div class="background-container">
-    <div class="orbit" style="animation-duration: 25s;"><div class="icon">🍴</div></div>
-    <div class="orbit" style="animation-duration: 35s; transform: translate(-50%, -50%) rotate(72deg);"><div class="icon">🔒</div></div>
-    <div class="orbit" style="animation-duration: 45s; transform: translate(-50%, -50%) rotate(144deg);"><div class="icon">📝</div></div>
+    <div class="map-bg"></div>
+    <div class="orbit-wrap">
+        <div class="orbit orbit-1"><div class="icon" style="animation-duration: 15s;">🌍</div></div>
+        <div class="orbit orbit-2"><div class="icon" style="animation-duration: 25s;">🪐</div></div>
+        <div class="orbit orbit-3"><div class="icon" style="animation-duration: 35s;">☄️</div></div>
+        <div class="orbit orbit-4"><div class="icon" style="animation-duration: 45s;">🌑</div></div>
+        <div class="orbit orbit-5"><div class="icon" style="animation-duration: 60s;">☀️</div></div>
+        <div class="orbit orbit-6"><div class="icon" style="animation-duration: 80s;">🌕</div></div>
+        <div class="orbit orbit-7"><div class="icon" style="animation-duration: 100s;">🌟</div></div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
