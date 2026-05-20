@@ -46,9 +46,10 @@ st.markdown("""<style>
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
-/* Pure Minimalist Tech White Background */
+/* Pure Minimalist Tech White Background - FORCED */
 .stApp {
     background-color: #FFFFFF !important;
+    background: #FFFFFF !important;
     font-family: 'Inter', system-ui, sans-serif;
 }
 
