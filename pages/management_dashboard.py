@@ -66,7 +66,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
-# SKU CATEGORY SETS
+# SKU CATEGORY SETS (RESTORED)
 # ========================================================
 
 FOOD_SKUS = {
@@ -115,7 +115,7 @@ def fetch_branch(branch):
         return name, branch_cache.get(name, [])
 
 # ========================================================
-# LOAD ALL DATA
+# LOAD ALL DATA (WITH RETRY SYSTEM)
 # ========================================================
 
 MAX_RETRIES = 10
@@ -155,7 +155,10 @@ def load_all_data(branches):
         failed_names = [b["BranchName"] for b in failed]
 
         with status.container():
-            st.info(f"Retry {round_no}/{MAX_RETRIES} → {', '.join(failed_names)}")
+            st.info(
+                f"Retry {round_no}/{MAX_RETRIES} → "
+                f"{', '.join(failed_names)}"
+            )
 
         time.sleep(RETRY_DELAY)
 
@@ -345,14 +348,14 @@ def build_category(df):
     return cats
 
 # ========================================================
-# SAFE KEY
+# SAFE KEY (FIX #252)
 # ========================================================
 
 def stable_key(prefix, name):
     return prefix + "_" + hashlib.md5(str(name).encode()).hexdigest()
 
 # ========================================================
-# AGGRID
+# AGGRID (YOUR ORIGINAL SPACING - UNCHANGED)
 # ========================================================
 
 def make_grid(df, key):
@@ -375,43 +378,87 @@ def make_grid(df, key):
         }
     )
 
-    gb.configure_column("Item Name", pinned="left", width=250)
-    gb.configure_column("SKU", pinned="left", width=100)
-    gb.configure_column("UOM", pinned="left", width=100)
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        lockPinned=True,
+        width=250, minWidth=250, maxWidth=350,
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        lockPinned=True,
+        width=100, minWidth=100, maxWidth=350,
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        lockPinned=True,
+        width=100, minWidth=100, maxWidth=350,
+    )
 
     for b in branch_names:
 
         gb.configure_column(
             b,
             type=["numericColumn"],
-            width=120,
+            wrapText=False,
+            width=120, minWidth=120, maxWidth=350,
+            autoHeight=False,
             cellStyle={
                 "textAlign": "center",
                 "display": "flex",
                 "alignItems": "center",
                 "justifyContent": "center",
-                "fontSize": "13px"
+                "fontSize": "13px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px"
             }
         )
 
     gb.configure_grid_options(
         headerHeight=38,
         rowHeight=32,
+        suppressHorizontalScroll=False,
         alwaysShowHorizontalScroll=True,
         alwaysShowVerticalScroll=True
     )
 
+    time.sleep(0.03)
+
     AgGrid(
         df,
         gridOptions=gb.build(),
+        custom_css={
+            ".ag-header-cell-label": {
+                "justify-content": "center",
+                "font-size": "12px",
+                "font-weight": "600"
+            },
+            ".ag-header-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            },
+            ".ag-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            }
+        },
         theme="streamlit",
+        fit_columns_on_grid_load=False,
+        enable_enterprise_modules=False,
         update_mode=GridUpdateMode.NO_UPDATE,
+        allow_unsafe_jscode=True,
+        reload_data=True,
         height=500,
+        width="100%",
         key=key
     )
 
 # ========================================================
-# PIPELINE
+# PIPELINE RUN
 # ========================================================
 
 all_data = load_all_data(branches)
@@ -426,7 +473,7 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (FIXED EXPANDERS)
+# CATEGORY VIEW
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -435,14 +482,12 @@ category_data = build_category(daily_df)
 
 for cat, rows in category_data.items():
 
-    df = pd.DataFrame(rows)
+    st.write(f"📂 {cat} ({len(rows)})")
 
-    with st.expander(f"📂 {cat} ({len(df)})", expanded=False):
-
-        if not df.empty:
-            make_grid(df, stable_key("cat", cat))
-        else:
-            st.info("No items")
+    if rows:
+        make_grid(pd.DataFrame(rows), stable_key("cat", cat))
+    else:
+        st.info("No items")
 
 # ========================================================
 # MAIN TABLES
