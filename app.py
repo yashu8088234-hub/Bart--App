@@ -12,17 +12,22 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS ARCHITECTURE (INJECTED)
+# CSS ARCHITECTURE (WITH MAP OVERLAY)
 # =========================================================
 st.markdown("""<style>
-/* Forces transparency to show background */
+/* Forces transparency */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
 
-/* Background Layer: Flexbox centers the content in the viewport */
+/* Background Layer: Centers orbits + Adds World Map */
 .background-layer { 
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
-    overflow: hidden; background: #FFFFFF;
+    overflow: hidden; background-color: #FFFFFF;
     display: flex; justify-content: center; align-items: center;
+    /* World Map SVG Pattern */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23E2E8F0' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
+    background-size: cover;
+    background-position: center;
+    opacity: 0.8;
 }
 .orbit-wrap { position: relative; }
 .orbit { 
@@ -94,13 +99,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =========================================================
-# ANIMATED HEADER
+# ANIMATED HEADER & UI (Unchanged)
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 st.markdown("""<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'><span class='bart-logo'>B A R T</span></h1>""", unsafe_allow_html=True)
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
 st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
+# ... (Rest of your original code remains exactly the same) ...
 # =========================================================
 # CARDS
 # =========================================================
