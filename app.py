@@ -97,7 +97,7 @@ with grid_left:
 
 with grid_right:
     st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B;margin-top:-70px ; margin-bottom: -10px;'>HQ Administration</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px;text-align: center; font-weight: 700; color: #1E293B;margin-top:-70px ; margin-bottom: -10px;'>HQ Administration</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
     
     if is_mgmt_locked():
