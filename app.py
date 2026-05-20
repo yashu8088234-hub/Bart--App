@@ -8,11 +8,11 @@ from ai_core import run_ai
 st.set_page_config(
     page_title="BART",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # =========================================================
-# SESSION STATE
+# SESSION STATE (UNCHANGED LOGIC)
 # =========================================================
 st.session_state.authenticated = True
 
@@ -34,21 +34,17 @@ if "WEEKLY_ITEMS" not in st.session_state:
 if "show_mgmt_password" not in st.session_state:
     st.session_state.show_mgmt_password = False
 
-# 🔥 GLOBAL MANAGEMENT LOCK
 if "mgmt_lock_until" not in st.session_state:
     st.session_state.mgmt_lock_until = 0
 
 
 # =========================================================
-# LOCK CHECK
+# LOCK & DATA CHECKS (UNCHANGED LOGIC)
 # =========================================================
 def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
 
-# =========================================================
-# DATA CHECK
-# =========================================================
 def data_missing():
     return (
         not st.session_state.all_data
@@ -59,116 +55,123 @@ def data_missing():
 
 
 # =========================================================
-# STYLE (UNCHANGED)
+# REFRESHED CAFE-STYLE CSS
 # =========================================================
 st.markdown("""<style>
+/* Hide default boilerplate elements */
 #MainMenu, footer, header {visibility: hidden;}
-
-.stApp {
-    background: linear-gradient(135deg, #F7F1EA, #FFFFFF);
-    font-family: 'Segoe UI', sans-serif;
-}
-
-[data-testid="stSidebar"] {
+[data-testid="stSidebar"], [data-testid="collapsedControl"] {
     display: none !important;
     visibility: hidden !important;
 }
 
-[data-testid="collapsedControl"] {
-    display: none !important;
+/* Warm, premium coffee-shop color scheme */
+.stApp {
+    background-color: #FBF9F6;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
-section.main > div {
-    padding-left: 2rem;
-    padding-right: 2rem;
+/* Container limits for an elegant, non-stretched look on ultra-wide screens */
+.block-container {
+    max-width: 900px !important;
+    padding-top: 4rem !important;
+    padding-bottom: 4rem !important;
 }
 
-.hero {
-    background: white;
-    padding: 60px;
-    text-align: center;
-    border-radius: 25px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+/* Subtly style text inputs and passwords */
+div[data-testid="stTextInput"] input {
+    border-radius: 10px !important;
+    border: 1px solid #E0DCD6 !important;
+    padding: 12px !important;
 }
 
-.hero h1 {font-size: 70px; color: #C0392B;}
-.hero h2 {color: #2C2A28;}
-
-div.stButton > button {
-    width: 100%;
-    height: 52px;
-    border-radius: 14px;
-    background: linear-gradient(135deg,#2C2A28,#C0392B);
-    color: white;
-    font-weight: 700;
-    border: none;
-}
-
-div.stButton > button:hover {opacity: 0.9;}
-
-.section {
-    background: white;
-    padding: 25px;
-    margin-top: 15px;
-    border-radius: 15px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-    text-align: center;
+div[data-testid="stTextInput"] input:focus {
+    border-color: #C0392B !important;
+    box-shadow: 0 0 0 1px #C0392B !important;
 }
 </style>""", unsafe_allow_html=True)
 
 
 # =========================================================
-# HERO
+# REDESIGNED BRAND HEADER
 # =========================================================
-st.markdown("""
-<div class="hero">
-    <h1>BART</h1>
-    <h2>Coffee • French Toast • Fresh Bites</h2>
-    <p>📍 Jeddah • bart.sa</p>
-</div>
-""", unsafe_allow_html=True)
+# Using Streamlit columns + native typography for a modern, accessible layout
+left_space, center_card, right_space = st.columns([1, 6, 1])
+
+with center_card:
+    st.markdown(
+        "<h1 style='text-align: center; font-size: 72px; font-weight: 800; color: #1E1E1E; margin-bottom: 0; letter-spacing: -2px;'>BART</h1>", 
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p style='text-align: center; font-size: 18px; color: #C0392B; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; margin-top: 5px; margin-bottom: 5px;'>Coffee • French Toast • Fresh Bites</p>", 
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "<p style='text-align: center; color: #7F8C8D; font-size: 14px;'>📍 Jeddah • bart.sa</p>", 
+        unsafe_allow_html=True
+    )
+    
+    st.write("---") # Soft visual divider
+    
+    # Check data status inline with a modern status notice if empty
+    if data_missing():
+        st.info("💡 System is ready. Waiting for initial operational data payload.")
+
+    st.write("##") # Spacer
+
+    # =========================================================
+    # ACTION DASHBOARDS (2-COLUMN GRID)
+    # =========================================================
+    dash_col1, dash_col2 = st.columns(2, gap="large")
+    
+    with dash_col1:
+        with st.container(border=True):
+            st.markdown("### 👨‍💼 Floor Staff")
+            st.caption("Access daily logs, item checklists, and localized branch operations counters.")
+            st.write("##") # Align button push
+            if st.button("Open Staff Dashboard →", use_container_width=True, type="secondary"):
+                st.switch_page("pages/staff_dashboard.py")
+                
+    with dash_col2:
+        with st.container(border=True):
+            st.markdown("### 📦 Administration")
+            st.caption("Manage menu items, access raw configurations, and view cross-branch performance.")
+            st.write("##")
+            
+            # 🔥 LOCKED BUTTON LOGIC
+            if is_mgmt_locked():
+                st.button("Dashboard Locked 🔒", disabled=True, use_container_width=True)
+                remaining = int(st.session_state.mgmt_lock_until - time.time())
+                st.error(f"Security lock active for {remaining}s")
+            else:
+                if st.button("Unlock Admin Panel ✨", use_container_width=True, type="primary"):
+                    st.session_state.show_mgmt_password = True
 
 
-# =========================================================
-# MAIN BUTTONS
-# =========================================================
-col1, col3, col2 = st.columns(3, gap="large")
-
-with col1:
-    if st.button("👨‍💼 Staff Dashboard", use_container_width=True):
-        st.switch_page("pages/staff_dashboard.py")
-
-with col2:
-    # 🔥 LOCKED BUTTON LOGIC
-    if is_mgmt_locked():
-        st.button("📦 Management Dashboard 🔒 Locked", disabled=True, use_container_width=True)
-        remaining = int(st.session_state.mgmt_lock_until - time.time())
-        st.warning(f"Locked for {remaining} seconds")
-    else:
-        if st.button("📦 Management Dashboard", use_container_width=True):
-            st.session_state.show_mgmt_password = True
-
-with col3:
-    st.empty()
-
-
-# =========================================================
-# PASSWORD CHECK
-# =========================================================
-if st.session_state.show_mgmt_password:
-
-    st.markdown("### 🔐 Manager Access Required")
-
-    password_input = st.text_input("Enter Manager Password", type="password")
-
-    if st.button("Validate & Continue"):
-
-        if password_input == st.secrets["MANAGER_PASSWORD"]:
-            st.session_state.show_mgmt_password = False
-            st.switch_page("pages/management_dashboard.py")
-        else:
-            st.error("❌ Incorrect password")
-
-
-
+    # =========================================================
+    # PASSWORD CHECK IN-LINE INTERACTION
+    # =========================================================
+    if st.session_state.show_mgmt_password:
+        st.write("---")
+        
+        # Center the password form nicely within the view block
+        p_left, p_mid, p_right = st.columns([1, 4, 1])
+        with p_mid:
+            with st.container(border=True):
+                st.markdown("🔒 **Manager Authentication Required**")
+                password_input = st.text_input("Enter credentials to proceed", type="password", label_visibility="collapsed", placeholder="Enter Manager Password")
+                
+                # Align action buttons nicely side by side
+                btn1, btn2 = st.columns(2)
+                with btn1:
+                    if st.button("Cancel", use_container_width=True):
+                        st.session_state.show_mgmt_password = False
+                        st.rerun()
+                with btn2:
+                    if st.button("Verify Identity", use_container_width=True, type="primary"):
+                        if password_input == st.secrets["MANAGER_PASSWORD"]:
+                            st.session_state.show_mgmt_password = False
+                            st.switch_page("pages/management_dashboard.py")
+                        else:
+                            st.error("❌ Invalid Access Token")
