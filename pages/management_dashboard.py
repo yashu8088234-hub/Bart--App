@@ -5,6 +5,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import time
+import hashlib
 
 # ========================================================
 # PAGE CONFIG
@@ -128,7 +129,6 @@ def load_all_data(branches):
     failed = []
 
     progress = st.progress(0)
-
     status = st.empty()
 
     with ThreadPoolExecutor(max_workers=3) as ex:
@@ -147,15 +147,11 @@ def load_all_data(branches):
             name = r["branch"]
 
             if r["success"] or r["data"]:
-
                 completed[name] = r["data"]
-
             else:
-
                 failed.append(futures[f])
 
             done += 1
-
             progress.progress(done / len(branches))
 
     round_no = 1
@@ -165,7 +161,6 @@ def load_all_data(branches):
         failed_names = [b["BranchName"] for b in failed]
 
         with status.container():
-
             st.info(
                 f"Retry {round_no}/{MAX_RETRIES} → "
                 f"{', '.join(failed_names)}"
@@ -189,23 +184,16 @@ def load_all_data(branches):
                 name = r["branch"]
 
                 if r["success"] or r["data"]:
-
                     completed[name] = r["data"]
-
                 else:
-
                     new_failed.append(futures[f])
 
         failed = new_failed
-
         round_no += 1
 
     if failed:
-
         status.warning("Some branches still failed")
-
     else:
-
         status.empty()
 
     return [
@@ -224,10 +212,9 @@ all_data = load_all_data(branches)
 
 if st.button("🔄 Refresh Data"):
 
+    branch_cache.clear()
     st.cache_data.clear()
     st.cache_resource.clear()
-
-    branch_cache.clear()
 
     st.rerun()
 
@@ -236,7 +223,6 @@ if st.button("🔄 Refresh Data"):
 # ========================================================
 
 selected_date = st.date_input("📅 Select Date")
-
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 # ========================================================
@@ -259,7 +245,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         date_index = None
 
         for i, h in enumerate(headers):
-
             if h == selected_date_str:
                 date_index = i
                 break
@@ -309,11 +294,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             qty = 0
 
             try:
-
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
                     qty = 0 if val in ["", None] else float(val)
-
             except:
                 qty = 0
 
@@ -344,7 +327,6 @@ def build_df(data_dict):
         }
 
         for b in branch_names:
-
             row[b] = v.get(b, 0)
 
         rows.append(row)
@@ -355,31 +337,11 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY (NEW SKU BASED LOGIC ONLY)
+# CATEGORY LOGIC
 # ========================================================
 
 def normalize_sku(value):
     return str(value).strip().upper()
-
-FOOD_SKUS = {
-    "B034","F066","CB032","B029","K072","CB009","F081","B019","B018",
-    "CF007","CF006","F148","CB028","K176","CB036","K265","B016","CB078",
-    "K154","CB054","K226","CB074","M&M","B014","K242","S019","CB055",
-    "B017","CB076","CB056","B026","CB037","K087","CB043"
-}
-
-DRY_SKUS = {
-    "C013","P244","P254","P320","P322","P321","P095","P296","C014",
-    "P337","P125","P298","P178","P343(1)","P343","CF009","P145","P133",
-    "P156","RS002","P155","P081","C011","C045","P253","C012","P101",
-    "P012","P218","P091","P132","P264","P160","C005","P219","P157",
-    "P161","C010","RS001","P342","P341","P039","P084","P082","C017",
-    "C016","C015","P208","P158","C007","P315","C048","P083"
-}
-
-MISC_SKUS = {
-    "T063","T060","T066","TOY1","T026","SVP","F089","P130"
-}
 
 def detect_category(sku):
 
@@ -407,11 +369,9 @@ def build_category(df):
     for _, row in df.iterrows():
 
         cat = detect_category(row["SKU"])
-
         cats[cat].append(row.to_dict())
 
     for k in cats:
-
         cats[k] = sorted(
             cats[k],
             key=lambda x: str(x["Item Name"]).lower()
@@ -420,7 +380,14 @@ def build_category(df):
     return cats
 
 # ========================================================
-# AGGRID (UNCHANGED)
+# SAFE GRID KEY (FIX FOR ERROR 252)
+# ========================================================
+
+def stable_key(prefix, name):
+    return prefix + "_" + hashlib.md5(str(name).encode()).hexdigest()
+
+# ========================================================
+# AGGRID (UNCHANGED VISUAL SPACING)
 # ========================================================
 
 def make_grid(df, key):
@@ -491,26 +458,24 @@ def make_grid(df, key):
         alwaysShowVerticalScroll=True
     )
 
-    custom_css = {
-        ".ag-header-cell-label": {
-            "justify-content": "center",
-            "font-size": "12px",
-            "font-weight": "600"
-        },
-        ".ag-header-cell": {
-            "padding-top": "0px",
-            "padding-bottom": "0px"
-        },
-        ".ag-cell": {
-            "padding-top": "0px",
-            "padding-bottom": "0px"
-        }
-    }
-
     AgGrid(
         df,
         gridOptions=gb.build(),
-        custom_css=custom_css,
+        custom_css={
+            ".ag-header-cell-label": {
+                "justify-content": "center",
+                "font-size": "12px",
+                "font-weight": "600"
+            },
+            ".ag-header-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            },
+            ".ag-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            }
+        },
         theme="streamlit",
         fit_columns_on_grid_load=False,
         enable_enterprise_modules=False,
@@ -523,7 +488,7 @@ def make_grid(df, key):
     )
 
 # ========================================================
-# CATEGORY VIEW (UPDATED ONLY THIS PART)
+# CATEGORY VIEW
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -535,13 +500,12 @@ for cat, rows in category_data.items():
     with st.expander(f"📂 {cat} ({len(rows)})", expanded=False):
 
         if not rows:
-
             st.info("No items")
             continue
 
         df = pd.DataFrame(rows)
 
-        make_grid(df, f"cat_{cat}")
+        make_grid(df, stable_key("cat", cat))
 
 # ========================================================
 # MAIN TABLES
@@ -552,11 +516,10 @@ def render(df, title):
     st.subheader(title)
 
     if df.empty:
-
         st.warning("No Data")
         return
 
-    make_grid(df, title)
+    make_grid(df, stable_key("grid", title))
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
