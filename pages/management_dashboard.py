@@ -312,41 +312,44 @@ def build_df(data_dict, branch_names):
     return pd.DataFrame(rows)
 
 # ========================================================
-# CATEGORY LOGIC
+# CATEGORY LOGIC (UPDATED TO PRESERVE DATAFRAMES)
 # ========================================================
 
 def normalize_sku(value):
     return str(value).strip().upper()
 
 def detect_category(sku):
-
     s = normalize_sku(sku)
-
     if s in FOOD_SKUS:
         return "FOOD ITEMS"
     if s in DRY_SKUS:
         return "DRY ITEMS"
     if s in MISC_SKUS:
         return "MISC ITEMS"
-
     return "MISC ITEMS"
 
-def build_category(df):
-
+def build_category_dfs(df):
+    """Filters the main DataFrame into 3 distinct DataFrames while preserving structure."""
+    # Create an identical empty DataFrame structure for each category
     cats = {
-        "FOOD ITEMS": [],
-        "DRY ITEMS": [],
-        "MISC ITEMS": []
+        "FOOD ITEMS": pd.DataFrame(columns=df.columns),
+        "DRY ITEMS": pd.DataFrame(columns=df.columns),
+        "MISC ITEMS": pd.DataFrame(columns=df.columns)
     }
+    
+    if df.empty:
+        return cats
 
-    for _, row in df.iterrows():
-        cats[detect_category(row["SKU"])].append(row.to_dict())
-
-    for k in cats:
-        cats[k] = sorted(cats[k], key=lambda x: x["Item Name"].lower())
-
+    # Apply our category detector across the SKU column to group items
+    category_series = df["SKU"].apply(detect_category)
+    
+    for cat_name in cats.keys():
+        # Filter the DataFrame matching the specific category
+        sub_df = df[category_series == cat_name]
+        # Sort alphabetically by Item Name just like your original logic
+        cats[cat_name] = sub_df.sort_values(by="Item Name", key=lambda col: col.str.lower())
+        
     return cats
-
 # ========================================================
 # SAFE KEY (FIX #252)
 # ========================================================
@@ -473,29 +476,27 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (FIXED WITH DATE-BASED KEYS)
+# CATEGORY VIEW (PURE DATAFRAME HANDLING)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
-category_data = build_category(daily_df)
+# Build categories keeping them as clean DataFrames
+category_dfs = build_category_dfs(daily_df)
 
-# Create 3 tabs
-tab_titles = [f"📂 {cat} ({len(rows)})" for cat, rows in category_data.items()]
+# Create 3 tabs, calculating the count using len(df) directly from the filtered DataFrame
+tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# Loop and distribute grids inside the tabs
-for tab, (cat, rows) in zip(tabs, category_data.items()):
+# Loop and distribute grids inside the tabs safely
+for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
     with tab:
-        if rows:
-            # FIX: Adding selected_date_str here completely forces a fresh, clean render 
-            # of the component when dates change, skipping the broken cleanup state.
+        if not sub_df.empty:
             unique_grid_key = stable_key(f"tab_{selected_date_str}", cat)
-            
-            make_grid(pd.DataFrame(rows), unique_grid_key)
+            # Pass the pure, healthy subset DataFrame straight into your grid maker
+            make_grid(sub_df, unique_grid_key)
         else:
-            st.info("No items in this category")
-
+            st.info(f"No items in {cat}")
 # ========================================================
 # MAIN TABLES
 # ========================================================
