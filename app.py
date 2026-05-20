@@ -12,30 +12,38 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS ARCHITECTURE
+# CSS ARCHITECTURE (WITH MAP OVERLAY)
 # =========================================================
 st.markdown("""<style>
 /* Forces transparency */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
 
-/* Background Layer */
+/* Background Layer: Soft Ice Blue/Mist for high contrast with white cards */
 .background-layer { 
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
     overflow: hidden; background-color: #F8FAFC; 
     display: flex; justify-content: center; align-items: center;
+    /* Map pattern using a slightly darker grey so it's visible but not distracting */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23CBD5E1' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
     background-size: cover;
     background-position: center;
     opacity: 0.6; 
 }
 
-/* Orbit lines updated to Black with 20% opacity */
-.orbit { 
-    position: absolute; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 50%; 
-    animation: spin linear infinite;
-    left: 50%; top: 50%; transform: translate(-50%, -50%);
+/* Card styling updated to ensure they stand out clearly against the new background */
+.card-glow { 
+    position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); /* Added subtle shadow for depth */
+}
+.card-content { 
+    position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; 
 }
 
+/* --- THE REST OF YOUR CSS --- */
+#MainMenu, footer, header {visibility: hidden;}
+[data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
+.orbit-wrap { position: relative; }
+.orbit { position: absolute; border: 1px solid rgba(46, 212, 122, 0.25); border-radius: 50%; animation: spin linear infinite; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .o1 { width: 200px; height: 200px; animation-duration: 20s; }
 .o2 { width: 350px; height: 350px; animation-duration: 30s; }
 .o3 { width: 500px; height: 500px; animation-duration: 40s; }
@@ -43,10 +51,6 @@ st.markdown("""<style>
 .o5 { width: 800px; height: 800px; animation-duration: 65s; }
 .o6 { width: 950px; height: 950px; animation-duration: 85s; }
 .o7 { width: 1100px; height: 1100px; animation-duration: 110s; }
-
-/* Original CSS Elements */
-#MainMenu, footer, header {visibility: hidden;}
-[data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes counter { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 .icon { animation: counter linear infinite; font-size: 24px; position: absolute; top: -12px; left: 50%; margin-left: -12px; }
@@ -56,9 +60,7 @@ st.markdown("""<style>
 @keyframes breathe-bold { 0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); } }
 .bart-logo { display: inline-block; animation: breathe-bold 2s ease-in-out infinite; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
 @keyframes rotate { 100% { transform: rotate(360deg); } }
-.card-glow { position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
 .card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
-.card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; }
 div.stButton > button, div[data-testid="stFormSubmitButton"] > button { position: relative; height: 54px !important; border-radius: 50px !important; border: none !important; background: #20C997 !important; color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; overflow: hidden; z-index: 1; }
 div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::before { content: ''; position: absolute; z-index: -1; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 50%); animation: rotate 3s linear infinite; }
 div.stButton > button:hover { transform: translateY(-2px); }
@@ -66,12 +68,15 @@ div.stButton > button:hover { transform: translateY(-2px); }
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
-
 # =========================================================
 # SESSION STATE
 # =========================================================
 st.session_state.authenticated = True
 if "chat" not in st.session_state: st.session_state.chat = []
+if "all_data" not in st.session_state: st.session_state.all_data = []
+if "branches" not in st.session_state: st.session_state.branches = []
+if "DAILY_ITEMS" not in st.session_state: st.session_state.DAILY_ITEMS = {}
+if "weekly_items" not in st.session_state: st.session_state.WEEKLY_ITEMS = {}
 if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_password = False
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
@@ -79,7 +84,7 @@ def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
 # =========================================================
-# BACKGROUND LAYER
+# ANIMATED BACKGROUND LAYER
 # =========================================================
 st.markdown("""
 <div class="background-layer">
@@ -93,6 +98,8 @@ st.markdown("""
         <div class="orbit o7"><div class="icon" style="animation-duration: 110s;">🌟</div></div>
     </div>
 </div>
+""", unsafe_allow_html=True)
+
 # =========================================================
 # ANIMATED HEADER & UI
 # =========================================================
