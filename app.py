@@ -56,7 +56,7 @@ st.markdown("""<style>
 .card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
 .card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; }
 
-/* UPDATED BUTTON STYLING: No Glow */
+/* INNOVATIVE LIQUID-SPRING BUTTON */
 div.stButton > button { 
     position: relative; 
     height: 54px !important; 
@@ -67,12 +67,18 @@ div.stButton > button {
     font-weight: 900 !important; 
     text-transform: uppercase !important; 
     letter-spacing: 2px !important; 
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
 }
 div.stButton > button::before { display: none !important; }
 div.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(32, 201, 151, 0.4);
+    transform: scale(1.05) translateY(-2px);
+    background: #19a37a !important; 
+    box-shadow: 0 10px 20px rgba(32, 201, 151, 0.3) !important;
+    letter-spacing: 4px !important;
+}
+div.stButton > button:active {
+    transform: scale(0.98) translateY(0);
 }
 </style>""", unsafe_allow_html=True)
 
