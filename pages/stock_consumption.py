@@ -115,34 +115,25 @@ def get_sheet(sheet_id, tab_name):
 sheet = get_sheet(sheet_id, tab_name)
 
 # -----------------------------
-# LOAD COLUMN A (UNCHANGED LOGIC)
+# LOAD DATA WITH INDICES MAPPED
 # -----------------------------
-def load_column_a(ws):
-    data = ws.get_all_values()
-    return [row[0].strip() for row in data if row and row[0].strip()]
+def load_sheet_data(ws):
+    """Loads all data to ensure items match their exact original spreadsheet row and UMO."""
+    return ws.get_all_values()
 
-items_list = load_column_a(sheet)
+sheet_data = load_sheet_data(sheet)
 
-# -----------------------------
-# ONLY ADDITION: LOAD COLUMN C (UMO)
-# -----------------------------
-def load_column_c(ws):
-    data = ws.get_all_values()
-    return [row[2].strip() if len(row) >= 3 and row[2] else "" for row in data[1:]]
+# Find sections by parsing the raw first column
+raw_col_a = [row[0].strip() if row else "" for row in sheet_data]
 
-umo_list = load_column_c(sheet)
-
-# -----------------------------
-# FIND SECTIONS
-# -----------------------------
 def find_index(items, name):
     for i, v in enumerate(items):
         if v.strip().upper() == name:
             return i
     return None
 
-daily_start = find_index(items_list, "DAILY ITEM")
-weekly_start = find_index(items_list, "WEEKLY ITEM")
+daily_start = find_index(raw_col_a, "DAILY ITEM")
+weekly_start = find_index(raw_col_a, "WEEKLY ITEM")
 
 if daily_start is None or weekly_start is None:
     st.error("❌ DAILY ITEM or WEEKLY ITEM not found")
@@ -152,7 +143,6 @@ if daily_start is None or weekly_start is None:
 # MODE SELECT
 # -----------------------------
 if st.session_state.page == "mode_select":
-
     st.session_state.show_success = False
 
     st.markdown("## Select Option")
@@ -174,16 +164,32 @@ if st.session_state.page == "mode_select":
     st.stop()
 
 # -----------------------------
-# STOCK ENTRY
+# FILTER ITEMS & PRESERVE ROW DATA
 # -----------------------------
 mode = st.session_state.mode
 
-if mode == "daily":
-    filtered_items = items_list[daily_start + 1 : weekly_start]
-else:
-    filtered_items = items_list[weekly_start + 1 :]
+# We build a list of dicts that hold item name, its UMO, and its original spreadsheet row index
+processed_items = []
+start_idx = (daily_start + 1) if mode == "daily" else (weekly_start + 1)
+end_idx = weekly_start if mode == "daily" else len(sheet_data)
 
-st.info(f"Mode: {mode.upper()} | Items: {len(filtered_items)}")
+for idx in range(start_idx, end_idx):
+    if idx < len(sheet_data):
+        row = sheet_data[idx]
+        item_name = row[0].strip() if row and row[0].strip() else ""
+        
+        # Skip section headers or empty cells accidentally left in the list
+        if not item_name or item_name.upper() in ["DAILY ITEM", "WEEKLY ITEM"]:
+            continue
+            
+        umo = row[2].strip() if len(row) >= 3 and row[2] else ""
+        processed_items.append({
+            "name": item_name,
+            "umo": umo,
+            "row_idx": idx + 1 # 1-based indexing for gspread
+        })
+
+st.info(f"Mode: {mode.upper()} | Items: {len(processed_items)}")
 
 if st.button("⬅ Back"):
     st.session_state.page = "mode_select"
@@ -205,22 +211,22 @@ inputs = {}
 
 with st.form("stock_form", clear_on_submit=False):
 
-    for i in range(0, len(filtered_items), 4):
+    for i in range(0, len(processed_items), 4):
         cols = st.columns(4)
 
         for j, col in enumerate(cols):
-            if i + j < len(filtered_items):
+            if i + j < len(processed_items):
+                item_data = processed_items[i + j]
+                item = item_data["name"]
+                umo = item_data["umo"]
+                
+                label = f"{item} [{umo}]" if umo else item
 
-                item = filtered_items[i + j]
-
-                # ONLY UI ADDITION (NO LOGIC CHANGE)
-                umo = umo_list[i + j] if i + j < len(umo_list) else ""
-                label = f"{item} [{umo}]"
-
+                # FIX: Appending the exact spreadsheet row index to the key prevents collissions
                 value = col.text_input(
                     label,
                     placeholder="Enter quantity",
-                    key=f"{mode}_{item}"
+                    key=f"{mode}_{item}_{item_data['row_idx']}"
                 )
 
                 inputs[item] = value.strip() if value.strip() else None
@@ -228,7 +234,6 @@ with st.form("stock_form", clear_on_submit=False):
     submitted = st.form_submit_button("🔍 Review Stock")
 
     if submitted:
-
         missing = [k for k, v in inputs.items() if v is None]
 
         if missing:
@@ -243,9 +248,7 @@ with st.form("stock_form", clear_on_submit=False):
 # REVIEW SECTION
 # -----------------------------
 if st.session_state.review_mode:
-
     st.markdown('<div id="review_section"></div>', unsafe_allow_html=True)
-
     st.markdown("## Review")
 
     for k, v in st.session_state.draft_data.items():
@@ -265,13 +268,10 @@ if st.session_state.scroll_to_review:
 # FINAL SUBMIT
 # -----------------------------
 if st.session_state.proceed_submit:
-
     try:
         with st.spinner("Saving stock..."):
-
-            sheet_data = sheet.get_all_values()
+            # Headers configuration remain unchanged
             headers = sheet_data[0]
-
             submission_time = time.strftime("%Y-%m-%d %H:%M:%S")
 
             if not st.session_state.tx_id:
@@ -287,7 +287,6 @@ if st.session_state.proceed_submit:
             item_to_row = {val.strip(): i + 1 for i, val in enumerate(col_values)}
 
             cells = []
-
             for item, qty in st.session_state.draft_data.items():
                 row = item_to_row.get(item)
                 if row:
@@ -337,7 +336,6 @@ STATUS: STOCK SUBMITTED SUCCESSFULLY
 # SUCCESS SCREEN
 # -----------------------------
 if st.session_state.show_success:
-
     st.markdown("""
     <div style="
         position: fixed;
@@ -369,7 +367,6 @@ if st.session_state.show_success:
     """, unsafe_allow_html=True)
 
     st.toast(f"Submitted ✔ | TX: {st.session_state.tx_id}", icon="✔")
-
     time.sleep(3)
 
     st.session_state.page = "mode_select"
@@ -381,4 +378,3 @@ if st.session_state.show_success:
     st.session_state.tx_id = None
 
     st.switch_page("pages/staff_dashboard.py")
-
