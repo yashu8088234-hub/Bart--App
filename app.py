@@ -110,23 +110,31 @@ with grid_right:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
-# PASSWORD SHEET
+# PASSWORD VERIFICATION SHEET
 # =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
     st.components.v1.html("""<script>setTimeout(function() {var el = window.parent.document.getElementById('security_form'); if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }}, 100);</script>""", height=0)
     
-    _, sheet_center, _ = st.columns([1, 5, 1])
+    sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
     with sheet_center:
         with st.form("pass_form", clear_on_submit=True):
+            st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into critical system files.</p>", unsafe_allow_html=True)
+            
             password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
-            col1, col2 = st.columns(2, gap="medium")
-            with col1:
+            
+            st.write("##")
+            action_col1, action_col2 = st.columns(2, gap="medium")
+            with action_col1:
                 if st.form_submit_button("Abort Login", use_container_width=True):
                     st.session_state.show_mgmt_password = False
                     st.rerun()
-            with col2:
+            with action_col2:
                 if st.form_submit_button("Verify & Open", use_container_width=True):
-                    if password_input == st.secrets.get("MANAGER_PASSWORD"):
+                    if password_input == st.secrets["MANAGER_PASSWORD"]:
+                        st.session_state.show_mgmt_password = False
                         st.switch_page("pages/management_dashboard.py")
+                    else:
+                        st.error("Access Refused: Invalid token signature.")
