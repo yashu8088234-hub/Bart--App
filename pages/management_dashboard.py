@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from dateutil import parser
 import time
+import re
 
 # ========================================================
 # PAGE CONFIG
@@ -300,11 +301,11 @@ def process_stock(all_data, selected_date_str, branch_names):
             item = str(row[0]).strip() if len(row) > 0 else ""
 
             sku = (
-                str(row[1])
-                .replace("\n", "")
-                .replace("\r", "")
-                .strip()
-                .upper()
+                re.sub(
+                    r"[^A-Z0-9()&-]",
+                    "",
+                    str(row[1]).upper()
+                ).strip()
             ) if len(row) > 1 else ""
 
             uom = str(row[2]).strip() if len(row) > 2 else ""
@@ -312,6 +313,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not item:
                 continue
 
+            # KEEP DUPLICATES
             key = f"{item}_{sku}_{uom}"
 
             target = daily if mode == "daily" else weekly
@@ -493,7 +495,11 @@ FOOD_SKUS = set([
 
 def detect_category(sku):
 
-    sku = str(sku).strip().upper()
+    sku = re.sub(
+        r"[^A-Z0-9()&-]",
+        "",
+        str(sku).upper()
+    ).strip()
 
     if sku in FOOD_SKUS:
         return "FOOD ITEMS"
@@ -562,21 +568,27 @@ def make_grid(df, key):
         "Item Name",
         pinned="left",
         lockPinned=True,
-        width=250, minWidth=250, maxWidth=350,
+        width=250,
+        minWidth=250,
+        maxWidth=350,
     )
 
     gb.configure_column(
         "SKU",
         pinned="left",
         lockPinned=True,
-        width=100, minWidth=100, maxWidth=350,
+        width=100,
+        minWidth=100,
+        maxWidth=350,
     )
 
     gb.configure_column(
         "UOM",
         pinned="left",
         lockPinned=True,
-        width=100, minWidth=100, maxWidth=350,
+        width=100,
+        minWidth=100,
+        maxWidth=350,
     )
 
     for b in branch_names:
