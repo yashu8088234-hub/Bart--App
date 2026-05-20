@@ -3,10 +3,10 @@ import time
 from ai_core import run_ai
 
 # =========================================================
-# CONFIG
+# SYSTEM CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="BART",
+    page_title="BART Ops",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -25,7 +25,7 @@ if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_pass
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
 # =========================================================
-# LOGIC CHECKS (UNCHANGED LOGIC)
+# CORE LOGIC CHECKS (UNCHANGED LOGIC)
 # =========================================================
 def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
@@ -39,124 +39,149 @@ def data_missing():
     )
 
 # =========================================================
-# HIGH-END LUXURY LIGHT CSS
+# PREMIUM INDUSTRIAL OPERATIONAL CSS
 # =========================================================
 st.markdown("""<style>
+/* Clean system workspace reset */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
-/* Premium Minimalist Light Background */
+/* Luxury Corporate Light Canvas */
 .stApp {
-    background: radial-gradient(circle at top, #FCFAF7 0%, #F5ECE3 100%);
+    background: radial-gradient(ellipse at top, #FAF9F5 0%, #EFEBE4 100%);
 }
 
+/* Tight layout window optimized for functional tools */
 .block-container {
-    max-width: 600px !important;
-    padding-top: 12% !important;
+    max-width: 580px !important;
+    padding-top: 10% !important;
 }
 
-/* Master Button Override */
+/* Master Button Layout & Physics Engine */
 div.stButton > button {
-    height: 68px !important;
-    border-radius: 18px !important;
-    font-size: 16px !important;
+    height: 76px !important;
+    border-radius: 14px !important;
+    font-size: 15px !important;
     font-weight: 700 !important;
-    letter-spacing: 0.3px !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1.5px !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Staff Button: Deep Espresso Cream */
+/* 👨‍💼 STAFF ENTRY BUTTON: COMMANDING GRAPHITE SHIELD */
 div.stButton > button[key="staff_btn"] {
-    background: #2C2A28 !important;
-    color: #FFFFFF !important;
+    background: #1C1B1A !important;
+    color: #F5ECE3 !important;
     border: none !important;
-    box-shadow: 0 10px 25px rgba(44, 42, 40, 0.15) !important;
+    box-shadow: 0 10px 30px rgba(28, 27, 26, 0.15) !important;
 }
 div.stButton > button[key="staff_btn"]:hover {
-    transform: translateY(-3px) !important;
-    box-shadow: 0 15px 30px rgba(44, 42, 40, 0.25) !important;
+    transform: translateY(-2px) !important;
+    background: #2D2B2A !important;
+    box-shadow: 0 15px 35px rgba(28, 27, 26, 0.25) !important;
+}
+div.stButton > button[key="staff_btn"]:active {
+    transform: translateY(1px) !important;
 }
 
-/* Management Button: Premium Bart Red */
+/* 📦 MANAGEMENT BUTTON: STERLING BRUSHED METAL DEEP REACTION */
 div.stButton > button[key="mgmt_btn"] {
     background: #FFFFFF !important;
-    color: #C0392B !important;
-    border: 2px solid #C0392B !important;
-    box-shadow: 0 10px 25px rgba(192, 57, 43, 0.08) !important;
+    color: #1C1B1A !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03) !important;
 }
 div.stButton > button[key="mgmt_btn"]:hover {
-    transform: translateY(-3px) !important;
-    background: #C0392B !important;
-    color: #FFFFFF !important;
-    box-shadow: 0 15px 30px rgba(192, 57, 43, 0.25) !important;
+    transform: translateY(-2px) !important;
+    color: #C0392B !important;
+    border-color: #C0392B !important;
+    box-shadow: 0 12px 25px rgba(192, 57, 43, 0.1) !important;
+}
+div.stButton > button[key="mgmt_btn"]:active {
+    transform: translateY(1px) !important;
 }
 
-/* Form Styling */
+/* Locked Admin Button State Overrides */
+div.stButton > button[key="mgmt_btn"]:disabled {
+    background: rgba(0, 0, 0, 0.03) !important;
+    color: #A09E9B !important;
+    border-color: transparent !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Security Frame Overlay */
 div[data-testid="stForm"] {
     background: #FFFFFF !important;
-    border: 1px solid rgba(0,0,0,0.05) !important;
-    border-radius: 20px !important;
+    border: 1px solid rgba(0,0,0,0.06) !important;
+    border-radius: 16px !important;
     padding: 24px !important;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.05) !important;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.06) !important;
 }
 
-/* Elegant Text Inputs */
+/* Data Input Vault UI */
 div[data-testid="stTextInput"] input {
-    border-radius: 12px !important;
-    background-color: #FAFAFA !important;
-    border: 1px solid #EAEAEA !important;
-    height: 48px !important;
+    border-radius: 10px !important;
+    background-color: #FDFDFD !important;
+    border: 1px solid #E2DFD9 !important;
+    height: 50px !important;
     text-align: center !important;
     font-size: 16px !important;
+    letter-spacing: 4px !important;
+    font-weight: 700 !important;
 }
 div[data-testid="stTextInput"] input:focus {
-    border-color: #C0392B !important;
-    background-color: #FFFFFF !important;
+    border-color: #1C1B1A !important;
+    box-shadow: 0 0 0 1px #1C1B1A !important;
 }
 </style>""", unsafe_allow_html=True)
 
+
 # =========================================================
-# THE VISUAL LAYOUT
+# INTERFACE LAYOUT
 # =========================================================
 
-# Clean, Bold Typography Focus
-st.markdown("<h1 style='text-align: center; font-size: 86px; font-weight: 900; color: #2C2A28; margin-bottom: 0; letter-spacing: -4px;'>BART</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 13px; color: #C0392B; font-weight: 800; text-transform: uppercase; letter-spacing: 5px; margin-top: -5px;'>Coffee & Fresh Bites • Jeddah</p>", unsafe_allow_html=True)
+# Clean Industrial Core Identity
+st.markdown("<h1 style='text-align: center; font-size: 64px; font-weight: 900; color: #1C1B1A; margin-bottom: 0; letter-spacing: -2px;'>BART</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-size: 11px; color: #7A7875; font-weight: 700; text-transform: uppercase; letter-spacing: 6px; margin-top: -5px;'>Operations Console • Internal Access Only</p>", unsafe_allow_html=True)
 
 st.write("###")
 
-# Compact Action Center
-col1, col2 = st.columns(2, gap="large")
+# Symmetrical Execution Grid
+col1, col2 = st.columns(2, gap="medium")
 
 with col1:
-    if st.button("👨‍💼 Staff Entry", use_container_width=True, key="staff_btn"):
+    if st.button("Floor Control", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
 
 with col2:
     if is_mgmt_locked():
         remaining = int(st.session_state.mgmt_lock_until - time.time())
-        st.button(f"🔒 Locked ({remaining}s)", disabled=True, use_container_width=True, key="mgmt_btn")
+        st.button(f"SYS LOCK ({remaining}s)", disabled=True, use_container_width=True, key="mgmt_btn")
     else:
-        if st.button("📦 Management", use_container_width=True, key="mgmt_btn"):
+        if st.button("HQ Admin", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
 
-# Minimalist Dynamic Password Prompt
+
+# =========================================================
+# SYSTEM SECURITY GATE
+# =========================================================
 if st.session_state.show_mgmt_password:
     st.write("##")
     with st.form("pass_form", clear_on_submit=True):
-        st.markdown("<p style='text-align: center; color: #7F8C8D; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px;'>Security Verification</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #1C1B1A; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px;'>CRITICAL REGION AUTHENTICATION</p>", unsafe_allow_html=True)
         password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="••••••••")
         
         st.write("#")
-        c1, c2 = st.columns(2, gap="medium")
+        c1, c2 = st.columns(2, gap="small")
         with c1:
-            if st.form_submit_button("Cancel", use_container_width=True):
+            if st.form_submit_button("Abort System", use_container_width=True):
                 st.session_state.show_mgmt_password = False
                 st.rerun()
         with c2:
-            if st.form_submit_button("Confirm →", use_container_width=True):
+            if st.form_submit_button("Grant Access", use_container_width=True):
                 if password_input == st.secrets["MANAGER_PASSWORD"]:
                     st.session_state.show_mgmt_password = False
                     st.switch_page("pages/management_dashboard.py")
                 else:
-                    st.error("Invalid Code")
+                    st.error("Authentication Refused")
