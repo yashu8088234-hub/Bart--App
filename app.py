@@ -47,9 +47,35 @@ st.markdown("""<style>
 .stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 .block-container {max-width: 900px !important; padding-top: 5rem !important; padding-bottom: 5rem !important;}
 div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {background-color: #F8F9FA !important; border-radius: 20px !important; padding: 30px !important; border: 1px solid #ECEFF1 !important;}
-div.stButton > button {height: 54px !important; border-radius: 50px !important; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important; border: none !important; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%) !important; box-shadow: 0 4px 15px rgba(46, 212, 122, 0.3) !important;}
-div.stButton > button * {color: #FFFFFF !important; font-size: 14px !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2) !important;}
-div.stButton > button:hover {transform: translateY(-4px) scale(1.02) !important; background: linear-gradient(90deg, #20C997 0%, #1aae82 100%) !important; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1), 0 0 15px rgba(46, 212, 122, 0.2) !important;}
+
+/* Global Button Styling (The Teal/Green Gradient) */
+div.stButton > button {
+    height: 54px !important; 
+    border-radius: 50px !important; 
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important; 
+    border: none !important; 
+    background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%) !important; 
+    box-shadow: 0 4px 15px rgba(46, 212, 122, 0.3) !important;
+}
+div.stButton > button * {
+    color: #FFFFFF !important; 
+    font-size: 14px !important; 
+    font-weight: 900 !important; 
+    text-transform: uppercase !important; 
+    letter-spacing: 2px !important; 
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+div.stButton > button:hover {
+    transform: translateY(-4px) scale(1.02) !important; 
+    background: linear-gradient(90deg, #20C997 0%, #1aae82 100%) !important; 
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1), 0 0 15px rgba(46, 212, 122, 0.2) !important;
+}
+
+/* Specific Override for Form Buttons to ensure they match */
+div[data-testid="stForm"] div.stButton > button {
+    background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%) !important;
+}
+
 div.stButton > button:disabled {background: #F1F3F5 !important; box-shadow: none !important; cursor: not-allowed !important;}
 div.stButton > button:disabled * {color: #ADB5BD !important; text-shadow: none !important;}
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04) !important;}
@@ -97,10 +123,8 @@ with grid_right:
 # =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
-    # Anchor point for JS scroll
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
     
-    # Inject JS for smooth scroll to anchor
     st.components.v1.html("""
         <script>
             setTimeout(function() {
@@ -121,9 +145,7 @@ if st.session_state.show_mgmt_password:
             st.write("##")
             action_col1, action_col2 = st.columns(2, gap="medium")
             with action_col1:
-                if st.form_submit_button("Abort Login", use_container_width=True):
-                    st.session_state.show_mgmt_password = False
-                    st.rerun()
+                st.form_submit_button("Abort Login", use_container_width=True)
             with action_col2:
                 if st.form_submit_button("Verify & Open", use_container_width=True):
                     if password_input == st.secrets["MANAGER_PASSWORD"]:
