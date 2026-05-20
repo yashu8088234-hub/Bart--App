@@ -156,7 +156,7 @@ st.markdown(
 
 st.markdown(
     "<h1  style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px;margin-bottom: -15px;  letter-spacing: -2.5px; line-height: 0.4;' >"
-    "<span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'> B A R T </span>"
+    "<span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>      B A R T </span>"
     "</h1>", 
     unsafe_allow_html=True
 )
