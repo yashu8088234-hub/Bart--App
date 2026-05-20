@@ -634,9 +634,10 @@ def make_grid(df, key):
         theme="streamlit",
         fit_columns_on_grid_load=False,
         enable_enterprise_modules=False,
-        update_mode=GridUpdateMode.NO_UPDATE,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
         allow_unsafe_jscode=True,
-        reload_data=False,
+        reload_data=True
+    ,
         height=500,
         width="100%",
         key=key
