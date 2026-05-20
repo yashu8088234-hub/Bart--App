@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from dateutil import parser
 import time
 
 # ========================================================
@@ -260,10 +261,19 @@ def process_stock(all_data, selected_date_str, branch_names):
 
         for i, h in enumerate(headers):
 
-            if h == selected_date_str:
+            try:
 
-                date_index = i
-                break
+                parsed = parser.parse(
+                    str(h)
+                ).strftime("%Y-%m-%d")
+
+                if parsed == selected_date_str:
+
+                    date_index = i
+                    break
+
+            except:
+                pass
 
         mode = None
 
@@ -288,7 +298,15 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             item = str(row[0]).strip() if len(row) > 0 else ""
-            sku = str(row[1]).strip() if len(row) > 1 else ""
+
+            sku = (
+                str(row[1])
+                .replace("\n", "")
+                .replace("\r", "")
+                .strip()
+                .upper()
+            ) if len(row) > 1 else ""
+
             uom = str(row[2]).strip() if len(row) > 2 else ""
 
             if not item:
@@ -361,117 +379,132 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY LISTS
+# SKU CATEGORY LISTS
 # ========================================================
 
-FOOD_ITEMS = set([
-    "ARWA Water 330ML",
-    "BART French Toast Brioche",
-    "BELCHOCO Feuilletine Flakes",
-    "Berry Ice Tea",
-    "Chocolate Pudding Cup",
-    "Code Blue Syrup",
-    "Code Red Syrup",
-    "Coffee - Blend DR - DR",
-    "Coffee - Blend U- U",
-    "Crunchy Chocolate Cake Slice",
-    "Galaxy Chocolate Bars",
-    "Hibiscus Ice Tea",
-    "KDD Vanilla Soft Ice Cream",
-    "Kinder Sauce",
-    "KitKat 18x36x20.5g",
-    "Lotus Crumble 250gm",
-    "Mango Juice Gallon",
-    "Nestle Sauce",
-    "Nutella Sauce",
-    "Pecan Sauce",
-    "Pudding Sauce",
-    "Roasted Kunafa",
-    "Vanilla Powder"
+MISC_SKUS = set([
+    "T063",
+    "T060",
+    "T066",
+    "TOY1",
+    "T026",
+    "SVP",
+    "P089",
+    "P130"
 ])
 
-DRY_ITEMS = set([
-    "Apron",
-    "BART PPG Paper Cup 12 Oz (Dark Pink)",
-    "BART PPG Paper Cup 12 Oz (Green)",
-    "BART Plastic Cold Cup 12oz",
-    "BART White Paper Cup 16oz",
-    "Black Straw 4 ML (20 x 200 Pcs)",
-    "Black Straw 8 ML (20 x 100 Pcs)",
-    "Coffee Filter Papers",
-    "Date Sticker",
-    "Flat Lid for Cold Cup",
-    "Gloves",
-    "Hair Net",
-    "Ice Cream Black Spoon",
-    "Injection Lid for Paper Cup",
-    "Kitchen Tissue Roll",
-    "Mask",
-    "POS Roll",
-    "Plastic Cups 12 Oz",
-    "Printed Paper Bag W/ Handle - Bart",
-    "Scotch Bright",
-    "Small Cake Box",
-    "Sticker BART",
-    "Trash bags 20 Gallon"
+DRY_SKUS = set([
+    "C013",
+    "P244",
+    "P254",
+    "P320",
+    "P322",
+    "P321",
+    "P095",
+    "P296",
+    "C014",
+    "P337",
+    "P125",
+    "P298",
+    "P178",
+    "P343(1)",
+    "P343",
+    "CF009",
+    "P145",
+    "P133",
+    "P156",
+    "RS002",
+    "P155",
+    "P081",
+    "C011",
+    "C045",
+    "P253",
+    "C012",
+    "P101",
+    "P012",
+    "P218",
+    "P091",
+    "P132",
+    "P264",
+    "P160",
+    "C005",
+    "P219",
+    "P157",
+    "P161",
+    "C010",
+    "RS001",
+    "P342",
+    "P341",
+    "P039",
+    "P084",
+    "P082",
+    "C017",
+    "C016",
+    "C015",
+    "P208",
+    "P158",
+    "C007",
+    "P315",
+    "C048",
+    "P083"
 ])
 
-MISC_ITEMS = set([
-    "BART PPG Figurine",
-    "BART Stainless Steel Forks",
-    "Bart Black Shovel Spoon",
-    "Cloudy Figurine Toy",
-    "Shovel Spoon"
+FOOD_SKUS = set([
+    "B034",
+    "F066",
+    "CB032",
+    "B029",
+    "K072",
+    "CB009",
+    "F081",
+    "-",
+    "B019",
+    "B018",
+    "CF007",
+    "CF006",
+    "F148",
+    "CB028",
+    "K176",
+    "CB036",
+    "K265",
+    "B016",
+    "CB078",
+    "K154",
+    "CB054",
+    "K226",
+    "CB074",
+    "M&M",
+    "B014",
+    "K242",
+    "S019",
+    "CB055",
+    "B017",
+    "CB076",
+    "CB056",
+    "B026",
+    "CB037",
+    "K087",
+    "CB043"
 ])
-
-# ========================================================
-# NORMALIZE TEXT
-# ========================================================
-
-def normalize_text(value):
-
-    return (
-        str(value)
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .strip()
-        .lower()
-    )
-
-# ========================================================
-# PRE-NORMALIZED CATEGORY SETS
-# ========================================================
-
-NORMALIZED_FOOD_ITEMS = {
-    normalize_text(x) for x in FOOD_ITEMS
-}
-
-NORMALIZED_DRY_ITEMS = {
-    normalize_text(x) for x in DRY_ITEMS
-}
-
-NORMALIZED_MISC_ITEMS = {
-    normalize_text(x) for x in MISC_ITEMS
-}
 
 # ========================================================
 # CATEGORY DETECTION
 # ========================================================
 
-def detect_category(name):
+def detect_category(sku):
 
-    item_name = normalize_text(name)
+    sku = str(sku).strip().upper()
 
-    if item_name in NORMALIZED_FOOD_ITEMS:
+    if sku in FOOD_SKUS:
         return "FOOD ITEMS"
 
-    if item_name in NORMALIZED_DRY_ITEMS:
+    if sku in DRY_SKUS:
         return "DRY ITEMS"
 
-    if item_name in NORMALIZED_MISC_ITEMS:
+    if sku in MISC_SKUS:
         return "Miscellaneous"
 
-    return "Miscellaneous"
+    return "Uncategorized"
 
 # ========================================================
 # BUILD CATEGORY
@@ -482,12 +515,13 @@ def build_category(df):
     cats = {
         "FOOD ITEMS": [],
         "DRY ITEMS": [],
-        "Miscellaneous": []
+        "Miscellaneous": [],
+        "Uncategorized": []
     }
 
     for _, row in df.iterrows():
 
-        cat = detect_category(row["Item Name"])
+        cat = detect_category(row["SKU"])
 
         cats[cat].append(row.to_dict())
 
@@ -508,10 +542,6 @@ def make_grid(df, key):
 
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    # ====================================================
-    # DEFAULT COLUMN SETTINGS
-    # ====================================================
-
     gb.configure_default_column(
         resizable=False,
         sortable=True,
@@ -528,16 +558,11 @@ def make_grid(df, key):
         }
     )
 
-    # ====================================================
-    # FIRST 3 COLUMNS LOCKED
-    # ====================================================
-
     gb.configure_column(
         "Item Name",
         pinned="left",
         lockPinned=True,
         width=250, minWidth=250, maxWidth=350,
-        
     )
 
     gb.configure_column(
@@ -545,7 +570,6 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=100, minWidth=100, maxWidth=350,
-        
     )
 
     gb.configure_column(
@@ -553,21 +577,17 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=100, minWidth=100, maxWidth=350,
-        
     )
-
-    # ====================================================
-    # BRANCH COLUMNS
-    # ====================================================
 
     for b in branch_names:
 
         gb.configure_column(
             b,
             type=["numericColumn"],
-            
             wrapText=False,
-            width=120, minWidth=120, maxWidth=350,
+            width=120,
+            minWidth=120,
+            maxWidth=350,
             autoHeight=False,
             cellStyle={
                 "textAlign": "center",
@@ -580,10 +600,6 @@ def make_grid(df, key):
             }
         )
 
-    # ====================================================
-    # GRID OPTIONS
-    # ====================================================
-
     gb.configure_grid_options(
         headerHeight=38,
         rowHeight=32,
@@ -591,10 +607,6 @@ def make_grid(df, key):
         alwaysShowHorizontalScroll=True,
         alwaysShowVerticalScroll=True
     )
-
-    # ====================================================
-    # CUSTOM CSS
-    # ====================================================
 
     custom_css = {
 
@@ -614,10 +626,6 @@ def make_grid(df, key):
             "padding-bottom": "0px"
         }
     }
-
-    # ====================================================
-    # SHOW GRID
-    # ====================================================
 
     AgGrid(
         df,
@@ -653,24 +661,6 @@ for cat, rows in category_data.items():
 
         df = pd.DataFrame(rows)
 
-        if cat == "FOOD ITEMS":
-
-            st.caption(
-                f"Expected Around: 35 Items | Found: {len(df)}"
-            )
-
-        elif cat == "DRY ITEMS":
-
-            st.caption(
-                f"Expected Around: 53 Items | Found: {len(df)}"
-            )
-
-        elif cat == "Miscellaneous":
-
-            st.caption(
-                f"Expected Around: 9 Items | Found: {len(df)}"
-            )
-
         make_grid(df, f"cat_{cat}")
 
 # ========================================================
@@ -691,5 +681,3 @@ def render(df, title):
 render(daily_df, "📦 Daily Items Stock")
 
 render(weekly_df, "📦 Weekly Items Stock")
-
-
