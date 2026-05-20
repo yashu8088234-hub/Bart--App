@@ -48,18 +48,26 @@ st.markdown("""<style>
 .delay-3 { animation-delay: 0.6s; }
 .delay-4 { animation-delay: 0.8s; }
 
-/* New BART Breathing Animation */
-@keyframes breathe {
-    0%, 100% { opacity: 0.8; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.02); }
+/* Enhanced High-Impact BART Pulse */
+@keyframes breathe-bold {
+    0%, 100% { 
+        transform: scale(1); 
+        text-shadow: 0 0 10px rgba(46, 212, 122, 0.2);
+    }
+    50% { 
+        transform: scale(1.05); 
+        text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); 
+    }
 }
 .bart-logo {
     display: inline-block;
-    animation: breathe 4s ease-in-out infinite;
+    animation: breathe-bold 2s ease-in-out infinite;
     background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     cursor: default;
+    font-weight: 900 !important;
+    letter-spacing: -2px;
 }
 
 /* Glow Card Effect */
@@ -108,7 +116,7 @@ div[data-testid="stTextInput"] input {border-radius: 50px !important; background
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 
-# BART Title with Breathing Animation
+# BART Title with High-Impact Pulse
 st.markdown("""
     <h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'>
         <span class='bart-logo'>B A R T</span>
