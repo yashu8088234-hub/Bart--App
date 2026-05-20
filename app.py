@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE (UNCHANGED LOGIC)
+# SESSION STATE
 # =========================================================
 st.session_state.authenticated = True
 
@@ -25,7 +25,7 @@ if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_pass
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
 # =========================================================
-# CORE LOGIC CHECKS (UNCHANGED LOGIC)
+# CORE LOGIC CHECKS
 # =========================================================
 def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
@@ -39,7 +39,7 @@ def data_missing():
     )
 
 # =========================================================
-# ATLAS SAAS PRESTIGE LIGHT CSS
+# CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
 #MainMenu, footer, header {visibility: hidden;}
@@ -58,7 +58,7 @@ div[data-testid="stTextInput"] input:focus {border-color: #3B21E6 !important; ba
 </style>""", unsafe_allow_html=True)
 
 # =========================================================
-# PREMIUM SAAS VISUAL HEADER
+# HEADER
 # =========================================================
 st.markdown("<div style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; uppercase; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 st.markdown("<h1 style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px; line-height: 0.4;' ><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>    B A R T </span></h1>", unsafe_allow_html=True)
@@ -66,7 +66,7 @@ st.markdown("<h1 style='text-align: center; font-size: 58px; font-weight: 800; c
 st.markdown("<p style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto; line-height: 1.6;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
 # =========================================================
-# HIGH-END DUAL EXECUTIVE CARDS
+# CARDS
 # =========================================================
 grid_left, grid_right = st.columns(2, gap="large")
 
@@ -89,22 +89,26 @@ with grid_right:
     else:
         if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
-            # Scroll-to-anchor script
-            st.components.v1.html("""
-                <script>
-                    window.parent.document.querySelector('#security_form').scrollIntoView({behavior: 'smooth'});
-                </script>
-            """, height=0)
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
-# MODERN SLIDE-IN PASSWORD VERIFICATION SHEET
+# PASSWORD VERIFICATION SHEET
 # =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
-    # Anchor target for scrolling
+    # Anchor point for JS scroll
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
+    
+    # Inject JS for smooth scroll to anchor
+    st.components.v1.html("""
+        <script>
+            setTimeout(function() {
+                var el = window.parent.document.getElementById('security_form');
+                if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+            }, 100);
+        </script>
+    """, height=0)
     
     sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
     with sheet_center:
