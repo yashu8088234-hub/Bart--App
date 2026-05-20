@@ -101,7 +101,7 @@ div.stButton > button[key="staff_btn"] *,
 div[data-testid="stHorizontalBlock"] > div:first-child div.stButton > button *,
 button[data-testid="stBaseButton-secondary"] * {
     color: #FFFFFF !important;
-    font-size: 19px !important; /* Noticeably Big Typography */
+    font-size: 12px !important; /* Noticeably Big Typography */
     font-weight: 900 !important; /* Ultra-Thick Massive Bold Weight */
     text-transform: uppercase !important;
     letter-spacing: 2px !important;
