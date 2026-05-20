@@ -192,6 +192,72 @@ if st.button("🔄 Refresh Data"):
 selected_date = st.date_input("📅 Select Date")
 selected_date_str = selected_date.strftime("%Y-%m-%d")
 
+
+
+
+
+# ========================================================
+# GLOBAL GOOGLE-STYLE INVENTORY SEARCH (DAILY + WEEKLY)
+# ========================================================
+
+st.subheader("🔍 Global Inventory Search")
+
+# 1. Combine both dataframes safely into a master search pool
+pool_daily = daily_df.copy()
+pool_daily["Schedule"] = "Daily"
+
+pool_weekly = weekly_df.copy()
+pool_weekly["Schedule"] = "Weekly"
+
+search_pool = pd.concat([pool_daily, pool_weekly], ignore_index=True)
+
+if not search_pool.empty:
+    # 2. Create clean, searchable labels for the suggestion box (e.g., "B034 | COCA COLA 250ML [Daily]")
+    search_pool["Search_Label"] = (
+        search_pool["SKU"].astype(str) + " | " + 
+        search_pool["Item Name"].astype(str) + " (" + 
+        search_pool["UOM"].astype(str) + ") [" + 
+        search_pool["Schedule"] + "]"
+    )
+    
+    # Sort options alphabetically so the dropdown list is easy to read
+    search_options = sorted(search_pool["Search_Label"].unique())
+    
+    # 3. Google-style suggestion box (starts completely empty)
+    selected_option = st.selectbox(
+        "Type an Item Name, SKU, or UOM to inspect branch stock...",
+        options=search_options,
+        index=None,
+        placeholder="🔍 Start typing to search across all branches...",
+        key=f"global_search_bar_{selected_date_str}"
+    )
+    
+    # 4. Action when a suggestion is clicked
+    if selected_option:
+        # Extract the matching row from our data pool
+        matched_row = search_pool[search_pool["Search_Label"] == selected_option]
+        
+        if not matched_row.empty:
+            st.markdown("---")
+            st.success(f"📌 **Selected Product:** {selected_option}")
+            
+            # Isolate columns to build a clean, dedicated branch breakdown grid
+            display_cols = ["Item Name", "SKU", "UOM"] + branch_names
+            result_df = matched_row[display_cols].reset_index(drop=True)
+            
+            # Generate a completely separate grid key to prevent container cross-talk
+            search_grid_key = f"search_result_grid_{selected_date_str}_{hashlib.md5(selected_option.encode()).hexdigest()}"
+            
+            # Display the data across all branches instantly
+            with st.container():
+                make_grid(result_df, search_grid_key)
+            st.markdown("---")
+else:
+    st.info("No stock data available to search for this date.")
+
+
+
+
 # ========================================================
 # PROCESS STOCK
 # ========================================================
