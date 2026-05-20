@@ -34,6 +34,25 @@ def is_mgmt_locked():
 # CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
+/* --- ANIMATED BACKGROUND --- */
+.background-container {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: -1; overflow: hidden; pointer-events: none;
+}
+.orbit {
+    position: absolute; top: 50%; left: 50%;
+    width: 600px; height: 300px; border: 1px dashed rgba(46, 212, 122, 0.15);
+    border-radius: 50%; animation: spin 20s linear infinite;
+    transform: translate(-50%, -50%);
+}
+.icon {
+    position: absolute; top: -15px; left: 50%; font-size: 20px;
+    animation: counter-spin 20s linear infinite;
+}
+@keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes counter-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+/* --- ORIGINAL CSS --- */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
@@ -110,6 +129,15 @@ div.stButton > button:hover { transform: translateY(-2px); }
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
+
+# Inject the Background HTML
+st.markdown("""
+<div class="background-container">
+    <div class="orbit" style="animation-duration: 25s;"><div class="icon">🍴</div></div>
+    <div class="orbit" style="animation-duration: 35s; transform: translate(-50%, -50%) rotate(72deg);"><div class="icon">🔒</div></div>
+    <div class="orbit" style="animation-duration: 45s; transform: translate(-50%, -50%) rotate(144deg);"><div class="icon">📝</div></div>
+</div>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # ANIMATED HEADER
