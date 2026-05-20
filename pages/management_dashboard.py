@@ -31,12 +31,10 @@ scope = [
 
 @st.cache_resource
 def get_client():
-
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         creds_dict,
         scope
     )
-
     return gspread.authorize(creds)
 
 client = get_client()
@@ -47,7 +45,6 @@ client = get_client()
 
 @st.cache_data(ttl=None)
 def load_branches():
-
     sheet = client.open("MASTERBRANCHSHEET").sheet1
     data = sheet.get_all_records()
 
@@ -74,7 +71,7 @@ FOOD_SKUS = {
     "CF006", "F148", "B028", "K072", "K176", "CB036", "K265", "B016", 
     "CB078", "K154", "CB054", "K226", "CB074", "M&M", "B014", "K242", 
     "S019", "B006", "CB055", "B017", "CB076", "CB056", "B026", "CB037", 
-    "K087", "CB043","CB009","CB043","K063"
+    "K087", "CB043", "CB009", "CB043", "K063"
 }
 
 DRY_SKUS = {
@@ -92,6 +89,7 @@ MISC_SKUS = {
     "K063", "T063", "T060", "T066", "TOY1", "ΤΟΥ1", "T026", "SVP", 
     "F089", "P130"
 }
+
 # ========================================================
 # CACHE
 # ========================================================
@@ -103,17 +101,12 @@ branch_cache = {}
 # ========================================================
 
 def fetch_branch(branch):
-
     name = branch["BranchName"]
-
     try:
         ws = client.open_by_key(branch["SheetID"]).worksheet("Stocks")
         data = ws.get_all_values()
-
         branch_cache[name] = data
-
         return name, data
-
     except Exception:
         return name, branch_cache.get(name, [])
 
@@ -126,7 +119,6 @@ RETRY_DELAY = 30
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
-
     completed = {}
     failed = []
 
@@ -134,27 +126,20 @@ def load_all_data(branches):
     status = st.empty()
 
     with ThreadPoolExecutor(max_workers=3) as ex:
-
         futures = {ex.submit(fetch_branch, b): b for b in branches}
-
         done = 0
 
         for f in as_completed(futures):
-
             name, data = f.result()
-
             if data:
                 completed[name] = data
             else:
                 failed.append(futures[f])
-
             done += 1
             progress.progress(done / len(branches))
 
     round_no = 1
-
     while failed and round_no <= MAX_RETRIES:
-
         failed_names = [b["BranchName"] for b in failed]
 
         with status.container():
@@ -164,17 +149,12 @@ def load_all_data(branches):
             )
 
         time.sleep(RETRY_DELAY)
-
         new_failed = []
 
         with ThreadPoolExecutor(max_workers=3) as ex:
-
             futures = {ex.submit(fetch_branch, b): b for b in failed}
-
             for f in as_completed(futures):
-
                 name, data = f.result()
-
                 if data:
                     completed[name] = data
                 else:
@@ -200,11 +180,9 @@ def load_all_data(branches):
 # ========================================================
 
 if st.button("🔄 Refresh Data"):
-
     st.cache_data.clear()
     st.cache_resource.clear()
     branch_cache.clear()
-
     st.rerun()
 
 # ========================================================
@@ -220,12 +198,10 @@ selected_date_str = selected_date.strftime("%Y-%m-%d")
 
 @st.cache_data(ttl=None)
 def process_stock(all_data, selected_date_str, branch_names):
-
     daily = {}
     weekly = {}
 
     for branch_name, raw in all_data:
-
         if not raw or len(raw) < 2:
             continue
 
@@ -240,7 +216,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         mode = None
 
         for row in raw:
-
             if not row:
                 continue
 
@@ -268,18 +243,15 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if mode == "daily" else weekly
 
             if key not in target:
-
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
-
                 for b in branch_names:
                     target[key][b] = 0
 
             qty = 0
-
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
@@ -296,26 +268,20 @@ def process_stock(all_data, selected_date_str, branch_names):
 # ========================================================
 
 def build_df(data_dict, branch_names):
-
     rows = []
-
     for _, v in data_dict.items():
-
         row = {
             "Item Name": v["Item Name"],
             "SKU": v["SKU"],
             "UOM": v["UOM"]
         }
-
         for b in branch_names:
             row[b] = v.get(b, 0)
-
         rows.append(row)
-
     return pd.DataFrame(rows)
 
 # ========================================================
-# CATEGORY LOGIC (UPDATED TO PRESERVE DATAFRAMES)
+# CATEGORY LOGIC (UPDATED WITH PREFIX FALLBACK & DEBUGGING)
 # ========================================================
 
 def normalize_sku(value):
@@ -323,36 +289,53 @@ def normalize_sku(value):
 
 def detect_category(sku):
     s = normalize_sku(sku)
+    
+    if not s or s == "-":
+        return "FOOD ITEMS"
+        
+    # 1. Check strict exact matches
     if s in FOOD_SKUS:
         return "FOOD ITEMS"
     if s in DRY_SKUS:
         return "DRY ITEMS"
     if s in MISC_SKUS:
         return "MISC ITEMS"
-    return "MISC ITEMS"
+        
+    # 2. Smart Fallback: Match by item prefix patterns to catch modified SKUs (e.g., P343(1))
+    if s.startswith(('B', 'F', 'K', 'CB', 'CF', 'S')):
+        return "FOOD ITEMS"
+    if s.startswith(('C', 'P', 'IC', 'RS')):
+        return "DRY ITEMS"
+    if s.startswith(('T', 'SVP', 'TOY', 'ΤΟΥ')):
+        return "MISC ITEMS"
+        
+    # 3. Dynamic Safety Bucket: Sends items here instead of hiding them in MISC ITEMS
+    return "UNCATEGORIZED DETECTED"
 
 def build_category_dfs(df):
-    """Filters the main DataFrame into 3 distinct DataFrames while preserving structure."""
-    # Create an identical empty DataFrame structure for each category
+    """Filters the main DataFrame into distinct DataFrames while preserving structure."""
     cats = {
         "FOOD ITEMS": pd.DataFrame(columns=df.columns),
         "DRY ITEMS": pd.DataFrame(columns=df.columns),
-        "MISC ITEMS": pd.DataFrame(columns=df.columns)
+        "MISC ITEMS": pd.DataFrame(columns=df.columns),
+        "UNCATEGORIZED DETECTED": pd.DataFrame(columns=df.columns)
     }
     
     if df.empty:
         return cats
 
-    # Apply our category detector across the SKU column to group items
     category_series = df["SKU"].apply(detect_category)
     
-    for cat_name in cats.keys():
-        # Filter the DataFrame matching the specific category
+    for cat_name in list(cats.keys()):
         sub_df = df[category_series == cat_name]
-        # Sort alphabetically by Item Name just like your original logic
         cats[cat_name] = sub_df.sort_values(by="Item Name", key=lambda col: col.str.lower())
         
+    # Clean up empty diagnostic tab if everything sorted perfectly
+    if cats["UNCATEGORIZED DETECTED"].empty:
+        del cats["UNCATEGORIZED DETECTED"]
+        
     return cats
+
 # ========================================================
 # SAFE KEY (FIX #252)
 # ========================================================
@@ -365,7 +348,6 @@ def stable_key(prefix, name):
 # ========================================================
 
 def make_grid(df, key):
-
     gb = GridOptionsBuilder.from_dataframe(df)
 
     gb.configure_default_column(
@@ -406,7 +388,6 @@ def make_grid(df, key):
     )
 
     for b in branch_names:
-
         gb.configure_column(
             b,
             type=["numericColumn"],
@@ -479,71 +460,39 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY LOGIC (FIXED FOR MISSING ITEMS)
+# CATEGORY VIEW (PURE DATAFRAME HANDLING)
 # ========================================================
 
-def normalize_sku(value):
-    return str(value).strip().upper()
+st.subheader("📊 Category Wise Stock Overview")
 
-def detect_category(sku):
-    s = normalize_sku(sku)
-    if not s or s == "-":
-        return "FOOD ITEMS" # Matches your top entry in FOOD_SKUS
-        
-    # Check for exact matches first
-    if s in FOOD_SKUS:
-        return "FOOD ITEMS"
-    if s in DRY_SKUS:
-        return "DRY ITEMS"
-    if s in MISC_SKUS or s == "ΤΟΥ1": # Catches both regular and Greek character typo variants
-        return "MISC ITEMS"
-        
-    # Fallback prefix matching (e.g., if SKU is 'B034-A', match it to 'FOOD ITEMS' because it starts with 'B')
-    if s.startswith(('B', 'F', 'K', 'CB', 'CF', 'S')):
-        return "FOOD ITEMS"
-    if s.startswith(('C', 'P', 'IC', 'RS')):
-        return "DRY ITEMS"
-    if s.startswith(('T', 'SVP')):
-        return "MISC ITEMS"
-        
-    # Ultimate fallback so they don't hide in MISC
-    return "UNCATEGORIZED"
+# Build categories keeping them as clean DataFrames
+category_dfs = build_category_dfs(daily_df)
 
-def build_category_dfs(df):
-    """Filters the main DataFrame into distinct DataFrames while preserving structure."""
-    cats = {
-        "FOOD ITEMS": pd.DataFrame(columns=df.columns),
-        "DRY ITEMS": pd.DataFrame(columns=df.columns),
-        "MISC ITEMS": pd.DataFrame(columns=df.columns),
-        "UNCATEGORIZED": pd.DataFrame(columns=df.columns) # Added debug tab
-    }
-    
-    if df.empty:
-        return cats
+# Create tabs dynamically, calculating the count using len(df) directly from the filtered DataFrame
+tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
+tabs = st.tabs(tab_titles)
 
-    category_series = df["SKU"].apply(detect_category)
-    
-    for cat_name in cats.keys():
-        sub_df = df[category_series == cat_name]
-        cats[cat_name] = sub_df.sort_values(by="Item Name", key=lambda col: col.str.lower())
-        
-    # If no items ended up uncategorized, remove the empty tab so it stays clean
-    if cats["UNCATEGORIZED"].empty:
-        del cats["UNCATEGORIZED"]
-        
-    return cats
+# Loop and distribute grids inside the tabs safely
+for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
+    with tab:
+        if not sub_df.empty:
+            if cat == "UNCATEGORIZED DETECTED":
+                st.warning("⚠️ The following items did not match your strict SKU sets or prefix codes. Check their explicit SKUs below to append them into your code sets:")
+            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat)
+            # Pass the pure, healthy subset DataFrame straight into your grid maker
+            make_grid(sub_df, unique_grid_key)
+        else:
+            st.info(f"No items in {cat}")
+
 # ========================================================
 # MAIN TABLES
 # ========================================================
 
 def render(df, title):
-
     st.subheader(title)
-
     if df.empty:
         st.warning("No Data")
         return
-
     make_grid(df, stable_key("grid", title))
 
 render(daily_df, "📦 Daily Items Stock")
