@@ -205,6 +205,7 @@ def process_stock(all_data, selected_date_str, branch_names):
         if not raw or len(raw) < 2:
             continue
 
+        # Strip spaces and cast to clean strings to prevent breaking matching logic
         headers = [str(x).strip() for x in raw[0]]
 
         date_index = None
@@ -232,8 +233,9 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not mode:
                 continue
 
+            # Heavy structural cleaning to catch spaces or control characters from cells
             item = str(row[0]).strip() if len(row) > 0 else ""
-            sku = str(row[1]).strip() if len(row) > 1 else ""
+            sku = str(row[1]).replace(" ", "").strip() if len(row) > 1 else ""
             uom = str(row[2]).strip() if len(row) > 2 else ""
 
             if not item:
@@ -254,8 +256,8 @@ def process_stock(all_data, selected_date_str, branch_names):
             qty = 0
             try:
                 if date_index is not None and len(row) > date_index:
-                    val = row[date_index]
-                    qty = 0 if val in ["", None] else float(val)
+                    val = str(row[date_index]).strip()
+                    qty = 0 if val in ["", None, "-", "None"] else float(val)
             except:
                 qty = 0
 
@@ -281,19 +283,20 @@ def build_df(data_dict, branch_names):
     return pd.DataFrame(rows)
 
 # ========================================================
-# CATEGORY LOGIC (UPDATED WITH PREFIX FALLBACK & DEBUGGING)
+# CATEGORY LOGIC (FIXED LOGIC PIPELINE)
 # ========================================================
 
 def normalize_sku(value):
-    return str(value).strip().upper()
+    return str(value).replace(" ", "").strip().upper()
 
 def detect_category(sku):
     s = normalize_sku(sku)
     
-    if not s or s == "-":
+    # Check explicitly missing or divider values first
+    if not s or s == "-" or s == "NONE" or s == "NAN":
         return "FOOD ITEMS"
         
-    # 1. Check strict exact matches
+    # 1. Clean strict exact match lookup
     if s in FOOD_SKUS:
         return "FOOD ITEMS"
     if s in DRY_SKUS:
@@ -301,7 +304,7 @@ def detect_category(sku):
     if s in MISC_SKUS:
         return "MISC ITEMS"
         
-    # 2. Smart Fallback: Match by item prefix patterns to catch modified SKUs (e.g., P343(1))
+    # 2. Smart Fallback Patterns (Catching prefixes safely)
     if s.startswith(('B', 'F', 'K', 'CB', 'CF', 'S')):
         return "FOOD ITEMS"
     if s.startswith(('C', 'P', 'IC', 'RS')):
@@ -309,11 +312,10 @@ def detect_category(sku):
     if s.startswith(('T', 'SVP', 'TOY', 'ΤΟΥ')):
         return "MISC ITEMS"
         
-    # 3. Dynamic Safety Bucket: Sends items here instead of hiding them in MISC ITEMS
+    # 3. Dynamic Uncategorized Safety bucket
     return "UNCATEGORIZED DETECTED"
 
 def build_category_dfs(df):
-    """Filters the main DataFrame into distinct DataFrames while preserving structure."""
     cats = {
         "FOOD ITEMS": pd.DataFrame(columns=df.columns),
         "DRY ITEMS": pd.DataFrame(columns=df.columns),
@@ -330,21 +332,27 @@ def build_category_dfs(df):
         sub_df = df[category_series == cat_name]
         cats[cat_name] = sub_df.sort_values(by="Item Name", key=lambda col: col.str.lower())
         
-    # Clean up empty diagnostic tab if everything sorted perfectly
     if cats["UNCATEGORIZED DETECTED"].empty:
         del cats["UNCATEGORIZED DETECTED"]
         
     return cats
 
 # ========================================================
-# SAFE KEY (FIX #252)
+# SAFE CRYPTO KEY (FIXES VISUAL FLIP-FLOP & TAB RE-RENDER BUG)
 # ========================================================
 
-def stable_key(prefix, name):
-    return prefix + "_" + hashlib.md5(str(name).encode()).hexdigest()
+def stable_key(prefix, name, df=None):
+    """
+    Generates a truly reactive unique component state signature key.
+    Including the dataframe dimensions ensures AgGrid completely forces a cache-rebuild 
+    whenever changing tabs or picking dates.
+    """
+    shape_str = f"_{df.shape[0]}x{df.shape[1]}" if df is not None else ""
+    raw_str = f"{prefix}_{name}{shape_str}"
+    return prefix + "_" + hashlib.md5(raw_str.encode()).hexdigest()
 
 # ========================================================
-# AGGRID (YOUR ORIGINAL SPACING - UNCHANGED)
+# AGGRID (UNMODIFIED ROW DESIGN - STABLE BINDING)
 # ========================================================
 
 def make_grid(df, key):
@@ -478,7 +486,10 @@ for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
         if not sub_df.empty:
             if cat == "UNCATEGORIZED DETECTED":
                 st.warning("⚠️ The following items did not match your strict SKU sets or prefix codes. Check their explicit SKUs below to append them into your code sets:")
-            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat)
+            
+            # FIXED: unique key now incorporates sub_df shape data to completely kill visual caching state bugs
+            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat, df=sub_df)
+            
             # Pass the pure, healthy subset DataFrame straight into your grid maker
             make_grid(sub_df, unique_grid_key)
         else:
@@ -493,7 +504,8 @@ def render(df, title):
     if df.empty:
         st.warning("No Data")
         return
-    make_grid(df, stable_key("grid", title))
+    render_key = stable_key("grid", title, df=df)
+    make_grid(df, render_key)
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
