@@ -17,9 +17,19 @@ st.set_page_config(
 st.markdown("""<style>
 /* Forces transparency to show background */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
-.background-layer { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; overflow: hidden; background: #FFFFFF; }
-.orbit-wrap { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-.orbit { position: absolute; border: 1px solid rgba(46, 212, 122, 0.25); border-radius: 50%; animation: spin linear infinite; transform: translate(-50%, -50%); }
+
+/* Background Layer: Flexbox centers the content in the viewport */
+.background-layer { 
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
+    overflow: hidden; background: #FFFFFF;
+    display: flex; justify-content: center; align-items: center;
+}
+.orbit-wrap { position: relative; }
+.orbit { 
+    position: absolute; border: 1px solid rgba(46, 212, 122, 0.25); border-radius: 50%; 
+    animation: spin linear infinite;
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+}
 .o1 { width: 200px; height: 200px; animation-duration: 20s; }
 .o2 { width: 350px; height: 350px; animation-duration: 30s; }
 .o3 { width: 500px; height: 500px; animation-duration: 40s; }
@@ -27,9 +37,10 @@ st.markdown("""<style>
 .o5 { width: 800px; height: 800px; animation-duration: 65s; }
 .o6 { width: 950px; height: 950px; animation-duration: 85s; }
 .o7 { width: 1100px; height: 1100px; animation-duration: 110s; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes counter { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 .icon { animation: counter linear infinite; font-size: 24px; position: absolute; top: -12px; left: 50%; margin-left: -12px; }
+
 /* --- YOUR ORIGINAL CSS --- */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
@@ -62,9 +73,6 @@ if "weekly_items" not in st.session_state: st.session_state.WEEKLY_ITEMS = {}
 if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_password = False
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
-# =========================================================
-# CORE LOGIC
-# =========================================================
 def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
@@ -97,18 +105,14 @@ st.markdown("<p class='animate-text delay-4' style='text-align: center; font-siz
 # CARDS
 # =========================================================
 grid_left, grid_right = st.columns(2, gap="large")
-
 with grid_left:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">Staff Control """, unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
-    if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"):
-        st.switch_page("pages/staff_dashboard.py")
+    if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"): st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div></div>', unsafe_allow_html=True)
-
 with grid_right:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HQ Administration""", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
-    
     if is_mgmt_locked():
         remaining = int(st.session_state.mgmt_lock_until - time.time())
         st.button(f"Console Locked ({remaining}s) 🔒", disabled=True, use_container_width=True, key="mgmt_btn")
@@ -119,31 +123,19 @@ with grid_right:
     st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =========================================================
-# PASSWORD VERIFICATION SHEET
+# PASSWORD VERIFICATION
 # =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
     st.components.v1.html("""<script>setTimeout(function() {var el = window.parent.document.getElementById('security_form'); if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }}, 100);</script>""", height=0)
-    
     sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
     with sheet_center:
         with st.form("pass_form", clear_on_submit=True):
             st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into critical system files.</p>", unsafe_allow_html=True)
-            
             password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
-            
-            st.write("##")
-            action_col1, action_col2 = st.columns(2, gap="medium")
-            with action_col1:
-                if st.form_submit_button("Abort Login", use_container_width=True):
+            if st.form_submit_button("Verify & Open", use_container_width=True):
+                if password_input == st.secrets["MANAGER_PASSWORD"]:
                     st.session_state.show_mgmt_password = False
-                    st.rerun()
-            with action_col2:
-                if st.form_submit_button("Verify & Open", use_container_width=True):
-                    if password_input == st.secrets["MANAGER_PASSWORD"]:
-                        st.session_state.show_mgmt_password = False
-                        st.switch_page("pages/management_dashboard.py")
-                    else:
-                        st.error("Access Refused: Invalid token signature.")
+                    st.switch_page("pages/management_dashboard.py")
+                else: st.error("Access Refused: Invalid token signature.")
