@@ -12,7 +12,11 @@ import re
 # PAGE CONFIG
 # ========================================================
 
-st.set_page_config(layout="wide", page_title="Stock Overview")
+st.set_page_config(
+    layout="wide",
+    page_title="Stock Overview"
+)
+
 st.title("📦 BART - Stock Management (All Branches)")
 
 # ========================================================
@@ -52,6 +56,7 @@ def load_branches():
                 "BranchName": str(b["BranchName"]).strip(),
                 "SheetID": str(b["SheetID"]).strip()
             })
+
     return branches
 
 branches = load_branches()
@@ -68,11 +73,13 @@ branch_cache = {}
 # ========================================================
 
 def fetch_branch(branch):
+
     name = branch["BranchName"]
 
     try:
         ws = client.open_by_key(branch["SheetID"]).worksheet("Stocks")
         data = ws.get_all_values()
+
         branch_cache[name] = data
 
         return {"branch": name, "success": True, "data": data}
@@ -141,9 +148,11 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(x).strip() for x in raw[0]]
 
         date_index = None
+
         for i, h in enumerate(headers):
             try:
-                if parser.parse(str(h)).strftime("%Y-%m-%d") == selected_date_str:
+                parsed = parser.parse(str(h)).strftime("%Y-%m-%d")
+                if parsed == selected_date_str:
                     date_index = i
                     break
             except:
@@ -152,6 +161,7 @@ def process_stock(all_data, selected_date_str, branch_names):
         mode = None
 
         for row in raw:
+
             if not row:
                 continue
 
@@ -169,21 +179,26 @@ def process_stock(all_data, selected_date_str, branch_names):
                 continue
 
             item = str(row[0]).strip() if len(row) > 0 else ""
+            sku = (
+                re.sub(r"[^A-Z0-9()&-]", "", str(row[1]).upper())
+                if len(row) > 1 else ""
+            )
+            uom = str(row[2]).strip() if len(row) > 2 else ""
+
             if not item:
                 continue
-
-            sku = re.sub(r"[^A-Z0-9()&-]", "", str(row[1]).upper()) if len(row) > 1 else ""
-            uom = str(row[2]).strip() if len(row) > 2 else ""
 
             key = f"{item}_{sku}_{uom}"
             target = daily if mode == "daily" else weekly
 
             if key not in target:
+
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
                     "UOM": uom
                 }
+
                 for b in branch_names:
                     target[key][b] = 0
 
@@ -191,7 +206,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             try:
                 if date_index is not None and len(row) > date_index:
                     val = row[date_index]
-                    qty = float(val) if val not in ["", None] else 0
+                    qty = 0 if val in ["", None] else float(val)
             except:
                 qty = 0
 
@@ -199,24 +214,32 @@ def process_stock(all_data, selected_date_str, branch_names):
 
     return daily, weekly
 
-daily_items, weekly_items = process_stock(all_data, selected_date_str, branch_names)
+daily_items, weekly_items = process_stock(
+    all_data,
+    selected_date_str,
+    branch_names
+)
 
 # ========================================================
-# DATAFRAME
+# DATAFRAME BUILDER (FIXED)
 # ========================================================
 
 def build_df(data_dict):
+
     df = pd.DataFrame(list(data_dict.values()))
 
     if df.empty:
         return df
 
+    # ensure all branch columns exist
     for b in branch_names:
         if b not in df.columns:
             df[b] = 0
 
-    df = df.fillna(0)
+    # force correct order
+    df = df[["Item Name", "SKU", "UOM"] + branch_names]
 
+    # numeric cleanup
     for b in branch_names:
         df[b] = pd.to_numeric(df[b], errors="coerce").fillna(0)
 
@@ -226,78 +249,172 @@ daily_df = build_df(daily_items)
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY
+# CATEGORY DETECTION (UNCHANGED LOGIC)
 # ========================================================
 
 MISC_SKUS = set(["T063","T060","T066","TOY1","T026","SVP","P089","P130"])
-DRY_SKUS = set(["C013","P244","P254","P320","P322","P321","P095","P296","C014","P337"])
-FOOD_SKUS = set(["B034","F066","CB032","B029","K072","CB009","F081","-","B019"])
+
+DRY_SKUS = set([
+    "C013","P244","P254","P320","P322","P321","P095","P296","C014",
+    "P337","P125","P298","P178","P343(1)","P343","CF009"
+])
+
+FOOD_SKUS = set([
+    "B034","F066","CB032","B029","K072","CB009","F081","-","B019",
+    "B018","CF007","CF006","F148"
+])
 
 def detect_category(sku):
+
     sku = re.sub(r"[^A-Z0-9()&-]", "", str(sku).upper())
 
     if sku in FOOD_SKUS:
         return "FOOD ITEMS"
+
     if sku in DRY_SKUS:
         return "DRY ITEMS"
+
     if sku in MISC_SKUS:
         return "Miscellaneous"
+
     return "Uncategorized"
 
 def filter_category(df, cat_name):
+
     if df.empty:
         return df
 
     df2 = df.copy()
     df2["Category"] = df2["SKU"].apply(detect_category)
+
     return df2[df2["Category"] == cat_name].drop(columns=["Category"])
 
 # ========================================================
-# GRID
+# AGGRID (YOUR ORIGINAL UI — RESTORED)
 # ========================================================
 
 def make_grid(df, key):
 
-    if df.empty:
-        st.info("No items")
-        return
-
     gb = GridOptionsBuilder.from_dataframe(df)
 
-    gb.configure_default_column(sortable=True, filter=True)
+    gb.configure_default_column(
+        resizable=False,
+        sortable=True,
+        filter=True,
+        editable=False,
+        wrapText=False,
+        autoHeight=False,
+        cellStyle={
+            "display": "flex",
+            "alignItems": "center",
+            "fontSize": "13px",
+            "paddingTop": "0px",
+            "paddingBottom": "0px"
+        }
+    )
 
-    gb.configure_column("Item Name", pinned="left", width=250)
-    gb.configure_column("SKU", pinned="left", width=120)
-    gb.configure_column("UOM", pinned="left", width=100)
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        lockPinned=True,
+        width=250,
+        minWidth=250,
+        maxWidth=350,
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        lockPinned=True,
+        width=100,
+        minWidth=100,
+        maxWidth=350,
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        lockPinned=True,
+        width=100,
+        minWidth=100,
+        maxWidth=350,
+    )
 
     for b in branch_names:
-        if b in df.columns:
-            gb.configure_column(b, type=["numericColumn"], width=120)
+        gb.configure_column(
+            b,
+            type=["numericColumn"],
+            wrapText=False,
+            width=120,
+            minWidth=120,
+            maxWidth=350,
+            autoHeight=False,
+            cellStyle={
+                "textAlign": "center",
+                "display": "flex",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "fontSize": "13px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px"
+            }
+        )
+
+    gb.configure_grid_options(
+        headerHeight=38,
+        rowHeight=32,
+        suppressHorizontalScroll=False,
+        alwaysShowHorizontalScroll=True,
+        alwaysShowVerticalScroll=True
+    )
+
+    custom_css = {
+        ".ag-header-cell-label": {
+            "justify-content": "center",
+            "font-size": "12px",
+            "font-weight": "600"
+        },
+        ".ag-header-cell": {
+            "padding-top": "0px",
+            "padding-bottom": "0px"
+        },
+        ".ag-cell": {
+            "padding-top": "0px",
+            "padding-bottom": "0px"
+        }
+    }
 
     AgGrid(
         df,
         gridOptions=gb.build(),
+        custom_css=custom_css,
         theme="streamlit",
-        height=450,
-        key=key,
-        update_mode=GridUpdateMode.NO_UPDATE
+        fit_columns_on_grid_load=False,
+        enable_enterprise_modules=False,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        allow_unsafe_jscode=True,
+        reload_data=True,
+        height=500,
+        width="100%",
+        key=key
     )
 
 # ========================================================
-# CATEGORY VIEW
+# CATEGORY VIEW (FIXED ONLY DATA PART)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
 for cat in ["FOOD ITEMS", "DRY ITEMS", "Miscellaneous", "Uncategorized"]:
 
-    with st.expander(f"📂 {cat}", expanded=False):
+    with st.expander(f"📂 {cat} ({len(daily_df) if not daily_df.empty else 0})", expanded=False):
 
         df_cat = filter_category(daily_df, cat)
 
-        df_cat = df_cat[["Item Name", "SKU", "UOM"] + branch_names] if not df_cat.empty else df_cat
+        if not df_cat.empty:
+            df_cat = df_cat[["Item Name", "SKU", "UOM"] + branch_names]
 
-        make_grid(df_cat, f"cat_{cat}_{len(df_cat)}")
+        make_grid(df_cat, f"cat_{cat}")
 
 # ========================================================
 # MAIN TABLES
