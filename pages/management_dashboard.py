@@ -481,6 +481,7 @@ st.subheader("📊 Category Wise Stock Overview")
 category_data = build_category(daily_df)
 
 for cat, rows in category_data.items():
+    with st.expander(f"📂 {cat} ({len(rows)})", expanded=False):
 
     st.write(f"📂 {cat} ({len(rows)})")
 
