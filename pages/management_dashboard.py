@@ -205,6 +205,7 @@ def process_stock(all_data, selected_date_str, branch_names):
         if not raw or len(raw) < 2:
             continue
 
+        # Strip spaces and cast to clean strings to prevent breaking matching logic
         headers = [str(x).strip() for x in raw[0]]
 
         date_index = None
@@ -216,11 +217,10 @@ def process_stock(all_data, selected_date_str, branch_names):
         mode = None
 
         for row in raw:
-            if not row or len(row) < 2:
+            if not row:
                 continue
 
-            # Check raw string layout text safely
-            text = " ".join(str(x) for x in row).lower().strip()
+            text = " ".join(str(x) for x in row).lower()
 
             if "daily item" in text:
                 mode = "daily"
@@ -233,13 +233,12 @@ def process_stock(all_data, selected_date_str, branch_names):
             if not mode:
                 continue
 
-            # Hard sanitation to remove hidden spaces/newlines inside cells
-            item = str(row[0]).strip()
-            sku = str(row[1]).replace(" ", "").strip()
+            # Heavy structural cleaning to catch spaces or control characters from cells
+            item = str(row[0]).strip() if len(row) > 0 else ""
+            sku = str(row[1]).replace(" ", "").strip() if len(row) > 1 else ""
             uom = str(row[2]).strip() if len(row) > 2 else ""
 
-            # Drop system header repetitions or pure spacer rows
-            if not item or item.lower() in ["item name", "sku", "uom", "", "none"]:
+            if not item:
                 continue
 
             key = f"{item}_{sku}_{uom}"
@@ -258,7 +257,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             try:
                 if date_index is not None and len(row) > date_index:
                     val = str(row[date_index]).strip()
-                    qty = 0 if val in ["", None, "-", "None", "nan"] else float(val)
+                    qty = 0 if val in ["", None, "-", "None"] else float(val)
             except:
                 qty = 0
 
@@ -284,7 +283,7 @@ def build_df(data_dict, branch_names):
     return pd.DataFrame(rows)
 
 # ========================================================
-# CATEGORY LOGIC
+# CATEGORY LOGIC (FIXED LOGIC PIPELINE)
 # ========================================================
 
 def normalize_sku(value):
@@ -293,11 +292,11 @@ def normalize_sku(value):
 def detect_category(sku):
     s = normalize_sku(sku)
     
-    # Catch empty strings or single dashes immediately
-    if not s or s in ["-", "NONE", "NAN", "null"]:
+    # Check explicitly missing or divider values first
+    if not s or s == "-" or s == "NONE" or s == "NAN":
         return "FOOD ITEMS"
         
-    # 1. Exact matches
+    # 1. Clean strict exact match lookup
     if s in FOOD_SKUS:
         return "FOOD ITEMS"
     if s in DRY_SKUS:
@@ -305,7 +304,7 @@ def detect_category(sku):
     if s in MISC_SKUS:
         return "MISC ITEMS"
         
-    # 2. Strict Prefix Pattern matching
+    # 2. Smart Fallback Patterns (Catching prefixes safely)
     if s.startswith(('B', 'F', 'K', 'CB', 'CF', 'S')):
         return "FOOD ITEMS"
     if s.startswith(('C', 'P', 'IC', 'RS')):
@@ -313,6 +312,7 @@ def detect_category(sku):
     if s.startswith(('T', 'SVP', 'TOY', 'ΤΟΥ')):
         return "MISC ITEMS"
         
+    # 3. Dynamic Uncategorized Safety bucket
     return "UNCATEGORIZED DETECTED"
 
 def build_category_dfs(df):
@@ -338,7 +338,21 @@ def build_category_dfs(df):
     return cats
 
 # ========================================================
-# AGGRID (STABLE STATE RENDER ENGINE)
+# SAFE CRYPTO KEY (FIXES VISUAL FLIP-FLOP & TAB RE-RENDER BUG)
+# ========================================================
+
+def stable_key(prefix, name, df=None):
+    """
+    Generates a truly reactive unique component state signature key.
+    Including the dataframe dimensions ensures AgGrid completely forces a cache-rebuild 
+    whenever changing tabs or picking dates.
+    """
+    shape_str = f"_{df.shape[0]}x{df.shape[1]}" if df is not None else ""
+    raw_str = f"{prefix}_{name}{shape_str}"
+    return prefix + "_" + hashlib.md5(raw_str.encode()).hexdigest()
+
+# ========================================================
+# AGGRID (UNMODIFIED ROW DESIGN - STABLE BINDING)
 # ========================================================
 
 def make_grid(df, key):
@@ -354,26 +368,48 @@ def make_grid(df, key):
         cellStyle={
             "display": "flex",
             "alignItems": "center",
-            "fontSize": "13px"
+            "fontSize": "13px",
+            "paddingTop": "0px",
+            "paddingBottom": "0px"
         }
     )
 
-    gb.configure_column("Item Name", pinned="left", lockPinned=True, width=250)
-    gb.configure_column("SKU", pinned="left", lockPinned=True, width=100)
-    gb.configure_column("UOM", pinned="left", lockPinned=True, width=100)
+    gb.configure_column(
+        "Item Name",
+        pinned="left",
+        lockPinned=True,
+        width=250, minWidth=250, maxWidth=350,
+    )
+
+    gb.configure_column(
+        "SKU",
+        pinned="left",
+        lockPinned=True,
+        width=100, minWidth=100, maxWidth=350,
+    )
+
+    gb.configure_column(
+        "UOM",
+        pinned="left",
+        lockPinned=True,
+        width=100, minWidth=100, maxWidth=350,
+    )
 
     for b in branch_names:
         gb.configure_column(
             b,
             type=["numericColumn"],
             wrapText=False,
-            width=120,
+            width=120, minWidth=120, maxWidth=350,
+            autoHeight=False,
             cellStyle={
                 "textAlign": "center",
                 "display": "flex",
                 "alignItems": "center",
                 "justifyContent": "center",
-                "fontSize": "13px"
+                "fontSize": "13px",
+                "paddingTop": "0px",
+                "paddingBottom": "0px"
             }
         )
 
@@ -385,9 +421,26 @@ def make_grid(df, key):
         alwaysShowVerticalScroll=True
     )
 
+    time.sleep(0.03)
+
     AgGrid(
         df,
         gridOptions=gb.build(),
+        custom_css={
+            ".ag-header-cell-label": {
+                "justify-content": "center",
+                "font-size": "12px",
+                "font-weight": "600"
+            },
+            ".ag-header-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            },
+            ".ag-cell": {
+                "padding-top": "0px",
+                "padding-bottom": "0px"
+            }
+        },
         theme="streamlit",
         fit_columns_on_grid_load=False,
         enable_enterprise_modules=False,
@@ -415,27 +468,30 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (FIXED VIA CONTAINER SCOPING)
+# CATEGORY VIEW (PURE DATAFRAME HANDLING)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
+# Build categories keeping them as clean DataFrames
 category_dfs = build_category_dfs(daily_df)
 
+# Create tabs dynamically, calculating the count using len(df) directly from the filtered DataFrame
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-for i, (cat, sub_df) in enumerate(category_dfs.items()):
-    with tabs[i]:
+# Loop and distribute grids inside the tabs safely
+for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
+    with tab:
         if not sub_df.empty:
             if cat == "UNCATEGORIZED DETECTED":
-                st.warning("⚠️ These items do not match explicit SKU sets or prefix codes:")
+                st.warning("⚠️ The following items did not match your strict SKU sets or prefix codes. Check their explicit SKUs below to append them into your code sets:")
             
-            # THE MAGIC FIX FOR TABS: Injecting selection constraints directly into 
-            # the programmatic key forces a clean layout reset upon switching views.
-            grid_key = f"grid_tab_{cat.replace(' ', '_').lower()}_{selected_date_str}"
+            # FIXED: unique key now incorporates sub_df shape data to completely kill visual caching state bugs
+            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat, df=sub_df)
             
-            make_grid(sub_df, grid_key)
+            # Pass the pure, healthy subset DataFrame straight into your grid maker
+            make_grid(sub_df, unique_grid_key)
         else:
             st.info(f"No items in {cat}")
 
@@ -448,8 +504,8 @@ def render(df, title):
     if df.empty:
         st.warning("No Data")
         return
-    fixed_render_key = f"main_grid_{title.replace(' ', '_').lower()}_{selected_date_str}"
-    make_grid(df, fixed_render_key)
+    render_key = stable_key("grid", title, df=df)
+    make_grid(df, render_key)
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
