@@ -487,7 +487,6 @@ for cat, rows in category_data.items():
             make_grid(pd.DataFrame(rows), stable_key("cat", cat))
         else:
             st.info("No items")
-
 # ========================================================
 # MAIN TABLES
 # ========================================================
