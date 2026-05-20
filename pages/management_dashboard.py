@@ -473,23 +473,26 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (FIXED WITH TABS TO PREVENT BLANK GRIDS)
+# CATEGORY VIEW (FIXED WITH DATE-BASED KEYS)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
 category_data = build_category(daily_df)
 
-# Create 3 isolated structural tabs 
+# Create 3 tabs
 tab_titles = [f"📂 {cat} ({len(rows)})" for cat, rows in category_data.items()]
 tabs = st.tabs(tab_titles)
 
-# Loop and distribute each grid cleanly inside its own tab structure
+# Loop and distribute grids inside the tabs
 for tab, (cat, rows) in zip(tabs, category_data.items()):
     with tab:
         if rows:
-            # We explicitly use unique key constraints to ensure grids render separately
-            make_grid(pd.DataFrame(rows), stable_key("tab_cat", cat))
+            # FIX: Adding selected_date_str here completely forces a fresh, clean render 
+            # of the component when dates change, skipping the broken cleanup state.
+            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat)
+            
+            make_grid(pd.DataFrame(rows), unique_grid_key)
         else:
             st.info("No items in this category")
 
