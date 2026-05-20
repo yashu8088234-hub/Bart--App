@@ -114,4 +114,35 @@ with grid_left:
 with grid_right:
     st.markdown('<div class="card-glow"><div class="card-content">', unsafe_allow_html=True)
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>HQ Administration</p>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_
+    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
+    
+    if is_mgmt_locked():
+        remaining = int(st.session_state.mgmt_lock_until - time.time())
+        st.button(f"Console Locked ({remaining}s) 🔒", disabled=True, use_container_width=True, key="mgmt_btn")
+    else:
+        if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
+            st.session_state.show_mgmt_password = True
+            st.rerun()
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+# =========================================================
+# PASSWORD SHEET
+# =========================================================
+if st.session_state.show_mgmt_password:
+    st.write("---")
+    st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
+    st.components.v1.html("""<script>setTimeout(function() {var el = window.parent.document.getElementById('security_form'); if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }}, 100);</script>""", height=0)
+    
+    _, sheet_center, _ = st.columns([1, 5, 1])
+    with sheet_center:
+        with st.form("pass_form", clear_on_submit=True):
+            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
+            col1, col2 = st.columns(2, gap="medium")
+            with col1:
+                if st.form_submit_button("Abort Login", use_container_width=True):
+                    st.session_state.show_mgmt_password = False
+                    st.rerun()
+            with col2:
+                if st.form_submit_button("Verify & Open", use_container_width=True):
+                    if password_input == st.secrets.get("MANAGER_PASSWORD"):
+                        st.switch_page("pages/management_dashboard.py")
