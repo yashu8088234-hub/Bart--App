@@ -527,7 +527,7 @@ def build_category(df):
 
     for _, row in df.iterrows():
 
-        cat = detect_category(row["SKUS"])
+        cat = detect_category(row["SKU"])
 
         cats[cat].append(row.to_dict())
 
