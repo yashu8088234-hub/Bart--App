@@ -261,7 +261,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         for i, h in enumerate(headers):
 
             if h == selected_date_str:
-
                 date_index = i
                 break
 
@@ -275,12 +274,10 @@ def process_stock(all_data, selected_date_str, branch_names):
             text = " ".join(str(x) for x in row).lower()
 
             if "daily item" in text:
-
                 mode = "daily"
                 continue
 
             if "weekly item" in text:
-
                 mode = "weekly"
                 continue
 
@@ -314,9 +311,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             try:
 
                 if date_index is not None and len(row) > date_index:
-
                     val = row[date_index]
-
                     qty = 0 if val in ["", None] else float(val)
 
             except:
@@ -357,137 +352,61 @@ def build_df(data_dict):
     return pd.DataFrame(rows)
 
 daily_df = build_df(daily_items)
-
 weekly_df = build_df(weekly_items)
 
 # ========================================================
-# CATEGORY LISTS
+# CATEGORY (NEW SKU BASED LOGIC ONLY)
 # ========================================================
 
-FOOD_ITEMS = set([
-    "ARWA Water 330ML",
-    "BART French Toast Brioche",
-    "BELCHOCO Feuilletine Flakes",
-    "Berry Ice Tea",
-    "Chocolate Pudding Cup",
-    "Code Blue Syrup",
-    "Code Red Syrup",
-    "Coffee - Blend DR - DR",
-    "Coffee - Blend U- U",
-    "Crunchy Chocolate Cake Slice",
-    "Galaxy Chocolate Bars",
-    "Hibiscus Ice Tea",
-    "KDD Vanilla Soft Ice Cream",
-    "Kinder Sauce",
-    "KitKat 18x36x20.5g",
-    "Lotus Crumble 250gm",
-    "Mango Juice Gallon",
-    "Nestle Sauce",
-    "Nutella Sauce",
-    "Pecan Sauce",
-    "Pudding Sauce",
-    "Roasted Kunafa",
-    "Vanilla Powder"
-])
+def normalize_sku(value):
+    return str(value).strip().upper()
 
-DRY_ITEMS = set([
-    "Apron",
-    "BART PPG Paper Cup 12 Oz (Dark Pink)",
-    "BART PPG Paper Cup 12 Oz (Green)",
-    "BART Plastic Cold Cup 12oz",
-    "BART White Paper Cup 16oz",
-    "Black Straw 4 ML (20 x 200 Pcs)",
-    "Black Straw 8 ML (20 x 100 Pcs)",
-    "Coffee Filter Papers",
-    "Date Sticker",
-    "Flat Lid for Cold Cup",
-    "Gloves",
-    "Hair Net",
-    "Ice Cream Black Spoon",
-    "Injection Lid for Paper Cup",
-    "Kitchen Tissue Roll",
-    "Mask",
-    "POS Roll",
-    "Plastic Cups 12 Oz",
-    "Printed Paper Bag W/ Handle - Bart",
-    "Scotch Bright",
-    "Small Cake Box",
-    "Sticker BART",
-    "Trash bags 20 Gallon"
-])
-
-MISC_ITEMS = set([
-    "BART PPG Figurine",
-    "BART Stainless Steel Forks",
-    "Bart Black Shovel Spoon",
-    "Cloudy Figurine Toy",
-    "Shovel Spoon"
-])
-
-# ========================================================
-# NORMALIZE TEXT
-# ========================================================
-
-def normalize_text(value):
-
-    return (
-        str(value)
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .strip()
-        .lower()
-    )
-
-# ========================================================
-# PRE-NORMALIZED CATEGORY SETS
-# ========================================================
-
-NORMALIZED_FOOD_ITEMS = {
-    normalize_text(x) for x in FOOD_ITEMS
+FOOD_SKUS = {
+    "B034","F066","CB032","B029","K072","CB009","F081","B019","B018",
+    "CF007","CF006","F148","CB028","K176","CB036","K265","B016","CB078",
+    "K154","CB054","K226","CB074","M&M","B014","K242","S019","CB055",
+    "B017","CB076","CB056","B026","CB037","K087","CB043"
 }
 
-NORMALIZED_DRY_ITEMS = {
-    normalize_text(x) for x in DRY_ITEMS
+DRY_SKUS = {
+    "C013","P244","P254","P320","P322","P321","P095","P296","C014",
+    "P337","P125","P298","P178","P343(1)","P343","CF009","P145","P133",
+    "P156","RS002","P155","P081","C011","C045","P253","C012","P101",
+    "P012","P218","P091","P132","P264","P160","C005","P219","P157",
+    "P161","C010","RS001","P342","P341","P039","P084","P082","C017",
+    "C016","C015","P208","P158","C007","P315","C048","P083"
 }
 
-NORMALIZED_MISC_ITEMS = {
-    normalize_text(x) for x in MISC_ITEMS
+MISC_SKUS = {
+    "T063","T060","T066","TOY1","T026","SVP","F089","P130"
 }
 
-# ========================================================
-# CATEGORY DETECTION
-# ========================================================
+def detect_category(sku):
 
-def detect_category(name):
+    s = normalize_sku(sku)
 
-    item_name = normalize_text(name)
-
-    if item_name in NORMALIZED_FOOD_ITEMS:
+    if s in FOOD_SKUS:
         return "FOOD ITEMS"
 
-    if item_name in NORMALIZED_DRY_ITEMS:
+    if s in DRY_SKUS:
         return "DRY ITEMS"
 
-    if item_name in NORMALIZED_MISC_ITEMS:
-        return "Miscellaneous"
+    if s in MISC_SKUS:
+        return "MISC ITEMS"
 
-    return "Miscellaneous"
-
-# ========================================================
-# BUILD CATEGORY
-# ========================================================
+    return "MISC ITEMS"
 
 def build_category(df):
 
     cats = {
         "FOOD ITEMS": [],
         "DRY ITEMS": [],
-        "Miscellaneous": []
+        "MISC ITEMS": []
     }
 
     for _, row in df.iterrows():
 
-        cat = detect_category(row["Item Name"])
+        cat = detect_category(row["SKU"])
 
         cats[cat].append(row.to_dict())
 
@@ -501,16 +420,12 @@ def build_category(df):
     return cats
 
 # ========================================================
-# AGGRID
+# AGGRID (UNCHANGED)
 # ========================================================
 
 def make_grid(df, key):
 
     gb = GridOptionsBuilder.from_dataframe(df)
-
-    # ====================================================
-    # DEFAULT COLUMN SETTINGS
-    # ====================================================
 
     gb.configure_default_column(
         resizable=False,
@@ -528,16 +443,11 @@ def make_grid(df, key):
         }
     )
 
-    # ====================================================
-    # FIRST 3 COLUMNS LOCKED
-    # ====================================================
-
     gb.configure_column(
         "Item Name",
         pinned="left",
         lockPinned=True,
         width=250, minWidth=250, maxWidth=350,
-        
     )
 
     gb.configure_column(
@@ -545,7 +455,6 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=100, minWidth=100, maxWidth=350,
-        
     )
 
     gb.configure_column(
@@ -553,19 +462,13 @@ def make_grid(df, key):
         pinned="left",
         lockPinned=True,
         width=100, minWidth=100, maxWidth=350,
-        
     )
-
-    # ====================================================
-    # BRANCH COLUMNS
-    # ====================================================
 
     for b in branch_names:
 
         gb.configure_column(
             b,
             type=["numericColumn"],
-            
             wrapText=False,
             width=120, minWidth=120, maxWidth=350,
             autoHeight=False,
@@ -580,10 +483,6 @@ def make_grid(df, key):
             }
         )
 
-    # ====================================================
-    # GRID OPTIONS
-    # ====================================================
-
     gb.configure_grid_options(
         headerHeight=38,
         rowHeight=32,
@@ -592,32 +491,21 @@ def make_grid(df, key):
         alwaysShowVerticalScroll=True
     )
 
-    # ====================================================
-    # CUSTOM CSS
-    # ====================================================
-
     custom_css = {
-
         ".ag-header-cell-label": {
             "justify-content": "center",
             "font-size": "12px",
             "font-weight": "600"
         },
-
         ".ag-header-cell": {
             "padding-top": "0px",
             "padding-bottom": "0px"
         },
-
         ".ag-cell": {
             "padding-top": "0px",
             "padding-bottom": "0px"
         }
     }
-
-    # ====================================================
-    # SHOW GRID
-    # ====================================================
 
     AgGrid(
         df,
@@ -635,7 +523,7 @@ def make_grid(df, key):
     )
 
 # ========================================================
-# CATEGORY VIEW
+# CATEGORY VIEW (UPDATED ONLY THIS PART)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
@@ -652,24 +540,6 @@ for cat, rows in category_data.items():
             continue
 
         df = pd.DataFrame(rows)
-
-        if cat == "FOOD ITEMS":
-
-            st.caption(
-                f"Expected Around: 35 Items | Found: {len(df)}"
-            )
-
-        elif cat == "DRY ITEMS":
-
-            st.caption(
-                f"Expected Around: 53 Items | Found: {len(df)}"
-            )
-
-        elif cat == "Miscellaneous":
-
-            st.caption(
-                f"Expected Around: 9 Items | Found: {len(df)}"
-            )
 
         make_grid(df, f"cat_{cat}")
 
@@ -689,6 +559,4 @@ def render(df, title):
     make_grid(df, title)
 
 render(daily_df, "📦 Daily Items Stock")
-
 render(weekly_df, "📦 Weekly Items Stock")
-
