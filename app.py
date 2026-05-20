@@ -139,6 +139,19 @@ div[data-testid="stTextInput"] input:focus {
 # =========================================================
 # PREMIUM SAAS VISUAL HEADER
 # =========================================================
+
+
+
+
+st.markdown(
+    "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
+    "Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'> B A R T </span>"
+    "</h1>", 
+    unsafe_allow_html=True
+)
+
+
+
 st.markdown(
     "<div style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; uppercase; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", 
     unsafe_allow_html=True
