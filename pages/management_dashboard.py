@@ -468,32 +468,42 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW (PURE DATAFRAME HANDLING)
+# CATEGORY VIEW (COMBINED & BULLETPROOF SKU MATCHING)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
-# Build categories keeping them as clean DataFrames
-category_dfs = build_category_dfs(daily_df)
+# 1. Combine both lists so categories can process everything
+combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 
-# Create tabs dynamically, calculating the count using len(df) directly from the filtered DataFrame
+# 2. Drop any duplicate items if they happen to exist in both sheets to keep it clean
+combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
+
+# 3. Clean up the SKU column inside the combined DataFrame to guarantee matches
+# This forces uppercase and strips ALL spaces (even middle spaces like 'CB 009' -> 'CB009')
+combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.strip().str.upper()
+
+# 4. Run your sorting engine on the perfectly cleaned data
+category_dfs = build_category_dfs(combined_stock)
+
+# 5. Build and render the tabs with container isolation to prevent the disappearing data bug
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# Loop and distribute grids inside the tabs safely
-for tab, (cat, sub_df) in zip(tabs, category_dfs.items()):
-    with tab:
-        if not sub_df.empty:
-            if cat == "UNCATEGORIZED DETECTED":
-                st.warning("⚠️ The following items did not match your strict SKU sets or prefix codes. Check their explicit SKUs below to append them into your code sets:")
-            
-            # FIXED: unique key now incorporates sub_df shape data to completely kill visual caching state bugs
-            unique_grid_key = stable_key(f"tab_{selected_date_str}", cat, df=sub_df)
-            
-            # Pass the pure, healthy subset DataFrame straight into your grid maker
-            make_grid(sub_df, unique_grid_key)
-        else:
-            st.info(f"No items in {cat}")
+for i, (cat, sub_df) in enumerate(category_dfs.items()):
+    with tabs[i]:
+        with st.container():
+            if not sub_df.empty:
+                if cat == "UNCATEGORIZED DETECTED":
+                    st.warning("⚠️ These items did not match your strict SKU sets or prefix codes:")
+                
+                # Dynamic key that forces Streamlit to redraw the grid when tabs switch
+                grid_key = f"ag_cat_tab_{cat.replace(' ', '_').lower()}_{selected_date_str}_v2"
+                
+                # Pass the matched data straight into your original grid layout
+                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+            else:
+                st.info(f"No items found in {cat}")
 
 # ========================================================
 # MAIN TABLES
