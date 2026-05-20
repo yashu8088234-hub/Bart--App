@@ -39,7 +39,7 @@ def data_missing():
     )
 
 # =========================================================
-# ATLAS SAAS PRESTIGE LIGHT CSS (CHARCOAL & RED SPLIT)
+# ATLAS SAAS PRESTIGE LIGHT CSS (CHARCOAL & RED METALLIC GLOW)
 # =========================================================
 st.markdown("""<style>
 /* Reset boilerplate elements */
@@ -79,52 +79,59 @@ div.stButton > button {
 
 /* 
    =========================================================
-   CRAZY SPLIT CHARCOAL & RED DYNAMIC ENGINE
+   CHARCOAL CHASSIS WITH INTENSE CRIMSON LASER GLOW
    =========================================================
 */
-/* High-specificity wrapper targeting the outer button chassis */
+/* Targeting outer button layout structure */
 div.stButton > button[key="staff_btn"], 
 div[data-testid="stHorizontalBlock"] div.stButton > button:first-child {
-    /* Hard angled 50/50 visual split between deep charcoal and premium blazing red */
-    background: linear-gradient(135deg, #1E1E24 0%, #1E1E24 50%, #FF0033 50%, #FF0033 100%) !important;
-    background-size: 100% 100% !important;
-    border: none !important;
-    /* Hypnotic crimson tracking shadow */
-    box-shadow: 0 4px 20px rgba(255, 0, 51, 0.25), 0 0 15px rgba(30, 30, 36, 0.15) !important;
-    animation: moltenPulse 3s ease-in-out infinite alternate !important;
+    background: #1C1D22 !important; /* Premium Matte Charcoal Base */
+    border: 2px solid #FF0033 !important; /* Blazing Red Laser Border */
+    box-shadow: 0 0 15px rgba(255, 0, 51, 0.4), inset 0 0 12px rgba(255, 0, 51, 0.2) !important;
+    animation: tacticalGlow 2.5s infinite alternative cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* Forcing text structure layers to stay pure stark white */
+/* Keep internal textual values highly contrasting stark white */
 div.stButton > button[key="staff_btn"] p,
 div.stButton > button[key="staff_btn"] div,
 div.stButton > button[key="staff_btn"] span {
     color: #FFFFFF !important;
     font-weight: 700 !important;
     text-transform: uppercase !important;
-    letter-spacing: 1.5px !important;
-    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.4) !important; /* Extra crisp contrast */
+    letter-spacing: 2px !important;
+    text-shadow: 0px 0px 8px rgba(255, 0, 51, 0.6) !important; /* Subtle neon text glow */
 }
 
-/* Hover overcharge mechanics */
+/* Hyper-kinetic reactive hover states */
 div.stButton > button[key="staff_btn"]:hover,
 div[data-testid="stHorizontalBlock"] div.stButton > button:first-child:hover {
-    transform: translateY(-4px) scale(1.03) !important;
-    /* Multi-layered dynamic neon bloom */
-    box-shadow: 0 15px 30px rgba(255, 0, 51, 0.5), 0 0 40px rgba(30, 30, 36, 0.3) !important;
-    filter: brightness(1.1) !important;
+    transform: translateY(-4px) scale(1.02) !important;
+    background: #FF0033 !important; /* Morph completely to Blazing Red on hover */
+    border-color: #FF0033 !important;
+    box-shadow: 0 12px 30px rgba(255, 0, 51, 0.6), 0 0 15px rgba(255, 0, 51, 0.4) !important;
+}
+
+/* Hover typography inversion */
+div.stButton > button[key="staff_btn"]:hover p,
+div.stButton > button[key="staff_btn"]:hover div,
+div.stButton > button[key="staff_btn"]:hover span {
+    color: #1C1D22 !important; /* text flips to charcoal when hovered */
+    text-shadow: none !important;
 }
 
 div.stButton > button[key="staff_btn"]:active {
-    transform: translateY(-1px) scale(0.98) !important;
+    transform: translateY(-1px) scale(0.99) !important;
 }
 
-/* Ambient dynamic energy pulse animation targeting the bounding box glow */
-@keyframes moltenPulse {
+/* Breathing ambient perimeter energy beam effect */
+@keyframes tacticalGlow {
     0% {
-        box-shadow: 0 4px 15px rgba(255, 0, 51, 0.3), 0 0 10px rgba(30, 30, 36, 0.2);
+        box-shadow: 0 0 12px rgba(255, 0, 51, 0.3), inset 0 0 8px rgba(255, 0, 51, 0.1);
+        filter: brightness(0.95);
     }
     100% {
-        box-shadow: 0 8px 25px rgba(255, 0, 51, 0.6), 0 0 25px rgba(255, 0, 51, 0.3);
+        box-shadow: 0 0 25px rgba(255, 0, 51, 0.65), inset 0 0 18px rgba(255, 0, 51, 0.35);
+        filter: brightness(1.1);
     }
 }
 /* ========================================================= */
