@@ -37,7 +37,8 @@ st.markdown("""<style>
 /* --- ANIMATED BACKGROUND --- */
 .background-container {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    z-index: -1; overflow: hidden; pointer-events: none;
+    z-index: -9999; overflow: hidden; pointer-events: none;
+    background-color: #FFFFFF; /* Ensure base is white */
 }
 .orbit {
     position: absolute; top: 50%; left: 50%;
@@ -51,6 +52,11 @@ st.markdown("""<style>
 }
 @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes counter-spin { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+
+/* --- OVERRIDE STREAMLIT BACKGROUNDS --- */
+.stApp { background: transparent !important; }
+div[data-testid="stAppViewContainer"] { background: transparent !important; }
+div[data-testid="stMainBlockContainer"] { background: transparent !important; }
 
 /* --- ORIGINAL CSS --- */
 #MainMenu, footer, header {visibility: hidden;}
@@ -69,24 +75,14 @@ st.markdown("""<style>
 
 /* Enhanced High-Impact BART Pulse */
 @keyframes breathe-bold {
-    0%, 100% { 
-        transform: scale(1); 
-        text-shadow: 0 0 10px rgba(46, 212, 122, 0.2);
-    }
-    50% { 
-        transform: scale(1.05); 
-        text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); 
-    }
+    0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); }
+    50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); }
 }
 .bart-logo {
-    display: inline-block;
-    animation: breathe-bold 2s ease-in-out infinite;
+    display: inline-block; animation: breathe-bold 2s ease-in-out infinite;
     background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    cursor: default;
-    font-weight: 900 !important;
-    letter-spacing: -2px;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    cursor: default; font-weight: 900 !important; letter-spacing: -2px;
 }
 
 /* Glow Card Effect */
@@ -124,13 +120,12 @@ div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::b
 div.stButton > button:hover { transform: translateY(-2px); }
 
 /* Containers */
-.stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 .block-container {max-width: 900px !important; padding-top: 5rem !important;}
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
 
-# Inject the Background HTML
+# Inject Background
 st.markdown("""
 <div class="background-container">
     <div class="orbit" style="animation-duration: 25s;"><div class="icon">🍴</div></div>
@@ -144,7 +139,6 @@ st.markdown("""
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 
-# BART Title with High-Impact Pulse
 st.markdown("""
     <h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'>
         <span class='bart-logo'>B A R T</span>
