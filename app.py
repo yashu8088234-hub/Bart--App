@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-from ai_core import run_ai
 
 # =========================================================
 # SYSTEM CONFIG
@@ -15,8 +14,9 @@ st.set_page_config(
 # CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
-/* Forces transparency */
+/* Forces transparency and reduces top padding */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
+.block-container { max-width: 900px !important; padding-top: 1rem !important; }
 
 /* Background Layer */
 .background-layer { 
@@ -29,13 +29,8 @@ st.markdown("""<style>
     opacity: 0.6; 
 }
 
-/* Orbit lines updated to Black with 20% opacity */
-.orbit { 
-    position: absolute; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 50%; 
-    animation: spin linear infinite;
-    left: 50%; top: 50%; transform: translate(-50%, -50%);
-}
-
+/* Orbit lines */
+.orbit { position: absolute; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 50%; animation: spin linear infinite; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .o1 { width: 200px; height: 200px; animation-duration: 20s; }
 .o2 { width: 350px; height: 350px; animation-duration: 30s; }
 .o3 { width: 500px; height: 500px; animation-duration: 40s; }
@@ -44,7 +39,7 @@ st.markdown("""<style>
 .o6 { width: 950px; height: 950px; animation-duration: 85s; }
 .o7 { width: 1100px; height: 1100px; animation-duration: 110s; }
 
-/* Original CSS Elements */
+/* UI Elements */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
@@ -59,19 +54,14 @@ st.markdown("""<style>
 .card-glow { position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
 .card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
 .card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; }
-div.stButton > button, div[data-testid="stFormSubmitButton"] > button { position: relative; height: 54px !important; border-radius: 50px !important; border: none !important; background: #20C997 !important; color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; overflow: hidden; z-index: 1; }
-div.stButton > button::before, div[data-testid="stFormSubmitButton"] > button::before { content: ''; position: absolute; z-index: -1; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 50%); animation: rotate 3s linear infinite; }
-div.stButton > button:hover { transform: translateY(-2px); }
-.block-container {max-width: 900px !important; padding-top: 5rem !important;}
-div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
-div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
+div.stButton > button { position: relative; height: 54px !important; border-radius: 50px !important; border: none !important; background: #20C997 !important; color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; overflow: hidden; z-index: 1; }
+div.stButton > button::before { content: ''; position: absolute; z-index: -1; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 50%); animation: rotate 3s linear infinite; }
 </style>""", unsafe_allow_html=True)
 
 # =========================================================
 # SESSION STATE
 # =========================================================
 st.session_state.authenticated = True
-if "chat" not in st.session_state: st.session_state.chat = []
 if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_password = False
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
@@ -84,13 +74,13 @@ def is_mgmt_locked():
 st.markdown("""
 <div class="background-layer">
     <div class="orbit-wrap">
-        <div class="orbit o1"><div class="icon" style="animation-duration: 20s;">☿</div></div>
-        <div class="orbit o2"><div class="icon" style="animation-duration: 30s;">♀</div></div>
-        <div class="orbit o3"><div class="icon" style="animation-duration: 40s;">☄️</div></div>
-        <div class="orbit o4"><div class="icon" style="animation-duration: 50s;">🌎</div></div>
-        <div class="orbit o5"><div class="icon" style="animation-duration: 65s;">🪐</div></div>
-        <div class="orbit o6"><div class="icon" style="animation-duration: 85s;">🌐</div></div>
-        <div class="orbit o7"><div class="icon" style="animation-duration: 110s;">🪐</div></div>
+        <div class="orbit o1"><div class="icon">☿</div></div>
+        <div class="orbit o2"><div class="icon">♀</div></div>
+        <div class="orbit o3"><div class="icon">☄️</div></div>
+        <div class="orbit o4"><div class="icon">🌎</div></div>
+        <div class="orbit o5"><div class="icon">🪐</div></div>
+        <div class="orbit o6"><div class="icon">🌐</div></div>
+        <div class="orbit o7"><div class="icon">🪐</div></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
