@@ -93,9 +93,6 @@ st.markdown("""
         <div class="orbit o7"><div class="icon" style="animation-duration: 110s;">🌟</div></div>
     </div>
 </div>
-""", unsafe_allow_html=True)
-
-                   else: st.error("Access Refused")
 # =========================================================
 # ANIMATED HEADER & UI
 # =========================================================
