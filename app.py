@@ -183,10 +183,10 @@ grid_left, grid_right = st.columns(2, gap="large")
 
 with grid_left:
     st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Floor Control</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Staff Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     
-    if st.button("Access Floor Control →", use_container_width=True, key="staff_btn"):
+    if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div>', unsafe_allow_html=True)
 
