@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# SESSION STATE (UNCHANGED LOGIC)
+# SESSION STATE
 # =========================================================
 st.session_state.authenticated = True
 
@@ -25,28 +25,35 @@ if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_pass
 if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
 # =========================================================
-# CORE LOGIC CHECKS (UNCHANGED LOGIC)
+# CORE LOGIC
 # =========================================================
 def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
-def data_missing():
-    return (
-        not st.session_state.all_data
-        and not st.session_state.branches
-        and not st.session_state.DAILY_ITEMS
-        and not st.session_state.WEEKLY_ITEMS
-    )
-
 # =========================================================
-# ATLAS SAAS PRESTIGE LIGHT CSS
+# CSS ARCHITECTURE (ANIMATED & STYLED)
 # =========================================================
 st.markdown("""<style>
 /* Reset boilerplate elements */
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
-/* Pure Minimalist Tech White Background */
+/* Animation Keyframes */
+@keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(30px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-text {
+    animation: fadeInUp 0.8s ease-out forwards;
+    opacity: 0;
+}
+
+.delay-1 { animation-delay: 0.2s; }
+.delay-2 { animation-delay: 0.4s; }
+.delay-3 { animation-delay: 0.6s; }
+.delay-4 { animation-delay: 0.8s; }
+
 .stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 
 /* Unified Button Architecture */
@@ -65,7 +72,6 @@ div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
     text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* Hyper-kinetic reactive hover states */
 div.stButton > button:hover, div[data-testid="stFormSubmitButton"] > button:hover {
     transform: translateY(-4px) scale(1.02) !important;
     background: linear-gradient(90deg, #20C997 0%, #1aae82 100%) !important;
@@ -84,15 +90,15 @@ div[data-testid="stTextInput"] input:focus {border-color: #3B21E6 !important; ba
 </style>""", unsafe_allow_html=True)
 
 # =========================================================
-# PREMIUM SAAS VISUAL HEADER
+# ANIMATED HEADER
 # =========================================================
-st.markdown("<div style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; uppercase; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px; line-height: 0.4;' ><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>    B A R T </span></h1>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>" "Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span>" "</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto; line-height: 1.6;'>" "Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters." "</p>", unsafe_allow_html=True)
+st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
+st.markdown("<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px; line-height: 0.4;' ><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>    B A R T </span></h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
+st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto; line-height: 1.6;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
 # =========================================================
-# HIGH-END DUAL EXECUTIVE CARDS
+# CARDS
 # =========================================================
 grid_left, grid_right = st.columns(2, gap="large")
 
@@ -119,7 +125,7 @@ with grid_right:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
-# MODERN SLIDE-IN PASSWORD VERIFICATION SHEET
+# PASSWORD VERIFICATION SHEET
 # =========================================================
 if st.session_state.show_mgmt_password:
     st.write("---")
