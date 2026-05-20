@@ -143,12 +143,7 @@ div[data-testid="stTextInput"] input:focus {
 
 
 
-st.markdown(
-    "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
-    "Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'> B A R T </span>"
-    "</h1>", 
-    unsafe_allow_html=True
-)
+
 
 
 
@@ -157,6 +152,14 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
+
+st.markdown(
+    "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
+    "<br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'> B A R T </span>"
+    "</h1>", 
+    unsafe_allow_html=True
+)
 # Main Title Headline Structure
 st.markdown(
     "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
