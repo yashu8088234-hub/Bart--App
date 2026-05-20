@@ -39,7 +39,7 @@ def data_missing():
     )
 
 # =========================================================
-# ATLAS SAAS PRESTIGE LIGHT CSS
+# ATLAS SAAS PRESTIGE LIGHT CSS (WITH CYBERPUNK BUTTON)
 # =========================================================
 st.markdown("""<style>
 /* Reset boilerplate elements */
@@ -74,21 +74,52 @@ div.stButton > button {
     font-size: 15px !important;
     font-weight: 600 !important;
     letter-spacing: -0.2px !important;
-    transition: all 0.2s ease-in-out !important;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Pill 1: Primary Indigo Button (Floor Staff) */
+/* 
+   =========================================================
+   CRAZY HIGH-ENERGY BUTTON: HYPER-CHROMIC KINETIC GLOW
+   =========================================================
+*/
 div.stButton > button[key="staff_btn"] {
-    background: #3B21E6 !important;
+    background: linear-gradient(-45deg, #00C6FF 0%, #0072FF 25%, #7928CA 50%, #FF0080 75%, #00C6FF 100%) !important;
+    background-size: 400% 100% !important;
     color: #FFFFFF !important;
     border: none !important;
-    box-shadow: 0 4px 14px rgba(59, 33, 230, 0.2) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    box-shadow: 0 4px 15px rgba(121, 40, 202, 0.25), 0 0 20px rgba(255, 0, 128, 0.15) !important;
+    animation: flowAndPulse 4s ease infinite !important;
 }
+
 div.stButton > button[key="staff_btn"]:hover {
-    transform: translateY(-2px) !important;
-    background: #2A14CD !important;
-    box-shadow: 0 6px 20px rgba(59, 33, 230, 0.3) !important;
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 12px 25px rgba(121, 40, 202, 0.4), 0 0 35px rgba(255, 0, 128, 0.5) !important;
+    filter: brightness(1.15) !important;
 }
+
+div.stButton > button[key="staff_btn"]:active {
+    transform: translateY(-1px) scale(0.99) !important;
+}
+
+/* Shifting dynamic gradient & ambient glow animation */
+@keyframes flowAndPulse {
+    0% {
+        background-position: 0% 50%;
+        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.2), 0 0 10px rgba(255, 0, 128, 0.1);
+    }
+    50% {
+        background-position: 100% 50%;
+        box-shadow: 0 6px 20px rgba(0, 198, 255, 0.35), 0 0 25px rgba(121, 40, 202, 0.3);
+    }
+    100% {
+        background-position: 0% 50%;
+        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.2), 0 0 10px rgba(255, 0, 128, 0.1);
+    }
+}
+/* ========================================================= */
 
 /* Pill 2: Ghost Outline Button (Management HQ) */
 div.stButton > button[key="mgmt_btn"] {
