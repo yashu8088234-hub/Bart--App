@@ -39,79 +39,97 @@ def data_missing():
     )
 
 # =========================================================
-# STUNNING PREMIUM MINIMALIST CSS
+# HIGH-END LUXURY LIGHT CSS
 # =========================================================
 st.markdown("""<style>
 #MainMenu, footer, header {visibility: hidden;}
 [data-testid="stSidebar"], [data-testid="collapsedControl"] {display: none !important; visibility: hidden !important;}
 
+/* Premium Minimalist Light Background */
 .stApp {
-    background: #0B0B0B;
+    background: radial-gradient(circle at top, #FCFAF7 0%, #F5ECE3 100%);
 }
 
 .block-container {
-    max-width: 680px !important;
-    padding-top: 10% !important;
+    max-width: 600px !important;
+    padding-top: 12% !important;
 }
 
-/* Premium Button Styling */
+/* Master Button Override */
 div.stButton > button {
-    height: 70px !important;
-    border-radius: 16px !important;
-    font-size: 18px !important;
+    height: 68px !important;
+    border-radius: 18px !important;
+    font-size: 16px !important;
     font-weight: 700 !important;
-    letter-spacing: 0.5px !important;
-    transition: all 0.3s ease !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
+    letter-spacing: 0.3px !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* Staff Button: Velvet Red Glow */
+/* Staff Button: Deep Espresso Cream */
 div.stButton > button[key="staff_btn"] {
-    background: linear-gradient(135deg, #1A0D0D 0%, #3A1010 100%) !important;
-    color: #FF8F8F !important;
-    box-shadow: 0 4px 20px rgba(192, 57, 43, 0.15) !important;
+    background: #2C2A28 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    box-shadow: 0 10px 25px rgba(44, 42, 40, 0.15) !important;
 }
 div.stButton > button[key="staff_btn"]:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 30px rgba(192, 57, 43, 0.3) !important;
-    border-color: rgba(192, 57, 43, 0.4) !important;
+    transform: translateY(-3px) !important;
+    box-shadow: 0 15px 30px rgba(44, 42, 40, 0.25) !important;
 }
 
-/* Admin Button: Onyx Sleek */
+/* Management Button: Premium Bart Red */
 div.stButton > button[key="mgmt_btn"] {
-    background: linear-gradient(135deg, #161616 0%, #222222 100%) !important;
-    color: #E0E0E0 !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+    background: #FFFFFF !important;
+    color: #C0392B !important;
+    border: 2px solid #C0392B !important;
+    box-shadow: 0 10px 25px rgba(192, 57, 43, 0.08) !important;
 }
 div.stButton > button[key="mgmt_btn"]:hover {
-    transform: translateY(-2px) !important;
-    border-color: rgba(255,255,255,0.15) !important;
+    transform: translateY(-3px) !important;
+    background: #C0392B !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 15px 30px rgba(192, 57, 43, 0.25) !important;
 }
 
-/* Form container */
+/* Form Styling */
 div[data-testid="stForm"] {
-    background: #111111 !important;
-    border: 1px solid #222222 !important;
-    border-radius: 16px !important;
-    padding: 25px !important;
+    background: #FFFFFF !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    border-radius: 20px !important;
+    padding: 24px !important;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.05) !important;
+}
+
+/* Elegant Text Inputs */
+div[data-testid="stTextInput"] input {
+    border-radius: 12px !important;
+    background-color: #FAFAFA !important;
+    border: 1px solid #EAEAEA !important;
+    height: 48px !important;
+    text-align: center !important;
+    font-size: 16px !important;
+}
+div[data-testid="stTextInput"] input:focus {
+    border-color: #C0392B !important;
+    background-color: #FFFFFF !important;
 }
 </style>""", unsafe_allow_html=True)
 
 # =========================================================
-# THE DISPLAY
+# THE VISUAL LAYOUT
 # =========================================================
 
-# Ultra-clean Brand Identity
-st.markdown("<h1 style='text-align: center; font-size: 82px; font-weight: 900; color: #FFFFFF; margin-bottom: 0; letter-spacing: -3px;'>BART</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 14px; color: #C0392B; font-weight: 700; text-transform: uppercase; letter-spacing: 4px; margin-top: 0px;'>Jeddah • Coffee & Bites</p>", unsafe_allow_html=True)
+# Clean, Bold Typography Focus
+st.markdown("<h1 style='text-align: center; font-size: 86px; font-weight: 900; color: #2C2A28; margin-bottom: 0; letter-spacing: -4px;'>BART</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-size: 13px; color: #C0392B; font-weight: 800; text-transform: uppercase; letter-spacing: 5px; margin-top: -5px;'>Coffee & Fresh Bites • Jeddah</p>", unsafe_allow_html=True)
 
-st.write("##")
+st.write("###")
 
 # Compact Action Center
-col1, col2 = st.columns(2, gap="medium")
+col1, col2 = st.columns(2, gap="large")
 
 with col1:
-    if st.button("👨‍💼 Floor Staff", use_container_width=True, key="staff_btn"):
+    if st.button("👨‍💼 Staff Entry", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
 
 with col2:
@@ -126,18 +144,19 @@ with col2:
 if st.session_state.show_mgmt_password:
     st.write("##")
     with st.form("pass_form", clear_on_submit=True):
-        st.markdown("<p style='color: #888888; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;'>Secure Admin Verification</p>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #7F8C8D; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px;'>Security Verification</p>", unsafe_allow_html=True)
         password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="••••••••")
         
-        c1, c2 = st.columns([1, 1])
+        st.write("#")
+        c1, c2 = st.columns(2, gap="medium")
         with c1:
-            if st.form_submit_button("Verify Identity", use_container_width=True):
+            if st.form_submit_button("Cancel", use_container_width=True):
+                st.session_state.show_mgmt_password = False
+                st.rerun()
+        with c2:
+            if st.form_submit_button("Confirm →", use_container_width=True):
                 if password_input == st.secrets["MANAGER_PASSWORD"]:
                     st.session_state.show_mgmt_password = False
                     st.switch_page("pages/management_dashboard.py")
                 else:
-                    st.error("Access Denied")
-        with c2:
-            if st.form_submit_button("Cancel Layout", use_container_width=True):
-                st.session_state.show_mgmt_password = False
-                st.rerun()
+                    st.error("Invalid Code")
