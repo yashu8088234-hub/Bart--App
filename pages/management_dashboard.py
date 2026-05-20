@@ -475,20 +475,18 @@ weekly_df = build_df(weekly_items, branch_names)
 # ========================================================
 # CATEGORY VIEW
 # ========================================================
-
 st.subheader("📊 Category Wise Stock Overview")
 
 category_data = build_category(daily_df)
 
 for cat, rows in category_data.items():
 
-    st.write(f"📂 {cat} ({len(rows)})")
+    with st.expander(f"📂 {cat} ({len(rows)})", expanded=False):
 
-    if rows:
-        make_grid(pd.DataFrame(rows), stable_key("cat", cat))
-    else:
-        st.info("No items")
-
+        if rows:
+            make_grid(pd.DataFrame(rows), stable_key("cat", cat))
+        else:
+            st.info("No items")
 # ========================================================
 # MAIN TABLES
 # ========================================================
@@ -503,5 +501,14 @@ def render(df, title):
 
     make_grid(df, stable_key("grid", title))
 
-render(daily_df, "📦 Daily Items Stock")
-render(weekly_df, "📦 Weekly Items Stock")
+with st.expander("📦 Daily Items Stock", expanded=True):
+    if daily_df.empty:
+        st.warning("No Data")
+    else:
+        make_grid(daily_df, stable_key("grid", "daily"))
+
+with st.expander("📦 Weekly Items Stock", expanded=False):
+    if weekly_df.empty:
+        st.warning("No Data")
+    else:
+        make_grid(weekly_df, stable_key("grid", "weekly"))
