@@ -31,7 +31,7 @@ def is_mgmt_locked():
     return time.time() < st.session_state.mgmt_lock_until
 
 # =========================================================
-# CSS ARCHITECTURE (ANIMATED HEADER + GLOW BUTTONS)
+# CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
 #MainMenu, footer, header {visibility: hidden;}
@@ -48,8 +48,24 @@ st.markdown("""<style>
 .delay-3 { animation-delay: 0.6s; }
 .delay-4 { animation-delay: 0.8s; }
 
-/* Glow Button Effect */
+/* Glow Card Effect */
 @keyframes rotate { 100% { transform: rotate(360deg); } }
+.card-glow {
+    position: relative; padding: 2px;
+    background: #F8F9FA; border-radius: 22px; overflow: hidden;
+}
+.card-glow::before {
+    content: ''; position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: conic-gradient(transparent, #2ED47A, transparent 30%);
+    animation: rotate 4s linear infinite;
+}
+.card-content {
+    position: relative; background: #F8F9FA;
+    border-radius: 20px; padding: 30px; z-index: 1;
+}
+
+/* Glow Button Effect */
 div.stButton > button, div[data-testid="stFormSubmitButton"] > button {
     position: relative;
     height: 54px !important; border-radius: 50px !important;
@@ -69,7 +85,6 @@ div.stButton > button:hover { transform: translateY(-2px); }
 /* Containers */
 .stApp {background-color: #FFFFFF !important; font-family: 'Inter', system-ui, sans-serif;}
 .block-container {max-width: 900px !important; padding-top: 5rem !important;}
-div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {background-color: #F8F9FA !important; border-radius: 20px !important; padding: 30px !important; border: 1px solid #ECEFF1 !important;}
 div[data-testid="stForm"] {background: #FFFFFF !important; border: 1px solid #E2E8F0 !important; border-radius: 24px !important; padding: 35px !important;}
 div[data-testid="stTextInput"] input {border-radius: 50px !important; background-color: #F8FAFC !important; height: 52px !important; text-align: center !important;}
 </style>""", unsafe_allow_html=True)
@@ -78,7 +93,7 @@ div[data-testid="stTextInput"] input {border-radius: 50px !important; background
 # ANIMATED HEADER
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
-st.markdown("<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>    B A R T </span></h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>    B A R T </span></h1>", unsafe_allow_html=True)
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
 st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
@@ -88,16 +103,16 @@ st.markdown("<p class='animate-text delay-4' style='text-align: center; font-siz
 grid_left, grid_right = st.columns(2, gap="large")
 
 with grid_left:
-    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 20px;text-align: center; font-weight: 700; color: #1E293B;margin-top:-70px ; margin-bottom: -10px;'>Staff Control</p>", unsafe_allow_html=True)
+    st.markdown('<div class="card-glow"><div class="card-content">', unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px;text-align: center; font-weight: 700; color: #1E293B;'>Staff Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 with grid_right:
-    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 20px;text-align: center; font-weight: 700; color: #1E293B;margin-top:-70px ; margin-bottom: -10px;'>HQ Administration</p>", unsafe_allow_html=True)
+    st.markdown('<div class="card-glow"><div class="card-content">', unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px;text-align: center; font-weight: 700; color: #1E293B;'>HQ Administration</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
     
     if is_mgmt_locked():
@@ -107,7 +122,7 @@ with grid_right:
         if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
             st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 # =========================================================
 # PASSWORD VERIFICATION SHEET
