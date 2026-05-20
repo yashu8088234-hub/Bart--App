@@ -66,7 +66,31 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
-# CACHE (fallback)
+# SKU CATEGORY SETS (RESTORED)
+# ========================================================
+
+FOOD_SKUS = {
+    "B034","F066","CB032","B029","K072","CB009","F081","B019","B018",
+    "CF007","CF006","F148","CB028","K176","CB036","K265","B016","CB078",
+    "K154","CB054","K226","CB074","M&M","B014","K242","S019","CB055",
+    "B017","CB076","CB056","B026","CB037","K087","CB043"
+}
+
+DRY_SKUS = {
+    "C013","P244","P254","P320","P322","P321","P095","P296","C014",
+    "P337","P125","P298","P178","P343(1)","P343","CF009","P145","P133",
+    "P156","RS002","P155","P081","C011","C045","P253","C012","P101",
+    "P012","P218","P091","P132","P264","P160","C005","P219","P157",
+    "P161","C010","RS001","P342","P341","P039","P084","P082","C017",
+    "C016","C015","P208","P158","C007","P315","C048","P083"
+}
+
+MISC_SKUS = {
+    "T063","T060","T066","TOY1","T026","SVP","F089","P130"
+}
+
+# ========================================================
+# CACHE
 # ========================================================
 
 branch_cache = {}
@@ -85,29 +109,13 @@ def fetch_branch(branch):
 
         branch_cache[name] = data
 
-        return {
-            "branch": name,
-            "success": True,
-            "data": data
-        }
+        return name, data
 
     except Exception:
-
-        if name in branch_cache:
-            return {
-                "branch": name,
-                "success": False,
-                "data": branch_cache[name]
-            }
-
-        return {
-            "branch": name,
-            "success": False,
-            "data": []
-        }
+        return name, branch_cache.get(name, [])
 
 # ========================================================
-# LOAD ALL DATA (RETRY SYSTEM RESTORED)
+# LOAD ALL DATA (WITH RETRY SYSTEM)
 # ========================================================
 
 MAX_RETRIES = 10
@@ -130,11 +138,10 @@ def load_all_data(branches):
 
         for f in as_completed(futures):
 
-            r = f.result()
-            name = r["branch"]
+            name, data = f.result()
 
-            if r["success"] or r["data"]:
-                completed[name] = r["data"]
+            if data:
+                completed[name] = data
             else:
                 failed.append(futures[f])
 
@@ -159,24 +166,16 @@ def load_all_data(branches):
 
         with ThreadPoolExecutor(max_workers=3) as ex:
 
-            futures = {
-                ex.submit(fetch_branch, b): b
-                for b in failed
-            }
-
-            done_retry = 0
+            futures = {ex.submit(fetch_branch, b): b for b in failed}
 
             for f in as_completed(futures):
 
-                r = f.result()
-                name = r["branch"]
+                name, data = f.result()
 
-                if r["success"] or r["data"]:
-                    completed[name] = r["data"]
+                if data:
+                    completed[name] = data
                 else:
                     new_failed.append(futures[f])
-
-                done_retry += 1
 
         failed = new_failed
         round_no += 1
@@ -189,15 +188,12 @@ def load_all_data(branches):
         status.empty()
 
     return [
-        (
-            b["BranchName"],
-            completed.get(b["BranchName"], [])
-        )
+        (b["BranchName"], completed.get(b["BranchName"], []))
         for b in branches
     ]
 
 # ========================================================
-# REFRESH BUTTON
+# REFRESH
 # ========================================================
 
 if st.button("🔄 Refresh Data"):
@@ -209,7 +205,7 @@ if st.button("🔄 Refresh Data"):
     st.rerun()
 
 # ========================================================
-# DATE INPUT
+# DATE
 # ========================================================
 
 selected_date = st.date_input("📅 Select Date")
@@ -233,7 +229,6 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(x).strip() for x in raw[0]]
 
         date_index = None
-
         for i, h in enumerate(headers):
             if h == selected_date_str:
                 date_index = i
@@ -294,7 +289,7 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # ========================================================
-# BUILD DATAFRAME
+# BUILD DF
 # ========================================================
 
 def build_df(data_dict, branch_names):
@@ -317,7 +312,7 @@ def build_df(data_dict, branch_names):
     return pd.DataFrame(rows)
 
 # ========================================================
-# CATEGORY LOGIC (UNCHANGED)
+# CATEGORY LOGIC
 # ========================================================
 
 def normalize_sku(value):
@@ -360,7 +355,7 @@ def stable_key(prefix, name):
     return prefix + "_" + hashlib.md5(str(name).encode()).hexdigest()
 
 # ========================================================
-# AGGRID (YOUR EXACT SPACING RESTORED)
+# AGGRID (YOUR ORIGINAL SPACING - UNCHANGED)
 # ========================================================
 
 def make_grid(df, key):
@@ -463,7 +458,7 @@ def make_grid(df, key):
     )
 
 # ========================================================
-# RUN PIPELINE
+# PIPELINE RUN
 # ========================================================
 
 all_data = load_all_data(branches)
