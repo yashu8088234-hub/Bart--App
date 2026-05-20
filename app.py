@@ -85,7 +85,7 @@ st.markdown("<p class='animate-text delay-4' style='text-align: center; font-siz
 # =========================================================
 # CARDS
 # =========================================================
-grid_left, grid_right = st.columns(2, gap="large")
+grid_left, grid_right = st.columns(2, gap="medium")
 
 with grid_left:
     st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
