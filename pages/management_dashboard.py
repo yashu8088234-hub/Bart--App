@@ -473,21 +473,25 @@ daily_df = build_df(daily_items, branch_names)
 weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
-# CATEGORY VIEW
+# CATEGORY VIEW (FIXED WITH TABS TO PREVENT BLANK GRIDS)
 # ========================================================
 
 st.subheader("📊 Category Wise Stock Overview")
 
 category_data = build_category(daily_df)
 
-for cat, rows in category_data.items():
+# Create 3 isolated structural tabs 
+tab_titles = [f"📂 {cat} ({len(rows)})" for cat, rows in category_data.items()]
+tabs = st.tabs(tab_titles)
 
-    st.write(f"📂 {cat} ({len(rows)})")
-
-    if rows:
-        make_grid(pd.DataFrame(rows), stable_key("cat", cat))
-    else:
-        st.info("No items")
+# Loop and distribute each grid cleanly inside its own tab structure
+for tab, (cat, rows) in zip(tabs, category_data.items()):
+    with tab:
+        if rows:
+            # We explicitly use unique key constraints to ensure grids render separately
+            make_grid(pd.DataFrame(rows), stable_key("tab_cat", cat))
+        else:
+            st.info("No items in this category")
 
 # ========================================================
 # MAIN TABLES
