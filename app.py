@@ -71,35 +71,35 @@ div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {
 div.stButton > button {
     height: 54px !important;
     border-radius: 50px !important; /* Perfect Pill Buttons */
-    font-size: 15px !important;
-    font-weight: 600 !important;
-    letter-spacing: -0.2px !important;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 /* 
    =========================================================
-   CHARCOAL CHASSIS WITH INTENSE CRIMSON LASER GLOW
+   CHARCOAL CHASSIS WITH SOLID WHITE BOLD TEXT
    =========================================================
 */
-/* Targeting outer button layout structure */
+/* Target outer button wrapper layout structural block */
 div.stButton > button[key="staff_btn"], 
 div[data-testid="stHorizontalBlock"] div.stButton > button:first-child {
     background: #1C1D22 !important; /* Premium Matte Charcoal Base */
     border: 2px solid #FF0033 !important; /* Blazing Red Laser Border */
     box-shadow: 0 0 15px rgba(255, 0, 51, 0.4), inset 0 0 12px rgba(255, 0, 51, 0.2) !important;
-    animation: tacticalGlow 2.5s infinite alternative cubic-bezier(0.4, 0, 0.2, 1) !important;
+    animation: tacticalGlow 2.5s infinite alternate cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* Keep internal textual values highly contrasting stark white */
+/* Aggressively force inner elements to stay big, bold, and solid white */
+div.stButton > button[key="staff_btn"] *, 
 div.stButton > button[key="staff_btn"] p,
 div.stButton > button[key="staff_btn"] div,
-div.stButton > button[key="staff_btn"] span {
+div.stButton > button[key="staff_btn"] span,
+div.stButton > button[key="staff_btn"] small {
     color: #FFFFFF !important;
-    font-weight: 700 !important;
+    font-size: 18px !important; /* Upgraded text size */
+    font-weight: 800 !important; /* Heavy thick bold alignment */
     text-transform: uppercase !important;
-    letter-spacing: 2px !important;
-    text-shadow: 0px 0px 8px rgba(255, 0, 51, 0.6) !important; /* Subtle neon text glow */
+    letter-spacing: 1.5px !important;
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.6) !important; /* Sharp readability filter */
 }
 
 /* Hyper-kinetic reactive hover states */
@@ -111,12 +111,13 @@ div[data-testid="stHorizontalBlock"] div.stButton > button:first-child:hover {
     box-shadow: 0 12px 30px rgba(255, 0, 51, 0.6), 0 0 15px rgba(255, 0, 51, 0.4) !important;
 }
 
-/* Hover typography inversion */
+/* Maintain font layout options under layout hover morph actions */
+div.stButton > button[key="staff_btn"]:hover *,
 div.stButton > button[key="staff_btn"]:hover p,
 div.stButton > button[key="staff_btn"]:hover div,
 div.stButton > button[key="staff_btn"]:hover span {
-    color: #1C1D22 !important; /* text flips to charcoal when hovered */
-    text-shadow: none !important;
+    color: #FFFFFF !important; /* Keeps typography locked white on hover */
+    text-shadow: 0px 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
 
 div.stButton > button[key="staff_btn"]:active {
@@ -223,7 +224,7 @@ with grid_left:
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Floor Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     
-    # Render dynamic styled action controller button
+    # Render action controller button
     if st.button("Access Floor Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div>', unsafe_allow_html=True)
