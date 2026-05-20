@@ -39,7 +39,7 @@ def data_missing():
     )
 
 # =========================================================
-# ATLAS SAAS PRESTIGE LIGHT CSS (WITH CYBERPUNK BUTTON)
+# ATLAS SAAS PRESTIGE LIGHT CSS (WITH HIGH SPECIFICITY STYLES)
 # =========================================================
 st.markdown("""<style>
 /* Reset boilerplate elements */
@@ -70,7 +70,7 @@ div[data-testid="stVerticalBlock"] > div:has(div.card-wrapper) {
 /* --- BUTTON ARCHITECTURE --- */
 div.stButton > button {
     height: 54px !important;
-    border-radius: 50px !important; /* Perfect Pill Buttons matching image */
+    border-radius: 50px !important; /* Perfect Pill Buttons */
     font-size: 15px !important;
     font-weight: 600 !important;
     letter-spacing: -0.2px !important;
@@ -79,44 +79,54 @@ div.stButton > button {
 
 /* 
    =========================================================
-   CRAZY HIGH-ENERGY BUTTON: HYPER-CHROMIC KINETIC GLOW
+   FORCE TARGETED HYPER-CHROMIC KINETIC GLOW
    =========================================================
 */
-div.stButton > button[key="staff_btn"] {
+/* Outer button styling structural override */
+div.stButton > button[key="staff_btn"], 
+div[data-testid="stHorizontalBlock"] div.stButton > button:first-child {
     background: linear-gradient(-45deg, #00C6FF 0%, #0072FF 25%, #7928CA 50%, #FF0080 75%, #00C6FF 100%) !important;
     background-size: 400% 100% !important;
-    color: #FFFFFF !important;
     border: none !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 1px !important;
-    box-shadow: 0 4px 15px rgba(121, 40, 202, 0.25), 0 0 20px rgba(255, 0, 128, 0.15) !important;
+    box-shadow: 0 4px 15px rgba(121, 40, 202, 0.3), 0 0 20px rgba(255, 0, 128, 0.2) !important;
     animation: flowAndPulse 4s ease infinite !important;
 }
 
-div.stButton > button[key="staff_btn"]:hover {
-    transform: translateY(-3px) scale(1.02) !important;
-    box-shadow: 0 12px 25px rgba(121, 40, 202, 0.4), 0 0 35px rgba(255, 0, 128, 0.5) !important;
-    filter: brightness(1.15) !important;
+/* Deep font override inside the button container */
+div.stButton > button[key="staff_btn"] p,
+div.stButton > button[key="staff_btn"] div,
+div.stButton > button[key="staff_btn"] span {
+    color: #FFFFFF !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1.5px !important;
+}
+
+/* Hover dynamics */
+div.stButton > button[key="staff_btn"]:hover,
+div[data-testid="stHorizontalBlock"] div.stButton > button:first-child:hover {
+    transform: translateY(-4px) scale(1.03) !important;
+    box-shadow: 0 12px 25px rgba(121, 40, 202, 0.5), 0 0 35px rgba(255, 0, 128, 0.6) !important;
+    filter: brightness(1.2) !important;
 }
 
 div.stButton > button[key="staff_btn"]:active {
-    transform: translateY(-1px) scale(0.99) !important;
+    transform: translateY(-1px) scale(0.98) !important;
 }
 
 /* Shifting dynamic gradient & ambient glow animation */
 @keyframes flowAndPulse {
     0% {
         background-position: 0% 50%;
-        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.2), 0 0 10px rgba(255, 0, 128, 0.1);
+        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.3), 0 0 10px rgba(255, 0, 128, 0.2);
     }
     50% {
         background-position: 100% 50%;
-        box-shadow: 0 6px 20px rgba(0, 198, 255, 0.35), 0 0 25px rgba(121, 40, 202, 0.3);
+        box-shadow: 0 6px 25px rgba(0, 198, 255, 0.5), 0 0 30px rgba(121, 40, 202, 0.4);
     }
     100% {
         background-position: 0% 50%;
-        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.2), 0 0 10px rgba(255, 0, 128, 0.1);
+        box-shadow: 0 4px 15px rgba(121, 40, 202, 0.3), 0 0 10px rgba(255, 0, 128, 0.2);
     }
 }
 /* ========================================================= */
@@ -126,6 +136,9 @@ div.stButton > button[key="mgmt_btn"] {
     background: transparent !important;
     color: #3B21E6 !important;
     border: 1px solid #3B21E6 !important;
+}
+div.stButton > button[key="mgmt_btn"] p {
+    color: #3B21E6 !important;
 }
 div.stButton > button[key="mgmt_btn"]:hover {
     transform: translateY(-2px) !important;
@@ -201,11 +214,11 @@ st.markdown(
 grid_left, grid_right = st.columns(2, gap="large")
 
 with grid_left:
-    # Embedded wrapper inside standard layout to safely bind custom CSS classes
     st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
     st.markdown("<p style='font-size: 20px; font-weight: 700; color: #1E293B; margin-bottom: 4px;'>Floor Control</p>", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     
+    # Render Floor Control access button
     if st.button("Access Floor Control →", use_container_width=True, key="staff_btn"):
         st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div>', unsafe_allow_html=True)
