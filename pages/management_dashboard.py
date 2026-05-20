@@ -119,7 +119,7 @@ def fetch_branch(branch):
 # ========================================================
 
 MAX_RETRIES = 10
-RETRY_DELAY = 10
+RETRY_DELAY = 30
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
