@@ -73,7 +73,7 @@ FOOD_SKUS = {
     "B034","F066","CB032","B029","K072","CB009","F081","B019","B018",
     "CF007","CF006","F148","CB028","K176","CB036","K265","B016","CB078",
     "K154","CB054","K226","CB074","M&M","B014","K242","S019","CB055",
-    "B017","CB076","CB056","B026","CB037","K087","CB043","4"
+    "B017","CB076","CB056","B026","CB037","K087","CB043"
 }
 
 DRY_SKUS = {
@@ -119,7 +119,7 @@ def fetch_branch(branch):
 # ========================================================
 
 MAX_RETRIES = 10
-RETRY_DELAY = 30
+RETRY_DELAY = 10
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
@@ -475,18 +475,20 @@ weekly_df = build_df(weekly_items, branch_names)
 # ========================================================
 # CATEGORY VIEW
 # ========================================================
+
 st.subheader("📊 Category Wise Stock Overview")
 
 category_data = build_category(daily_df)
 
 for cat, rows in category_data.items():
 
-    with st.expander(f"📂 {cat} ({len(rows)})", expanded=False):
+    st.write(f"📂 {cat} ({len(rows)})")
 
-        if rows:
-            make_grid(pd.DataFrame(rows), stable_key("cat", cat))
-        else:
-            st.info("No items")
+    if rows:
+        make_grid(pd.DataFrame(rows), stable_key("cat", cat))
+    else:
+        st.info("No items")
+
 # ========================================================
 # MAIN TABLES
 # ========================================================
