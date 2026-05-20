@@ -66,7 +66,7 @@ branches = load_branches()
 branch_names = [b["BranchName"] for b in branches]
 
 # ========================================================
-# CACHE
+# CACHE (fallback)
 # ========================================================
 
 branch_cache = {}
@@ -85,32 +85,119 @@ def fetch_branch(branch):
 
         branch_cache[name] = data
 
-        return name, data
+        return {
+            "branch": name,
+            "success": True,
+            "data": data
+        }
 
     except Exception:
-        return name, branch_cache.get(name, [])
+
+        if name in branch_cache:
+            return {
+                "branch": name,
+                "success": False,
+                "data": branch_cache[name]
+            }
+
+        return {
+            "branch": name,
+            "success": False,
+            "data": []
+        }
 
 # ========================================================
-# LOAD ALL DATA
+# LOAD ALL DATA (RETRY SYSTEM RESTORED)
 # ========================================================
+
+MAX_RETRIES = 10
+RETRY_DELAY = 10
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
 
-    results = {}
+    completed = {}
+    failed = []
+
+    progress = st.progress(0)
+    status = st.empty()
 
     with ThreadPoolExecutor(max_workers=3) as ex:
 
         futures = {ex.submit(fetch_branch, b): b for b in branches}
 
-        for f in as_completed(futures):
-            name, data = f.result()
-            results[name] = data
+        done = 0
 
-    return [(b["BranchName"], results.get(b["BranchName"], [])) for b in branches]
+        for f in as_completed(futures):
+
+            r = f.result()
+            name = r["branch"]
+
+            if r["success"] or r["data"]:
+                completed[name] = r["data"]
+            else:
+                failed.append(futures[f])
+
+            done += 1
+            progress.progress(done / len(branches))
+
+    round_no = 1
+
+    while failed and round_no <= MAX_RETRIES:
+
+        failed_names = [b["BranchName"] for b in failed]
+
+        with status.container():
+            st.info(
+                f"Retry {round_no}/{MAX_RETRIES} → "
+                f"{', '.join(failed_names)}"
+            )
+
+        time.sleep(RETRY_DELAY)
+
+        new_failed = []
+
+        with ThreadPoolExecutor(max_workers=3) as ex:
+
+            futures = {
+                ex.submit(fetch_branch, b): b
+                for b in failed
+            }
+
+            done_retry = 0
+
+            for f in as_completed(futures):
+
+                r = f.result()
+                name = r["branch"]
+
+                if r["success"] or r["data"]:
+                    completed[name] = r["data"]
+                else:
+                    new_failed.append(futures[f])
+
+                done_retry += 1
+
+        failed = new_failed
+        round_no += 1
+
+    if failed:
+        status.warning("Some branches still failed after retries")
+    else:
+        status.success("All branches loaded successfully")
+        time.sleep(0.5)
+        status.empty()
+
+    return [
+        (
+            b["BranchName"],
+            completed.get(b["BranchName"], [])
+        )
+        for b in branches
+    ]
 
 # ========================================================
-# REFRESH
+# REFRESH BUTTON
 # ========================================================
 
 if st.button("🔄 Refresh Data"):
@@ -122,7 +209,7 @@ if st.button("🔄 Refresh Data"):
     st.rerun()
 
 # ========================================================
-# DATE
+# DATE INPUT
 # ========================================================
 
 selected_date = st.date_input("📅 Select Date")
@@ -146,6 +233,7 @@ def process_stock(all_data, selected_date_str, branch_names):
         headers = [str(x).strip() for x in raw[0]]
 
         date_index = None
+
         for i, h in enumerate(headers):
             if h == selected_date_str:
                 date_index = i
@@ -182,6 +270,7 @@ def process_stock(all_data, selected_date_str, branch_names):
             target = daily if mode == "daily" else weekly
 
             if key not in target:
+
                 target[key] = {
                     "Item Name": item,
                     "SKU": sku,
@@ -205,10 +294,10 @@ def process_stock(all_data, selected_date_str, branch_names):
     return daily, weekly
 
 # ========================================================
-# BUILD DF
+# BUILD DATAFRAME
 # ========================================================
 
-def build_df(data_dict):
+def build_df(data_dict, branch_names):
 
     rows = []
 
@@ -342,7 +431,7 @@ def make_grid(df, key):
         alwaysShowVerticalScroll=True
     )
 
-    time.sleep(0.03)  # prevents #252 render clash
+    time.sleep(0.03)
 
     AgGrid(
         df,
@@ -385,8 +474,8 @@ daily_items, weekly_items = process_stock(
     branch_names
 )
 
-daily_df = build_df(daily_items)
-weekly_df = build_df(weekly_items)
+daily_df = build_df(daily_items, branch_names)
+weekly_df = build_df(weekly_items, branch_names)
 
 # ========================================================
 # CATEGORY VIEW
