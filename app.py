@@ -84,13 +84,13 @@ def is_mgmt_locked():
 st.markdown("""
 <div class="background-layer">
     <div class="orbit-wrap">
-        <div class="orbit o1"><div class="icon" style="animation-duration: 20s;">🌍</div></div>
-        <div class="orbit o2"><div class="icon" style="animation-duration: 30s;">🪐</div></div>
+        <div class="orbit o1"><div class="icon" style="animation-duration: 20s;">☿</div></div>
+        <div class="orbit o2"><div class="icon" style="animation-duration: 30s;">♀</div></div>
         <div class="orbit o3"><div class="icon" style="animation-duration: 40s;">☄️</div></div>
-        <div class="orbit o4"><div class="icon" style="animation-duration: 50s;">🌑</div></div>
-        <div class="orbit o5"><div class="icon" style="animation-duration: 65s;">☀️</div></div>
-        <div class="orbit o6"><div class="icon" style="animation-duration: 85s;">🌕</div></div>
-        <div class="orbit o7"><div class="icon" style="animation-duration: 110s;">🌟</div></div>
+        <div class="orbit o4"><div class="icon" style="animation-duration: 50s;">🌎</div></div>
+        <div class="orbit o5"><div class="icon" style="animation-duration: 65s;">🪐</div></div>
+        <div class="orbit o6"><div class="icon" style="animation-duration: 85s;">🌐</div></div>
+        <div class="orbit o7"><div class="icon" style="animation-duration: 110s;">🪐</div></div>
     </div>
 </div>
 """, unsafe_allow_html=True)
