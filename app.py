@@ -106,4 +106,124 @@ div.stButton > button[key="mgmt_btn"]:hover {
 /* Locked Admin State Styling */
 div.stButton > button[key="mgmt_btn"]:disabled {
     background: #F1F3F5 !important;
-    color:
+    color: #ADB5BD !important;
+    border: 1px solid #E9ECEF !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* --- SECURITY SHEET GATEWAY --- */
+div[data-testid="stForm"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 24px !important;
+    padding: 35px !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Dynamic Verification Password Field */
+div[data-testid="stTextInput"] input {
+    border-radius: 50px !important;
+    background-color: #F8FAFC !important;
+    border: 1px solid #E2E8F0 !important;
+    height: 52px !important;
+    text-align: center !important;
+    font-size: 16px !important;
+    color: #1E293B !important;
+}
+div[data-testid="stTextInput"] input:focus {
+    border-color: #C0392B !important;
+    background-color: #FFFFFF !important;
+    box-shadow: 0 0 0 1px #C0392B !important;
+}
+
+/* Style the Abort Login submit button to look clean and neutral */
+div[data-testid="stForm"] div.stButton > button {
+    height: 48px !important;
+}
+</style>""", unsafe_allow_html=True)
+
+
+# =========================================================
+# PREMIUM SAAS VISUAL HEADER
+# =========================================================
+
+# Clean Category Badge Accent (Using your Crimson brand highlight)
+st.markdown(
+    "<div style='text-align: center;'><span style='background: rgba(192, 57, 43, 0.08); color: #C0392B; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; uppercase; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", 
+    unsafe_allow_html=True
+)
+
+# Main Title Headline Structure
+st.markdown(
+    "<h1 style='text-align: center; font-size: 58px; font-weight: 800; color: #2C2A28; margin-top: 15px; margin-bottom: 0; letter-spacing: -1.5px; line-height: 1.1;'>"
+    "Operations management <br><span style='background: linear-gradient(90deg, #C0392B 0%, #E74C3C 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span>"
+    "</h1>", 
+    unsafe_allow_html=True
+)
+
+# Meta Info Text Description Block
+st.markdown(
+    "<p style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto; line-height: 1.6;'>"
+    "Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters."
+    "</p>", 
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
+# HIGH-END DUAL EXECUTIVE CARDS
+# =========================================================
+grid_left, grid_right = st.columns(2, gap="large")
+
+with grid_left:
+    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px; font-weight: 700; color: #2C2A28; margin-bottom: 4px;'>Floor Control</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
+    
+    if st.button("Access Floor Control →", use_container_width=True, key="staff_btn"):
+        st.switch_page("pages/staff_dashboard.py")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with grid_right:
+    st.markdown('<div class="card-wrapper">', unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 20px; font-weight: 700; color: #2C2A28; margin-bottom: 4px;'>HQ Administration</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
+    
+    if is_mgmt_locked():
+        remaining = int(st.session_state.mgmt_lock_until - time.time())
+        st.button(f"Console Locked ({remaining}s) 🔒", disabled=True, use_container_width=True, key="mgmt_btn")
+    else:
+        if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
+            st.session_state.show_mgmt_password = True
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =========================================================
+# MODERN SLIDE-IN PASSWORD VERIFICATION SHEET
+# =========================================================
+if st.session_state.show_mgmt_password:
+    st.write("---")
+    
+    sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
+    with sheet_center:
+        with st.form("pass_form", clear_on_submit=True):
+            st.markdown("<h3 style='text-align: center; color: #2C2A28; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into critical system files.</p>", unsafe_allow_html=True)
+            
+            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
+            
+            st.write("##")
+            action_col1, action_col2 = st.columns(2, gap="medium")
+            with action_col1:
+                if st.form_submit_button("Abort Login", use_container_width=True):
+                    st.session_state.show_mgmt_password = False
+                    st.rerun()
+            with action_col2:
+                if st.form_submit_button("Verify & Open", use_container_width=True):
+                    if password_input == st.secrets["MANAGER_PASSWORD"]:
+                        st.session_state.show_mgmt_password = False
+                        st.switch_page("pages/management_dashboard.py")
+                    else:
+                        st.error("Access Refused: Invalid token signature.")
