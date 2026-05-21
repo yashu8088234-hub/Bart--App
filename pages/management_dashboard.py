@@ -13,7 +13,9 @@ import hashlib
 
 st.set_page_config(
     layout="wide",
-    page_title="Stock Overview"
+    page_title="Stock Overview",
+    
+    initial_sidebar_state="collapsed"
 )
 
 st.title("📦 BART - Stock Management (All Branches)")
