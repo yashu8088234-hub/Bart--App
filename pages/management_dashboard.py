@@ -709,7 +709,7 @@ with col2:
         if not sub_df.empty: report_data[cat] = sub_df
     
     st.download_button(
-        label="🚀 Generate Professional Report",
+        label=" 📊 Generate LIVE  Report into Excel",
         data=get_professional_report(report_data),
         file_name=f"BART_Report_{selected_date_str}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
