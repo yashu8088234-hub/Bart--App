@@ -695,22 +695,6 @@ render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
 st.markdown("---")
 st.subheader("📊 Inventory Insights")
-
-# Create a combined view for the pie chart
-combined_df = pd.concat([daily_df, weekly_df], ignore_index=True)
-
-# 1. PIE CHART: Total stock per category
-st.markdown("### Stock Distribution by Category")
-# Assuming you have a way to count items per category
-category_counts = {cat: len(df) for cat, df in category_dfs.items()}
-pie_df = pd.DataFrame(list(category_counts.items()), columns=['Category', 'Count'])
-
-fig = px.pie(pie_df, values='Count', names='Category', 
-             hole=0.4, 
-             color_discrete_sequence=px.colors.sequential.RdBu)
-fig.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
-st.plotly_chart(fig, use_container_width=True)
-
 # 2. ELEGANT DOWNLOAD SECTION
 st.markdown("---")
 col1, col2 = st.columns([1, 1])
