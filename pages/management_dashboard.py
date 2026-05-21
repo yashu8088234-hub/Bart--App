@@ -21,6 +21,27 @@ st.set_page_config(
 
 st.title("📦 BART - Stock Management (All Branches)")
 
+
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        [data-testid="collapsedControl"] {
+            display: none !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
+
+
+
+
 # ========================================================
 # GOOGLE AUTH
 # ========================================================
