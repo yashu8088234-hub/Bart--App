@@ -203,15 +203,19 @@ def load_all_data(branches):
 # REFRESH
 # ========================================================
 
-if st.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    branch_cache.clear()
-    st.rerun()
-if st.button("⬅ Return to  Main Page"):
-    # Ensure this string matches your exact filename (without the .py extension if it's in the root, 
-    # or with the 'pages/' prefix if it's inside that folder).
-    st.switch_page("app.py")
+
+
+
+col1, col2 = st.columns(2)
+
+        if col1.button("📦 Stock Record"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            branch_cache.clear()
+            st.rerun()
+
+        if col2.button("⬅ Return to  Main Page"):
+            st.switch_page("app.py")
 # ========================================================
 # DATE
 # ========================================================
