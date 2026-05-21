@@ -560,22 +560,42 @@ else:
 # ========================================================
 # CATEGORY VIEW (COMBINED & BULLETPROOF SKU MATCHING)
 # ========================================================
-
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Combine both lists so categories can process everything
+# 1. Combine and Clean
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
-
-# 2. Drop any duplicate items if they happen to exist in both sheets to keep it clean
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
-
-# 3. Clean up the SKU column inside the combined DataFrame to guarantee matches
-# This forces uppercase and strips ALL spaces (even middle spaces like 'CB 009' -> 'CB009')
-combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.strip().str.upper()
-
-# 4. Run your sorting engine on the perfectly cleaned data
+combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
+# 2. Use a persistent session state for the selected category
+if "active_cat" not in st.session_state:
+    st.session_state.active_cat = list(category_dfs.keys())[0]
+
+# 3. Create a clean selector instead of st.tabs
+selected_cat = st.radio(
+    "Select Category",
+    options=list(category_dfs.keys()),
+    index=list(category_dfs.keys()).index(st.session_state.active_cat),
+    horizontal=True,
+    key="cat_selector"
+)
+
+# 4. Render only the active selection
+st.session_state.active_cat = selected_cat
+sub_df = category_dfs[selected_cat]
+
+if not sub_df.empty:
+    # A fresh key for the grid that includes the timestamp/category
+    # This ensures a brand new component instance every time
+    grid_key = f"ag_grid_{selected_cat}_{time.time()}"
+    
+    make_grid(
+        sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), 
+        grid_key
+    )
+else:
+    st.info(f"No items found in {selected_cat}")
 # 5. Build and render the tabs with container isolation to prevent the disappearing data bug
 # 5. Build and render the tabs with container isolation
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
