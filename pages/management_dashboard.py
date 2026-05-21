@@ -693,14 +693,14 @@ def render(df, title):
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
-st.markdown("---")
-st.subheader("📊 Inventory Insights")
-# 2. ELEGANT DOWNLOAD SECTION
+
+
+  
 st.markdown("---")
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.write("### Download Full Report")
+    st.subheader("📊 Inventory Insights")
     st.caption("Exports all categories into a professionally styled Excel workbook.")
 
 with col2:
