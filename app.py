@@ -170,11 +170,11 @@ if st.session_state.show_mgmt_password:
             
             st.write("##")
             action_col1, action_col2 = st.columns(2, gap="medium")
-            with action_col1:
+            with action_col2:
                 if st.form_submit_button("Abort Login", use_container_width=True):
                     st.session_state.show_mgmt_password = False
                     st.rerun()
-            with action_col2:
+            with action_col1:
                 if st.form_submit_button("Verify & Open", use_container_width=True):
                     if password_input == st.secrets["MANAGER_PASSWORD"]:
                         st.session_state.show_mgmt_password = False
