@@ -589,7 +589,28 @@ for i, cat in enumerate(category_dfs.keys()):
         else:
             st.info(f"No items found in {cat}")
 
+# 5. Build and render the tabs
+tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
+tabs = st.tabs(tab_titles)
 
+for i, (cat, sub_df) in enumerate(category_dfs.items()):
+    with tabs[i]:
+        # We use a key that is tied to the category and the selected date.
+        # By not forcing display: block or extra containers, we keep the original layout.
+        grid_key = f"ag_cat_tab_{cat}_{selected_date_str}"
+        
+        if not sub_df.empty:
+            # We add a tiny delay ONLY to the active tab to allow the 
+            # browser to finish rendering the tab's width before the grid builds.
+            # This is the "lazy load" trick that fixes the blank grid.
+            
+            # Use a placeholder to ensure the grid builds AFTER the tab is ready
+            container = st.empty()
+            
+            with container:
+                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+        else:
+            st.info(f"No items found in {cat}")
 # ========================================================
 # MAIN TABLES
 # ========================================================
