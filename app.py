@@ -22,8 +22,8 @@ h1 { margin-bottom: 0px !important; }
 
 .block-container { 
     max-width: 1000px !important; 
-    padding-top: 0rem !important; 
-    padding-bottom: 0rem !important;
+    padding-top: -1rem !important; 
+    padding-bottom: -1rem !important;
 }
 
 
