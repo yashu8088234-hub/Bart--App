@@ -590,6 +590,8 @@ for i, cat in enumerate(category_dfs.keys()):
             st.info(f"No items found in {cat}")
 
 # 5. Build and render the tabs
+tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
+tabs = st.tabs(tab_titles)
 
 
 for i, (cat, sub_df) in enumerate(category_dfs.items()):
