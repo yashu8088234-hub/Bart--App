@@ -7,6 +7,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import time
 import hashlib
 import io
+import plotly.express as px
 
 # ========================================================
 # PAGE CONFIG
@@ -68,51 +69,34 @@ client = get_client()
 
 
 
-
-def to_excel_bytes(dfs_dict):
+def get_professional_report(report_data):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        for sheet_name, df in dfs_dict.items():
-            # Clean sheet name
+        workbook = writer.book
+        
+        # 1. SUMMARY DASHBOARD SHEET
+        summary_ws = workbook.add_worksheet("Dashboard Summary")
+        summary_ws.hide_gridlines(2)
+        title_fmt = workbook.add_format({'bold': True, 'font_size': 18, 'font_color': '#2C3E50'})
+        summary_ws.write('B2', 'BART Inventory Executive Report', title_fmt)
+        summary_ws.write('B4', f'Generated Date: {selected_date_str}')
+        
+        # 2. DATA SHEETS (Your tables)
+        for sheet_name, df in report_data.items():
             safe_name = "".join([c for c in sheet_name if c.isalnum() or c in (' ', '_')])[:31]
             df.to_excel(writer, sheet_name=safe_name, index=False)
+            ws = writer.sheets[safe_name]
             
-            workbook = writer.book
-            worksheet = writer.sheets[safe_name]
+            # Styling
+            header_fmt = workbook.add_format({'bold': True, 'fg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+            cell_fmt = workbook.add_format({'border': 1, 'align': 'center', 'font_name': 'Arial'})
             
-            # --- PROFESSIONAL FORMATTING ---
-            header_fmt = workbook.add_format({
-                'bold': True, 'font_name': 'Arial', 'font_size': 11,
-                'fg_color': '#2C3E50', 'font_color': '#FFFFFF', 
-                'border': 1, 'border_color': '#BDC3C7',
-                'align': 'center', 'valign': 'vcenter'
-            })
-            cell_fmt = workbook.add_format({
-                'font_name': 'Arial', 'font_size': 10,
-                'border': 1, 'border_color': '#E5E7E9', 
-                'align': 'center', 'valign': 'vcenter'
-            })
-            zebra_fmt = workbook.add_format({
-                'font_name': 'Arial', 'font_size': 10,
-                'bg_color': '#F8F9FA', 'border': 1, 'border_color': '#E5E7E9', 
-                'align': 'center', 'valign': 'vcenter'
-            })
-
-            # Style columns and headers
             for i, col in enumerate(df.columns):
-                worksheet.set_column(i, i, 22, cell_fmt)
-                worksheet.write(0, i, col, header_fmt)
+                ws.set_column(i, i, 20, cell_fmt)
+                ws.write(0, i, col, header_fmt)
+            ws.hide_gridlines(2)
             
-            # Add Zebra Stripes
-            for row_num in range(1, len(df) + 1):
-                fmt = zebra_fmt if row_num % 2 == 0 else cell_fmt
-                for col_num in range(len(df.columns)):
-                    worksheet.write(row_num, col_num, df.iloc[row_num-1, col_num], fmt)
-            
-            worksheet.hide_gridlines(2) # Makes it look like a dashboard
-            
-    return output.getvalue()
-# ========================================================
+    return output.getvalue()# ========================================================
 # LOAD BRANCHES
 # ========================================================
 
@@ -710,17 +694,40 @@ def render(df, title):
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
 st.markdown("---")
-st.subheader("📊 Export Enterprise Reports")
+st.subheader("📊 Inventory Insights")
 
-report_data = {"Daily": daily_df, "Weekly": weekly_df}
-for cat, sub_df in category_dfs.items():
-    if not sub_df.empty: report_data[cat] = sub_df
+# Create a combined view for the pie chart
+combined_df = pd.concat([daily_df, weekly_df], ignore_index=True)
 
-full_excel = to_excel_bytes(report_data)
-st.download_button(
-    label="⬇️ Download Full Inventory Report",
-    data=full_excel,
-    file_name=f"BART_Report_{selected_date_str}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    use_container_width=True
-)
+# 1. PIE CHART: Total stock per category
+st.markdown("### Stock Distribution by Category")
+# Assuming you have a way to count items per category
+category_counts = {cat: len(df) for cat, df in category_dfs.items()}
+pie_df = pd.DataFrame(list(category_counts.items()), columns=['Category', 'Count'])
+
+fig = px.pie(pie_df, values='Count', names='Category', 
+             hole=0.4, 
+             color_discrete_sequence=px.colors.sequential.RdBu)
+fig.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
+st.plotly_chart(fig, use_container_width=True)
+
+# 2. ELEGANT DOWNLOAD SECTION
+st.markdown("---")
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.write("### Download Full Report")
+    st.caption("Exports all categories into a professionally styled Excel workbook.")
+
+with col2:
+    report_data = {"Daily": daily_df, "Weekly": weekly_df}
+    for cat, sub_df in category_dfs.items():
+        if not sub_df.empty: report_data[cat] = sub_df
+    
+    st.download_button(
+        label="🚀 Generate Professional Report",
+        data=get_professional_report(report_data),
+        file_name=f"BART_Report_{selected_date_str}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
