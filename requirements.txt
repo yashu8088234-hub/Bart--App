@@ -30,4 +30,9 @@ streamlit-autorefresh
 streamlit
 firebase-admin
 google-cloud-firestore
-
+streamlit
+pandas
+gspread
+oauth2client
+streamlit-aggrid
+xlsxwriter
