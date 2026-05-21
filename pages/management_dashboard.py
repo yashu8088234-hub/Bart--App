@@ -449,7 +449,7 @@ def make_grid(df, key):
         alwaysShowVerticalScroll=True
     )
 
-    time.sleep(0.03)
+    time.sleep(0.0003)
 
     AgGrid(
         df,
