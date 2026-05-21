@@ -14,6 +14,11 @@ st.set_page_config(
 # CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
+
+
+[data-testid="stSidebar"] {
+            display: none;
+        }
 /* Forces transparency and reduces top padding */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
 h1 { margin-bottom: 0px !important; }
