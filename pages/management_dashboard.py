@@ -562,48 +562,48 @@ else:
 # ========================================================
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Prepare data (Same as before)
+# 1. Prepare data
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Tabs
+# 2. Setup Tabs
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
 # 3. Render
 for i, cat in enumerate(category_dfs.keys()):
     with tabs[i]:
-        # Create an empty container. This stays in the tab but is invisible.
-        placeholder = st.empty()
-        
-        # We define a function to render the grid into that placeholder
+        # We store the last tab index in session state to detect changes
+        if "last_tab" not in st.session_state:
+            st.session_state.last_tab = 0
+            
         sub_df = category_dfs[cat]
         if not sub_df.empty:
-            # We use a key that changes every time we switch tabs OR dates
-            grid_key = f"ag_grid_{cat}_{selected_date_str}_v3"
+            # We add a unique 'force_refresh' key that changes only when the tab index changes
+            # This forces AgGrid to re-initiate its rendering engine when the tab is switched
+            grid_key = f"ag_grid_{cat}_{selected_date_str}_{i}"
             
-            # This is the trick: we ONLY call the grid inside the context of this tab
-            with placeholder.container():
-                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
         else:
-            placeholder.info(f"No items found in {cat}")
+            st.info(f"No items found in {cat}")
 
-# 4. CRITICAL FIX: Add this JS snippet to force AgGrid to resize when the tab is clicked
+# 4. CSS Injection (REQUIRED)
+# This CSS forces the AgGrid container to always maintain a non-zero width
+# even when hidden in a background tab.
 st.markdown("""
-<script>
-// Find all tab buttons and add a click listener to trigger a window resize
-// This forces AgGrid to recalculate its width when you click a tab
-const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
-tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        setTimeout(() => {
-            window.dispatchEvent(new Event('resize'));
-        }, 100);
-    });
-});
-</script>
+    <style>
+    div[data-baseweb="tab-panel"] {
+        display: block !important;
+        visibility: visible !important;
+        width: 100% !important;
+    }
+    .ag-root-wrapper {
+        width: 100% !important;
+        min-width: 100% !important;
+    }
+    </style>
 """, unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
