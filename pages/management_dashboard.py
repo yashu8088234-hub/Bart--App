@@ -154,7 +154,7 @@ def fetch_branch(branch):
 # ========================================================
 
 MAX_RETRIES = 10
-RETRY_DELAY = 45
+RETRY_DELAY = 60
 
 @st.cache_data(ttl=None)
 def load_all_data(branches):
@@ -164,7 +164,7 @@ def load_all_data(branches):
     progress = st.progress(0)
     status = st.empty()
 
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=7) as ex:
         futures = {ex.submit(fetch_branch, b): b for b in branches}
         done = 0
 
