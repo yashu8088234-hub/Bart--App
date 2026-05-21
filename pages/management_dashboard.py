@@ -207,7 +207,7 @@ def load_all_data(branches):
 
 
 col1, col2 = st.columns(2)
-if col1.button("Refresh Data"):
+if col1.button(" 🔄 Refresh Data"):
     st.cache_data.clear()
     st.cache_resource.clear()
     branch_cache.clear()
