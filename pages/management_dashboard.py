@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import time
 import hashlib
+import io
+import pandas as pd
 
 # ========================================================
 # PAGE CONFIG
@@ -39,8 +41,37 @@ st.markdown(
 
 
 
+# ========================================================
+# EXCEL DOWNLOAD 
+# ========================================================
+def get_styled_excel(dfs_dict):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        for sheet_name, df in dfs_dict.items():
+            # Clean sheet name for Excel
+            safe_name = "".join([c for c in sheet_name if c.isalnum() or c in (' ', '_')])[:31]
+            df.to_excel(writer, sheet_name=safe_name, index=False)
+            
+            workbook = writer.book
+            worksheet = writer.sheets[safe_name]
+            
+            # Formats
+            header_fmt = workbook.add_format({'bold': True, 'fg_color': '#2C3E50', 'font_color': 'white', 'border': 1, 'align': 'center'})
+            cell_fmt = workbook.add_format({'border': 1, 'align': 'center'})
+            zebra_fmt = workbook.add_format({'bg_color': '#F2F2F2', 'border': 1, 'align': 'center'})
 
-
+            # Apply Styles
+            for i, col in enumerate(df.columns):
+                worksheet.set_column(i, i, 20, cell_fmt)
+                worksheet.write(0, i, col, header_fmt)
+            
+            # Zebra Striping
+            for row_num in range(1, len(df) + 1):
+                fmt = zebra_fmt if row_num % 2 == 0 else cell_fmt
+                for col_num in range(len(df.columns)):
+                    worksheet.write(row_num, col_num, df.iloc[row_num-1, col_num], fmt)
+                    
+    return output.getvalue()
 
 # ========================================================
 # GOOGLE AUTH
@@ -569,6 +600,21 @@ if not search_pool.empty:
             st.markdown("---")
 else:
     st.info("No stock data available to search for this date.")
+
+if selected_option:
+    matched_row = search_pool[search_pool["Search_Label"] == selected_option]
+    if not matched_row.empty:
+        # ... (your existing grid code) ...
+        make_grid(result_df, search_grid_key)
+        
+        # Add the download button right here
+        excel_data = get_styled_excel({selected_option[:20]: result_df})
+        st.download_button(
+            label="📥 Download This Item Report",
+            data=excel_data,
+            file_name=f"Stock_{selected_option[:15]}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 # ========================================================
 # CATEGORY VIEW (COMBINED & BULLETPROOF SKU MATCHING)
 # ========================================================
@@ -651,3 +697,25 @@ def render(df, title):
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
+st.markdown("---")
+st.subheader("📊 Export Full Enterprise Report")
+
+# Prepare the collection
+report_data = {
+    "Daily Items": daily_df,
+    "Weekly Items": weekly_df
+}
+# Add categories dynamically
+for cat, sub_df in category_dfs.items():
+    if not sub_df.empty:
+        report_data[cat] = sub_df
+
+# The Final Download Button
+full_excel = get_styled_excel(report_data)
+st.download_button(
+    label="⬇️ Download Complete Inventory Report (.xlsx)",
+    data=full_excel,
+    file_name=f"BART_Inventory_Report_{selected_date_str}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
