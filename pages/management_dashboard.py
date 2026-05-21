@@ -577,24 +577,25 @@ combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ",
 category_dfs = build_category_dfs(combined_stock)
 
 # 5. Build and render the tabs with container isolation to prevent the disappearing data bug
+# 5. Build and render the tabs with container isolation
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
 for i, (cat, sub_df) in enumerate(category_dfs.items()):
     with tabs[i]:
-        with st.container():
-            if not sub_df.empty:
-                if cat == "UNCATEGORIZED DETECTED":
-                    st.warning("⚠️ These items did not match your strict SKU sets or prefix codes:")
-                
-                # Dynamic key that forces Streamlit to redraw the grid when tabs switch
-                grid_key = f"ag_cat_tab_{cat.replace(' ', '_').lower()}_{selected_date_str}_v2"
-                
-                # Pass the matched data straight into your original grid layout
-                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-            else:
-                st.info(f"No items found in {cat}")
-
+        # Use a unique key based on tab content length to force a fresh render
+        # when switching tabs or changing dates
+        grid_key = f"ag_grid_{cat}_{selected_date_str}_{len(sub_df)}"
+        
+        if not sub_df.empty:
+            if cat == "UNCATEGORIZED DETECTED":
+                st.warning("⚠️ These items did not match your strict SKU sets or prefix codes:")
+            
+            # Pass the matched data straight into your original grid layout
+            # We call the grid function directly
+            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+        else:
+            st.info(f"No items found in {cat}")
 # ========================================================
 # MAIN TABLES
 # ========================================================
