@@ -568,37 +568,36 @@ combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Setup Tabs
-tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
-tabs = st.tabs(tab_titles)
+# 2. Session State to hold active category
+if "active_cat" not in st.session_state:
+    st.session_state.active_cat = list(category_dfs.keys())[0]
 
-# 3. Render
+# 3. Create "Tab" buttons using columns
+cols = st.columns(len(category_dfs))
 for i, cat in enumerate(category_dfs.keys()):
-    with tabs[i]:
-        # By using a key that incorporates the index and the date, 
-        # we isolate the rendering to this specific tab's scope.
-        sub_df = category_dfs[cat]
-        
-        if not sub_df.empty:
-            # We add a unique identifier tied to the tab index. 
-            # This ensures that even if tabs are pre-rendered by Streamlit, 
-            # the Grid component is uniquely identified by the tab it belongs to.
-            grid_key = f"ag_grid_cat_{i}_{selected_date_str}"
-            
-            # Call your grid
-            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-        else:
-            st.info(f"No items found in {cat}")
+    count = len(category_dfs[cat])
+    # Style buttons to look like tabs
+    if cols[i].button(f"📂 {cat} ({count})", use_container_width=True, key=f"btn_{cat}"):
+        st.session_state.active_cat = cat
 
-# 4. CSS Injection to force the grid to expand when the tab becomes visible
+# 4. Render ONLY the active category grid
+# This ensures that only the visible grid is initialized by the browser
+active_cat = st.session_state.active_cat
+sub_df = category_dfs[active_cat]
+
+if not sub_df.empty:
+    # Use a unique key based on the category name
+    grid_key = f"ag_grid_{active_cat}_{selected_date_str}"
+    make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+else:
+    st.info(f"No items found in {active_cat}")
+
+# Optional: Add simple CSS to make the buttons look like active tabs
 st.markdown("""
     <style>
-    /* This forces the AgGrid to fill the parent tab container whenever it is visible */
-    .ag-root-wrapper {
-        width: 100% !important;
-    }
-    div[data-testid="stTabs"] div[data-baseweb="tab-panel"] {
-        width: 100% !important;
+    div.stButton > button {
+        border-radius: 5px 5px 0 0;
+        border-bottom: 2px solid #ddd;
     }
     </style>
 """, unsafe_allow_html=True)
