@@ -113,9 +113,9 @@ st.markdown("""
 <div class="background-layer">
     <div class="orbit-wrap">
         <div class="orbit o1"><div class="icon">☿</div></div>
-        <div class="orbit o2"><div class="icon">♀</div></div>
-        <div class="orbit o3"><div class="icon">☄️</div></div>
-        <div class="orbit o4"><div class="icon">🌎</div></div>
+        <div class="orbit o2"><div class="icon">☄️</div></div>
+        <div class="orbit o3"><div class="icon">🌎</div></div>
+        <div class="orbit o4"><div class="icon">♀</div></div>
         <div class="orbit o5"><div class="icon">🪐</div></div>
         <div class="orbit o6"><div class="icon">🌐</div></div>
         <div class="orbit o7"><div class="icon">🪐</div></div>
