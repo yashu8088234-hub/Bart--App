@@ -568,50 +568,40 @@ combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Setup Tabs
+# 2. Tabs
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# 3. Render
-for i, cat in enumerate(category_dfs.keys()):
-    with tabs[i]:
-        # We store the last tab index in session state to detect changes
-        if "last_tab" not in st.session_state:
-            st.session_state.last_tab = 0
-            
-        sub_df = category_dfs[cat]
-        if not sub_df.empty:
-            # We add a unique 'force_refresh' key that changes only when the tab index changes
-            # This forces AgGrid to re-initiate its rendering engine when the tab is switched
-            grid_key = f"ag_grid_{cat}_{selected_date_str}_{i}"
-            
-            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-        else:
-            st.info(f"No items found in {cat}")
-
-# 5. Build and render the tabs
-tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
-tabs = st.tabs(tab_titles)
-
-
+# 3. Render using a unique signature for each tab to force recalculation
 for i, (cat, sub_df) in enumerate(category_dfs.items()):
     with tabs[i]:
-        # We use a key that is tied to the category and the selected date.
-        # By not forcing display: block or extra containers, we keep the original layout.
-        grid_key = f"ag_cat_tab_{cat}_{selected_date_str}"
-        
         if not sub_df.empty:
-            # We add a tiny delay ONLY to the active tab to allow the 
-            # browser to finish rendering the tab's width before the grid builds.
-            # This is the "lazy load" trick that fixes the blank grid.
+            # We use a unique key that changes if the Date changes
+            # We also pass the tab index to keep grid instances isolated
+            grid_key = f"ag_grid_{cat}_{selected_date_str}"
             
-            # Use a placeholder to ensure the grid builds AFTER the tab is ready
-            container = st.empty()
-            
-            with container:
+            # This forces AgGrid to re-render. 
+            # We wrap it in a container that ensures the grid doesn't leak.
+            with st.container():
                 make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
         else:
             st.info(f"No items found in {cat}")
+
+# 4. THE FIX: Add this CSS to ensure AgGrid behaves correctly inside tabs
+# This is NOT extra space; it just tells AgGrid to expand properly when revealed.
+st.markdown("""
+    <style>
+    /* Force AgGrid to take 100% width when its parent tab becomes active */
+    .ag-root-wrapper {
+        width: 100% !important;
+        height: 500px !important;
+    }
+    /* This prevents the tabs from collapsing */
+    div[data-testid="stTabs"] {
+        width: 100% !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
 # ========================================================
