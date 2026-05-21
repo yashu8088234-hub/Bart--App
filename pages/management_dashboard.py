@@ -31,6 +31,30 @@ st.markdown(
         [data-testid="collapsedControl"] {
             display: none !important;
         }
+
+
+
+
+
+
+        /* ADD THIS AT THE BOTTOM OF YOUR STYLE BLOCK */
+    .ag-body-viewport::-webkit-scrollbar, 
+    .ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
+        height: 12px !important;
+        width: 12px !important;
+        background: #f1f1f1 !important;
+    }
+    
+    .ag-body-viewport::-webkit-scrollbar-thumb,
+    .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+        background: #888 !important;
+        border-radius: 6px !important;
+    }
+    
+    .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+    .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+        background: #555 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -384,6 +408,16 @@ def stable_key(prefix, name, df=None):
 # ========================================================
 
 def make_grid(df, key):
+
+gb.configure_grid_options(
+        headerHeight=38,
+        rowHeight=32,
+        suppressHorizontalScroll=False, # Keep this False
+        alwaysShowHorizontalScroll=True, # ADD THIS
+        alwaysShowVerticalScroll=True    # ADD THIS
+    )
+
+    
     gb = GridOptionsBuilder.from_dataframe(df)
 
     gb.configure_default_column(
