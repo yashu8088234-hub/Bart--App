@@ -572,35 +572,31 @@ category_dfs = build_category_dfs(combined_stock)
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# 3. Render using a unique signature for each tab to force recalculation
+# 3. Render loop
 for i, (cat, sub_df) in enumerate(category_dfs.items()):
     with tabs[i]:
         if not sub_df.empty:
-            # We use a unique key that changes if the Date changes
-            # We also pass the tab index to keep grid instances isolated
-            grid_key = f"ag_grid_{cat}_{selected_date_str}"
-            
-            # This forces AgGrid to re-render. 
-            # We wrap it in a container that ensures the grid doesn't leak.
-            with st.container():
-                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+            # We add a unique key that includes the tab index. 
+            # This ensures that when switching tabs, Streamlit knows they are different.
+            grid_key = f"ag_grid_tab_{i}_{selected_date_str}"
+            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
         else:
             st.info(f"No items found in {cat}")
 
-# 4. THE FIX: Add this CSS to ensure AgGrid behaves correctly inside tabs
-# This is NOT extra space; it just tells AgGrid to expand properly when revealed.
+# 4. THE FIX: Force AgGrid to refresh when switching tabs
+# We inject a small piece of JavaScript that detects tab clicks 
+# and triggers a 'resize' event, which forces AgGrid to redraw itself.
 st.markdown("""
-    <style>
-    /* Force AgGrid to take 100% width when its parent tab becomes active */
-    .ag-root-wrapper {
-        width: 100% !important;
-        height: 500px !important;
-    }
-    /* This prevents the tabs from collapsing */
-    div[data-testid="stTabs"] {
-        width: 100% !important;
-    }
-    </style>
+<script>
+    // Listen for clicks on the Streamlit tab buttons
+    const observer = new MutationObserver(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+    
+    // Target the tab list container
+    const tabList = window.parent.document.querySelectorAll('div[data-baseweb="tab-list"]');
+    tabList.forEach(list => observer.observe(list, { childList: true, subtree: true }));
+</script>
 """, unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
