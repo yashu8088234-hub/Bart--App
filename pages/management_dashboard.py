@@ -568,33 +568,40 @@ combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Track active tab in session_state
-if "active_tab" not in st.session_state:
-    st.session_state.active_tab = list(category_dfs.keys())[0]
-
-# 3. Create the Tabs
+# 2. Setup Tabs
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# 4. Logic to render ONLY the active tab's grid
+# 3. Render
 for i, cat in enumerate(category_dfs.keys()):
     with tabs[i]:
-        # Update session state if this tab is clicked
-        if st.session_state.active_tab != cat:
-            # We don't render anything yet, just waiting for the user to click
-            st.write("Loading...")
-            if st.button(f"Click to load {cat}", key=f"btn_{cat}"):
-                st.session_state.active_tab = cat
-                st.rerun()
+        # By using a key that incorporates the index and the date, 
+        # we isolate the rendering to this specific tab's scope.
+        sub_df = category_dfs[cat]
+        
+        if not sub_df.empty:
+            # We add a unique identifier tied to the tab index. 
+            # This ensures that even if tabs are pre-rendered by Streamlit, 
+            # the Grid component is uniquely identified by the tab it belongs to.
+            grid_key = f"ag_grid_cat_{i}_{selected_date_str}"
+            
+            # Call your grid
+            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
         else:
-            # Only render the Grid if this is the active tab
-            sub_df = category_dfs[cat]
-            if not sub_df.empty:
-                # Force a unique key based on the category and current date
-                grid_key = f"ag_grid_{cat}_{selected_date_str}"
-                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-            else:
-                st.info(f"No items found in {cat}")
+            st.info(f"No items found in {cat}")
+
+# 4. CSS Injection to force the grid to expand when the tab becomes visible
+st.markdown("""
+    <style>
+    /* This forces the AgGrid to fill the parent tab container whenever it is visible */
+    .ag-root-wrapper {
+        width: 100% !important;
+    }
+    div[data-testid="stTabs"] div[data-baseweb="tab-panel"] {
+        width: 100% !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
 # ========================================================
