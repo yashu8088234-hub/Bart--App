@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import time
 import hashlib
+import io
 
 # ========================================================
 # PAGE CONFIG
@@ -63,6 +64,20 @@ def get_client():
 
 client = get_client()
 
+
+
+
+
+
+
+def to_excel_bytes(dfs_dict):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        for sheet_name, df in dfs_dict.items():
+            # Clean sheet name (Excel limits: 31 chars, no illegal chars)
+            safe_name = sheet_name[:31].replace(':', '').replace('/', '').replace('\\', '').replace('?', '').replace('*', '').replace('[', '').replace(']', '')
+            df.to_excel(writer, sheet_name=safe_name, index=False)
+    return output.getvalue()
 # ========================================================
 # LOAD BRANCHES
 # ========================================================
@@ -566,7 +581,14 @@ if not search_pool.empty:
             # Display the data across all branches instantly
             with st.container():
                 make_grid(result_df, search_grid_key)
+                st.download_button(
+                label="📥 Download Selected Item to Excel",
+                data=to_excel_bytes({selected_option[:30]: result_df}),
+                file_name=f"Stock_{selected_option[:20]}_{selected_date_str}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
             st.markdown("---")
+            
 else:
     st.info("No stock data available to search for this date.")
 # ========================================================
@@ -651,3 +673,29 @@ def render(df, title):
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
+
+
+
+
+
+
+st.markdown("---")
+st.subheader("📊 Export Full Data")
+
+# Prepare dictionary for all data
+full_report_data = {
+    "Daily": daily_df,
+    "Weekly": weekly_df
+}
+# Add categorized data to the report
+for cat_name, sub_df in category_dfs.items():
+    full_report_data[cat_name] = sub_df
+
+# Generate download button
+excel_data = to_excel_bytes(full_report_data)
+st.download_button(
+    label="⬇️ Download Full Stock Report (All Categories)",
+    data=excel_data,
+    file_name=f"BART_Stock_Report_{selected_date_str}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
