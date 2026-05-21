@@ -5,9 +5,9 @@ import time
 # SYSTEM CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="BART Portal",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    page_title="BART Portal",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # =========================================================
@@ -19,14 +19,14 @@ st.markdown("""<style>
 .block-container { max-width: 900px !important; padding-top: 1rem !important; }
 
 /* Background Layer */
-.background-layer { 
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
-    overflow: hidden; background-color: #F8FAFC; 
-    display: flex; justify-content: center; align-items: center;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23CBD5E1' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
-    background-size: cover;
-    background-position: center;
-    opacity: 0.6; 
+.background-layer { 
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
+    overflow: hidden; background-color: #F8FAFC; 
+    display: flex; justify-content: center; align-items: center;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23CBD5E1' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
+    background-size: cover;
+    background-position: center;
+    opacity: 0.6; 
 }
 
 /* Orbit lines */
@@ -49,51 +49,42 @@ st.markdown("""<style>
 .animate-text { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
 .delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.4s; } .delay-3 { animation-delay: 0.6s; } .delay-4 { animation-delay: 0.8s; }
 
-/* MODIFIED BART LOGO STYLING FOR NEW COLOR AND GLOW */
+/* BART LOGO STYLING */
 @keyframes breathe-pink { 0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(234, 7, 99, 0.2); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(234, 7, 99, 0.6); } }
-.bart-logo { 
-    display: inline-block; 
-    animation: breathe-pink 2s ease-in-out infinite; 
-    color: #ea0763 !important; /* New color directly applied */
-    text-shadow: 0 0 10px #ea0763; /* Static part of the glow */
-    cursor: default; 
-    font-weight: 900 !important; 
-    letter-spacing: -2px; 
-}
-/* Removed previous gradient and webkit-fill color */
-
+.bart-logo { display: inline-block; animation: breathe-pink 2s ease-in-out infinite; color: #ea0763 !important; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
 @keyframes rotate { 100% { transform: rotate(360deg); } }
 
 .card-glow { position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
-.card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
+.card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #ea0763, transparent 30%); animation: rotate 4s linear infinite; }
 .card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; }
 
 /* INNOVATIVE LIQUID-SPRING BUTTON */
-div.stButton > button { 
-    position: relative; 
-    height: 54px !important; 
-    border-radius: 50px !important; 
-    border: none !important; 
-    background: #20C997 !important; 
-    color: #FFFFFF !important; 
-    font-weight: 900 !important; 
-    text-transform: uppercase !important; 
-    letter-spacing: 2px !important; 
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+div.stButton > button { 
+    position: relative; 
+    height: 54px !important; 
+    border-radius: 50px !important; 
+    border: none !important; 
+    background: #ea0763 !important; 
+    color: #FFFFFF !important; 
+    font-weight: 900 !important; 
+    text-transform: uppercase !important; 
+    letter-spacing: 2px !important; 
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
 }
 div.stButton > button::before { display: none !important; }
 div.stButton > button:hover {
-    transform: scale(1.05) translateY(-2px);
-    background: #19a37a !important; 
-    box-shadow: 0 10px 20px rgba(32, 201, 151, 0.3) !important;
-    letter-spacing: 4px !important;
+    transform: scale(1.05) translateY(-2px);
+    background: #c50653 !important; 
+    box-shadow: 0 10px 20px rgba(234, 7, 99, 0.3) !important;
+    letter-spacing: 4px !important;
 }
 div.stButton > button:active {
-    transform: scale(0.98) translateY(0);
+    transform: scale(0.98) translateY(0);
 }
 </style>""", unsafe_allow_html=True)
 
+# [Remaining code logic is unchanged as requested]
 # =========================================================
 # SESSION STATE - Assuming no changes requested here
 # =========================================================
