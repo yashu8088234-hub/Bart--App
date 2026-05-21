@@ -562,60 +562,39 @@ else:
 # ========================================================
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Combine and Clean
+# 1. Prepare data
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Use a persistent session state for the selected category
-if "active_cat" not in st.session_state:
-    st.session_state.active_cat = list(category_dfs.keys())[0]
+# 2. Track active tab in session_state
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = list(category_dfs.keys())[0]
 
-# 3. Create a clean selector instead of st.tabs
-selected_cat = st.radio(
-    "Select Category",
-    options=list(category_dfs.keys()),
-    index=list(category_dfs.keys()).index(st.session_state.active_cat),
-    horizontal=True,
-    key="cat_selector"
-)
-
-# 4. Render only the active selection
-st.session_state.active_cat = selected_cat
-sub_df = category_dfs[selected_cat]
-
-if not sub_df.empty:
-    # A fresh key for the grid that includes the timestamp/category
-    # This ensures a brand new component instance every time
-    grid_key = f"ag_grid_{selected_cat}_{time.time()}"
-    
-    make_grid(
-        sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), 
-        grid_key
-    )
-else:
-    st.info(f"No items found in {selected_cat}")
-# 5. Build and render the tabs with container isolation to prevent the disappearing data bug
-# 5. Build and render the tabs with container isolation
+# 3. Create the Tabs
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-for i, (cat, sub_df) in enumerate(category_dfs.items()):
+# 4. Logic to render ONLY the active tab's grid
+for i, cat in enumerate(category_dfs.keys()):
     with tabs[i]:
-        # Use a unique key based on tab content length to force a fresh render
-        # when switching tabs or changing dates
-        grid_key = f"ag_grid_{cat}_{selected_date_str}_{len(sub_df)}"
-        
-        if not sub_df.empty:
-            if cat == "UNCATEGORIZED DETECTED":
-                st.warning("⚠️ These items did not match your strict SKU sets or prefix codes:")
-            
-            # Pass the matched data straight into your original grid layout
-            # We call the grid function directly
-            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+        # Update session state if this tab is clicked
+        if st.session_state.active_tab != cat:
+            # We don't render anything yet, just waiting for the user to click
+            st.write("Loading...")
+            if st.button(f"Click to load {cat}", key=f"btn_{cat}"):
+                st.session_state.active_tab = cat
+                st.rerun()
         else:
-            st.info(f"No items found in {cat}")
+            # Only render the Grid if this is the active tab
+            sub_df = category_dfs[cat]
+            if not sub_df.empty:
+                # Force a unique key based on the category and current date
+                grid_key = f"ag_grid_{cat}_{selected_date_str}"
+                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+            else:
+                st.info(f"No items found in {cat}")
 # ========================================================
 # MAIN TABLES
 # ========================================================
