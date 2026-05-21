@@ -18,16 +18,7 @@ st.markdown("""<style>
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
 .block-container { max-width: 900px !important; padding-top: 1rem !important; }
 
-/* Background Layer */
-.background-layer { 
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -9999; 
-    overflow: hidden; background-color: #F8FAFC; 
-    display: flex; justify-content: center; align-items: center;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 400'%3E%3Cpath fill='%23CBD5E1' d='M100 100c50 0 50 50 100 50s50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50 50-50 100-50 50 50 100 50'/%3E%3C/svg%3E");
-    background-size: cover;
-    background-position: center;
-    opacity: 0.6; 
-}
+
 
 /* Orbit lines */
 .orbit { position: absolute; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 50%; animation: spin linear infinite; left: 50%; top: 50%; transform: translate(-50%, -50%); }
