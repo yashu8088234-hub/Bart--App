@@ -74,65 +74,11 @@ def to_excel_bytes(dfs_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in dfs_dict.items():
-            # Clean sheet name
-            safe_name = "".join([c for c in sheet_name if c.isalnum() or c in (' ', '_')])[:31]
+            # Clean sheet name (Excel limits: 31 chars, no illegal chars)
+            safe_name = sheet_name[:31].replace(':', '').replace('/', '').replace('\\', '').replace('?', '').replace('*', '').replace('[', '').replace(']', '')
             df.to_excel(writer, sheet_name=safe_name, index=False)
-            
-            workbook = writer.book
-            worksheet = writer.sheets[safe_name]
-            
-            # --- PROFESSIONAL FORMATTING ---
-            # 1. Header: Dark Slate background, crisp white text
-            header_fmt = workbook.add_format({
-                'bold': True, 
-                'font_name': 'Arial',
-                'font_size': 11,
-                'fg_color': '#2C3E50', 
-                'font_color': '#FFFFFF', 
-                'border': 1, 
-                'border_color': '#BDC3C7',
-                'align': 'center', 
-                'valign': 'vcenter'
-            })
-            
-            # 2. Body: Clean grey borders, perfectly centered
-            cell_fmt = workbook.add_format({
-                'font_name': 'Arial',
-                'font_size': 10,
-                'border': 1, 
-                'border_color': '#E5E7E9', 
-                'align': 'center', 
-                'valign': 'vcenter'
-            })
-            
-            # 3. Zebra Stripe: Subtle light grey for readability
-            zebra_fmt = workbook.add_format({
-                'font_name': 'Arial',
-                'font_size': 10,
-                'bg_color': '#F8F9FA', 
-                'border': 1, 
-                'border_color': '#E5E7E9', 
-                'align': 'center', 
-                'valign': 'vcenter'
-            })
-
-            # Apply Styles
-            worksheet.set_default_row(20) # Slightly taller rows for better air
-            for i, col in enumerate(df.columns):
-                # Set specific column width based on content
-                worksheet.set_column(i, i, 22, cell_fmt)
-                worksheet.write(0, i, col, header_fmt)
-            
-            # Apply Zebra Striping
-            for row_num in range(1, len(df) + 1):
-                fmt = zebra_fmt if row_num % 2 == 0 else cell_fmt
-                for col_num in range(len(df.columns)):
-                    worksheet.write(row_num, col_num, df.iloc[row_num-1, col_num], fmt)
-            
-            # Hide gridlines in Excel for a "Dashboard" feel
-            worksheet.hide_gridlines(2)
-            
-    return output.getvalue()# ========================================================
+    return output.getvalue()
+# ========================================================
 # LOAD BRANCHES
 # ========================================================
 
@@ -642,20 +588,7 @@ if not search_pool.empty:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
             st.markdown("---")
-            col_a, col_b = st.columns([3, 1])
-            with col_b:
-                excel_data = to_excel_bytes({selected_option[:20]: result_df})
-                st.download_button(
-                    label="📥 Export Selection",
-                    data=excel_data,
-                    file_name=f"Report_{selected_option[:15]}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=Trueuse_container_width=True
-      
-                )
-
-        
-        
+            
 else:
     st.info("No stock data available to search for this date.")
 # ========================================================
