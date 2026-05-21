@@ -562,44 +562,48 @@ else:
 # ========================================================
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Prepare data
+# 1. Prepare data (Same as before)
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Session State to hold active category
-if "active_cat" not in st.session_state:
-    st.session_state.active_cat = list(category_dfs.keys())[0]
+# 2. Tabs
+tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
+tabs = st.tabs(tab_titles)
 
-# 3. Create "Tab" buttons using columns
-cols = st.columns(len(category_dfs))
+# 3. Render
 for i, cat in enumerate(category_dfs.keys()):
-    count = len(category_dfs[cat])
-    # Style buttons to look like tabs
-    if cols[i].button(f"📂 {cat} ({count})", use_container_width=True, key=f"btn_{cat}"):
-        st.session_state.active_cat = cat
+    with tabs[i]:
+        # Create an empty container. This stays in the tab but is invisible.
+        placeholder = st.empty()
+        
+        # We define a function to render the grid into that placeholder
+        sub_df = category_dfs[cat]
+        if not sub_df.empty:
+            # We use a key that changes every time we switch tabs OR dates
+            grid_key = f"ag_grid_{cat}_{selected_date_str}_v3"
+            
+            # This is the trick: we ONLY call the grid inside the context of this tab
+            with placeholder.container():
+                make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+        else:
+            placeholder.info(f"No items found in {cat}")
 
-# 4. Render ONLY the active category grid
-# This ensures that only the visible grid is initialized by the browser
-active_cat = st.session_state.active_cat
-sub_df = category_dfs[active_cat]
-
-if not sub_df.empty:
-    # Use a unique key based on the category name
-    grid_key = f"ag_grid_{active_cat}_{selected_date_str}"
-    make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-else:
-    st.info(f"No items found in {active_cat}")
-
-# Optional: Add simple CSS to make the buttons look like active tabs
+# 4. CRITICAL FIX: Add this JS snippet to force AgGrid to resize when the tab is clicked
 st.markdown("""
-    <style>
-    div.stButton > button {
-        border-radius: 5px 5px 0 0;
-        border-bottom: 2px solid #ddd;
-    }
-    </style>
+<script>
+// Find all tab buttons and add a click listener to trigger a window resize
+// This forces AgGrid to recalculate its width when you click a tab
+const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+        }, 100);
+    });
+});
+</script>
 """, unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
