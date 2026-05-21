@@ -207,15 +207,20 @@ def load_all_data(branches):
 
 
 col1, col2 = st.columns(2)
+if col1.button("📦 Stock Record"):
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    branch_cache.clear()
+    st.rerun()
 
-        if col1.button("📦 Stock Record"):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            branch_cache.clear()
-            st.rerun()
+if col2.button("⬅ Return to  Main Page"):
+    st.switch_page("app.py")
+            
+            
+            
+            
 
-        if col2.button("⬅ Return to  Main Page"):
-            st.switch_page("app.py")
+        
 # ========================================================
 # DATE
 # ========================================================
