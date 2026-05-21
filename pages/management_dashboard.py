@@ -562,45 +562,66 @@ else:
 # ========================================================
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Prepare and Clean Data
+# 1. Prepare data
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Track which tab is active in session state
-if "active_tab_index" not in st.session_state:
-    st.session_state.active_tab_index = 0
+# 2. Create the Radio "Tabs"
+# We define the labels for the UI
+tab_labels = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 
-# 3. Create Tabs
-tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
-tabs = st.tabs(tab_titles)
+# The radio component
+selected_tab = st.radio(
+    "Category Selector",
+    options=tab_labels,
+    index=0,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="cat_radio_tabs"
+)
 
-# 4. Render only the active tab's grid
-for i, (cat, sub_df) in enumerate(category_dfs.items()):
-    with tabs[i]:
-        # Check if this tab is the one clicked by the user
-        # We check the tab state directly
-        if not sub_df.empty:
-            # We use a unique, date-dependent key
-            grid_key = f"ag_grid_{cat}_{selected_date_str}_v4"
-            
-            # THE FIX: We use a container to force a redraw
-            # By calling make_grid here, it renders only when the tab is active
-            make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
-        else:
-            st.info(f"No items found in {cat}")
+# 3. Map back to the dataframe key
+# Find which category matches the selected label
+active_cat = next(cat for cat in category_dfs if f"📂 {cat}" in selected_tab)
+sub_df = category_dfs[active_cat]
 
-# 5. CSS to ensure 100% width visibility
+# 4. Render only the active Grid
+if not sub_df.empty:
+    grid_key = f"ag_grid_radio_{active_cat}_{selected_date_str}"
+    make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
+else:
+    st.info(f"No items found in {active_cat}")
+
+# 5. CSS to transform Radio Buttons into Tabs
 st.markdown("""
     <style>
-    /* Force the grid to expand when the tab becomes active */
-    .ag-root-wrapper {
-        width: 100% !important;
+    /* Hide the radio circles */
+    div[role="radiogroup"] > label > div:first-of-type {
+        display: none;
     }
-    /* Ensure the tab container itself isn't collapsing */
-    div[data-testid="stTabs"] [data-baseweb="tab-panel"] {
-        width: 100% !important;
+    /* Flex the radio group to look like a tab row */
+    div[role="radiogroup"] {
+        display: flex;
+        gap: 0px;
+        border-bottom: 2px solid #ddd;
+    }
+    /* Style the labels as tabs */
+    div[role="radiogroup"] > label {
+        padding: 10px 20px;
+        margin: 0 !important;
+        cursor: pointer;
+        font-weight: 600;
+        background-color: transparent !important;
+        border-radius: 0 !important;
+        border-bottom: 3px solid transparent;
+        color: #555;
+    }
+    /* Style the active tab */
+    div[role="radiogroup"] > label:has(input:checked) {
+        border-bottom: 3px solid #ff4b4b !important;
+        color: #ff4b4b !important;
     }
     </style>
 """, unsafe_allow_html=True)
