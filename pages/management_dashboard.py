@@ -709,24 +709,6 @@ def render(df, title):
 
 render(daily_df, "📦 Daily Items Stock")
 render(weekly_df, "📦 Weekly Items Stock")
-
-
-
-
-
-
-st.markdown("---")
-st.subheader("📊 Export Full Data")
-
-# Prepare dictionary for all data
-full_report_data = {
-    "Daily": daily_df,
-    "Weekly": weekly_df
-}
-# Add categorized data to the report
-for cat_name, sub_df in category_dfs.items():
-    full_report_data[cat_name] = sub_df
-
 st.markdown("---")
 st.subheader("📊 Export Enterprise Reports")
 
