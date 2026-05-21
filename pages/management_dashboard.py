@@ -597,17 +597,16 @@ if not search_pool.empty:
             # Display the data across all branches instantly
             with st.container():
                 make_grid(result_df, search_grid_key)
+                excel_data = get_styled_excel({selected_option[:20]: result_df})
+                st.download_button(
+                    label="📥 Download This Item Report",
+                    data=excel_data,
+                    file_name=f"Stock_{selected_option[:15]}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 
-            # Add the download button right here
-        excel_data = get_styled_excel({selected_option[:20]: result_df})
-        st.download_button(
-            label="📥 Download This Item Report",
-            data=excel_data,
-            file_name=f"Stock_{selected_option[:15]}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            st.markdown("---")
+           
 else:
     st.info("No stock data available to search for this date.")
 
