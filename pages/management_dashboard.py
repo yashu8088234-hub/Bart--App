@@ -12,8 +12,9 @@ import hashlib
 # ========================================================
 
 st.set_page_config(
-    layout="wide",
+    
     page_title="Management Panel",
+    layout="wide",
     
     initial_sidebar_state="collapsed"
 )
