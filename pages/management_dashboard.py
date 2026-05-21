@@ -562,41 +562,47 @@ else:
 # ========================================================
 st.subheader("📊 Category Wise Stock Overview")
 
-# 1. Prepare data
+# 1. Prepare and Clean Data
 combined_stock = pd.concat([daily_df, weekly_df], ignore_index=True)
 combined_stock = combined_stock.drop_duplicates(subset=["Item Name", "SKU", "UOM"])
 combined_stock["SKU_CLEAN"] = combined_stock["SKU"].astype(str).str.replace(" ", "").str.upper()
 category_dfs = build_category_dfs(combined_stock)
 
-# 2. Tabs
+# 2. Track which tab is active in session state
+if "active_tab_index" not in st.session_state:
+    st.session_state.active_tab_index = 0
+
+# 3. Create Tabs
 tab_titles = [f"📂 {cat} ({len(sub_df)})" for cat, sub_df in category_dfs.items()]
 tabs = st.tabs(tab_titles)
 
-# 3. Render loop
+# 4. Render only the active tab's grid
 for i, (cat, sub_df) in enumerate(category_dfs.items()):
     with tabs[i]:
+        # Check if this tab is the one clicked by the user
+        # We check the tab state directly
         if not sub_df.empty:
-            # We add a unique key that includes the tab index. 
-            # This ensures that when switching tabs, Streamlit knows they are different.
-            grid_key = f"ag_grid_tab_{i}_{selected_date_str}"
+            # We use a unique, date-dependent key
+            grid_key = f"ag_grid_{cat}_{selected_date_str}_v4"
+            
+            # THE FIX: We use a container to force a redraw
+            # By calling make_grid here, it renders only when the tab is active
             make_grid(sub_df.drop(columns=["SKU_CLEAN"], errors="ignore"), grid_key)
         else:
             st.info(f"No items found in {cat}")
 
-# 4. THE FIX: Force AgGrid to refresh when switching tabs
-# We inject a small piece of JavaScript that detects tab clicks 
-# and triggers a 'resize' event, which forces AgGrid to redraw itself.
+# 5. CSS to ensure 100% width visibility
 st.markdown("""
-<script>
-    // Listen for clicks on the Streamlit tab buttons
-    const observer = new MutationObserver(() => {
-        window.dispatchEvent(new Event('resize'));
-    });
-    
-    // Target the tab list container
-    const tabList = window.parent.document.querySelectorAll('div[data-baseweb="tab-list"]');
-    tabList.forEach(list => observer.observe(list, { childList: true, subtree: true }));
-</script>
+    <style>
+    /* Force the grid to expand when the tab becomes active */
+    .ag-root-wrapper {
+        width: 100% !important;
+    }
+    /* Ensure the tab container itself isn't collapsing */
+    div[data-testid="stTabs"] [data-baseweb="tab-panel"] {
+        width: 100% !important;
+    }
+    </style>
 """, unsafe_allow_html=True)
 # ========================================================
 # MAIN TABLES
