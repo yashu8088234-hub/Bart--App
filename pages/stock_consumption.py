@@ -5,7 +5,7 @@ import time
 import uuid
 from background import set_background
 from gspread import Cell
-
+from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 
@@ -199,7 +199,9 @@ if st.button("⬅ Back"):
 # -----------------------------
 # DATE
 # -----------------------------
-date = st.date_input("Select Date")
+
+yesterday = datetime.now().date() - timedelta(days=1)
+date = st.date_input("Select Date", value=yesterday)
 date_str = str(date)
 
 # -----------------------------
