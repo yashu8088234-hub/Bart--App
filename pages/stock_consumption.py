@@ -8,6 +8,7 @@ from gspread import Cell
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
+import streamlit.components.v1 as components
 
 # -----------------------------
 # UI SETUP
@@ -55,17 +56,18 @@ st.session_state.setdefault("proceed_submit", False)
 # SCROLL FUNCTION
 # -----------------------------
 def scroll_to_review():
-    st.markdown(
-        """
-        <script>
-            const el = document.getElementById("review_section");
-            if (el) {
-                el.scrollIntoView({behavior: "smooth"});
-            }
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+    """Uses a dedicated component to force the browser to scroll."""
+    js_code = """
+    <script>
+        // Find the element with the specific ID
+        const target = window.parent.document.getElementById("review_section");
+        if (target) {
+            target.scrollIntoView({behavior: "smooth", block: "start"});
+        }
+    </script>
+    """
+    # Use components.html to inject the script reliably
+    components.html(js_code, height=0, width=0)
 
 # -----------------------------
 # TITLE
@@ -262,10 +264,10 @@ if st.session_state.review_mode:
 # -----------------------------
 # AUTO SCROLL
 # -----------------------------
-if st.session_state.scroll_to_review:
+if st.session_state.get("scroll_to_review", False):
+    # This must be called AFTER the div with id="review_section" is rendered
     scroll_to_review()
     st.session_state.scroll_to_review = False
-
 # -----------------------------
 # FINAL SUBMIT
 # -----------------------------
