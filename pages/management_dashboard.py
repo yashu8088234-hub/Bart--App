@@ -69,14 +69,48 @@ client = get_client()
 
 
 
-
 def to_excel_bytes(dfs_dict):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in dfs_dict.items():
-            # Clean sheet name (Excel limits: 31 chars, no illegal chars)
-            safe_name = sheet_name[:31].replace(':', '').replace('/', '').replace('\\', '').replace('?', '').replace('*', '').replace('[', '').replace(']', '')
+            # Clean sheet name
+            safe_name = "".join([c for c in sheet_name if c.isalnum() or c in (' ', '_')])[:31]
             df.to_excel(writer, sheet_name=safe_name, index=False)
+            
+            workbook = writer.book
+            worksheet = writer.sheets[safe_name]
+            
+            # --- PROFESSIONAL FORMATTING ---
+            header_fmt = workbook.add_format({
+                'bold': True, 'font_name': 'Arial', 'font_size': 11,
+                'fg_color': '#2C3E50', 'font_color': '#FFFFFF', 
+                'border': 1, 'border_color': '#BDC3C7',
+                'align': 'center', 'valign': 'vcenter'
+            })
+            cell_fmt = workbook.add_format({
+                'font_name': 'Arial', 'font_size': 10,
+                'border': 1, 'border_color': '#E5E7E9', 
+                'align': 'center', 'valign': 'vcenter'
+            })
+            zebra_fmt = workbook.add_format({
+                'font_name': 'Arial', 'font_size': 10,
+                'bg_color': '#F8F9FA', 'border': 1, 'border_color': '#E5E7E9', 
+                'align': 'center', 'valign': 'vcenter'
+            })
+
+            # Style columns and headers
+            for i, col in enumerate(df.columns):
+                worksheet.set_column(i, i, 22, cell_fmt)
+                worksheet.write(0, i, col, header_fmt)
+            
+            # Add Zebra Stripes
+            for row_num in range(1, len(df) + 1):
+                fmt = zebra_fmt if row_num % 2 == 0 else cell_fmt
+                for col_num in range(len(df.columns)):
+                    worksheet.write(row_num, col_num, df.iloc[row_num-1, col_num], fmt)
+            
+            worksheet.hide_gridlines(2) # Makes it look like a dashboard
+            
     return output.getvalue()
 # ========================================================
 # LOAD BRANCHES
@@ -581,12 +615,14 @@ if not search_pool.empty:
             # Display the data across all branches instantly
             with st.container():
                 make_grid(result_df, search_grid_key)
+                excel_data = to_excel_bytes({selected_option[:20]: result_df})
                 st.download_button(
-                label="📥 Download Selected Item to Excel",
-                data=to_excel_bytes({selected_option[:30]: result_df}),
-                file_name=f"Stock_{selected_option[:20]}_{selected_date_str}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                    
+                    label="📥 Export Selected Item",
+                    data=excel_data,
+                    file_name=f"Report_{selected_date_str}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
             st.markdown("---")
             
 else:
@@ -691,11 +727,18 @@ full_report_data = {
 for cat_name, sub_df in category_dfs.items():
     full_report_data[cat_name] = sub_df
 
-# Generate download button
-excel_data = to_excel_bytes(full_report_data)
+st.markdown("---")
+st.subheader("📊 Export Enterprise Reports")
+
+report_data = {"Daily": daily_df, "Weekly": weekly_df}
+for cat, sub_df in category_dfs.items():
+    if not sub_df.empty: report_data[cat] = sub_df
+
+full_excel = to_excel_bytes(report_data)
 st.download_button(
-    label="⬇️ Download Full Stock Report (All Categories)",
-    data=excel_data,
-    file_name=f"BART_Stock_Report_{selected_date_str}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    label="⬇️ Download Full Inventory Report",
+    data=full_excel,
+    file_name=f"BART_Report_{selected_date_str}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
 )
