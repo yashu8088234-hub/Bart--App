@@ -16,7 +16,16 @@ st.set_page_config(
 st.markdown("""<style>
 /* Forces transparency and reduces top padding */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
-.block-container { max-width: 900px !important; padding-top: 1rem !important; }
+h1 { margin-bottom: 0px !important; }
+
+
+
+.block-container { 
+    max-width: 1000px !important; 
+    padding-top: 0rem !important; 
+    padding-bottom: 0rem !important;
+}
+
 
 /* Background Layer */
 .background-layer { 
