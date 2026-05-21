@@ -11,18 +11,12 @@ st.set_page_config(
 )
 
 # =========================================================
-# CSS ARCHITECTURE (Optimized for spacing)
+# CSS ARCHITECTURE
 # =========================================================
 st.markdown("""<style>
 /* Forces transparency and reduces top padding */
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
-
-/* REDUCED PADDING HERE */
-.block-container { 
-    max-width: 900px !important; 
-    padding-top: 1rem !important; 
-    padding-bottom: 1rem !important; 
-}
+.block-container { max-width: 900px !important; padding-top: 1rem !important; }
 
 /* Background Layer */
 .background-layer { 
@@ -54,42 +48,67 @@ st.markdown("""<style>
 @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
 .animate-text { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
 .delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.4s; } .delay-3 { animation-delay: 0.6s; } .delay-4 { animation-delay: 0.8s; }
-.bart-logo { display: inline-block; animation: breathe-bold 2s ease-in-out infinite; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
 @keyframes breathe-bold { 0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); } }
+.bart-logo { display: inline-block; animation: breathe-bold 2s ease-in-out infinite; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
 @keyframes rotate { 100% { transform: rotate(360deg); } }
 
 .card-glow { position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
 .card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
-.card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 20px; z-index: 1; }
+.card-content { position: relative; background: #FFFFFF; border-radius: 20px; padding: 30px; z-index: 1; }
 
-div.stButton > button { height: 54px !important; border-radius: 50px !important; border: none !important; background: #20C997 !important; color: #FFFFFF !important; font-weight: 900 !important; text-transform: uppercase !important; letter-spacing: 2px !important; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important; }
-div.stButton > button:hover { transform: scale(1.05); background: #19a37a !important; }
+/* INNOVATIVE LIQUID-SPRING BUTTON */
+div.stButton > button { 
+    position: relative; 
+    height: 54px !important; 
+    border-radius: 50px !important; 
+    border: none !important; 
+    background: #20C997 !important; 
+    color: #FFFFFF !important; 
+    font-weight: 900 !important; 
+    text-transform: uppercase !important; 
+    letter-spacing: 2px !important; 
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+}
+div.stButton > button::before { display: none !important; }
+div.stButton > button:hover {
+    transform: scale(1.05) translateY(-2px);
+    background: #19a37a !important; 
+    box-shadow: 0 10px 20px rgba(32, 201, 151, 0.3) !important;
+    letter-spacing: 4px !important;
+}
+div.stButton > button:active {
+    transform: scale(0.98) translateY(0);
+}
 </style>""", unsafe_allow_html=True)
 
 # =========================================================
-# SESSION STATE & BACKGROUND
+# SESSION STATE
 # =========================================================
 st.session_state.authenticated = True
 if "show_mgmt_password" not in st.session_state: st.session_state.show_mgmt_password = False
+if "mgmt_lock_until" not in st.session_state: st.session_state.mgmt_lock_until = 0
 
-st.markdown("""<div class="background-layer"></div>""", unsafe_allow_html=True)
+def is_mgmt_locked():
+    return time.time() < st.session_state.mgmt_lock_until
 
 # =========================================================
-# UI CONTENT
+# BACKGROUND LAYER
 # =========================================================
-st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 4px 12px; border-radius: 100px; font-size: 10px; font-weight: 700;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
-st.markdown("<h1 class='animate-text delay-2' style='text-align: center; font-size: 72px; font-weight: 800; margin: 0;'><span class='bart-logo'>B A R T</span></h1>", unsafe_allow_html=True)
-st.markdown("<h2 class='animate-text delay-3' style='text-align: center; font-size: 40px; font-weight: 800; margin-top: -10px;'>Operations management <br><span style='color: #20C997;'>just got easier.</span></h2>", unsafe_allow_html=True)
+st.markdown("""
+<div class="background-layer">
+    <div class="orbit-wrap">
+        <div class="orbit o1"><div class="icon">☿</div></div>
+        <div class="orbit o2"><div class="icon">♀</div></div>
+        <div class="orbit o3"><div class="icon">☄️</div></div>
+        <div class="orbit o4"><div class="icon">🌎</div></div>
+        <div class="orbit o5"><div class="icon">🪐</div></div>
+        <div class="orbit o6"><div class="icon">🌐</div></div>
+        <div class="orbit o7"><div class="icon">🪐</div></div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-grid_left, grid_right = st.columns(2, gap="large")
-with grid_left:
-    st.markdown("<div class='card-glow'><div class='card-content'><h3>Staff Control</h3><p>Manage daily metrics and parameters.</p>", unsafe_allow_html=True)
-    if st.button("Access Staff Control →", use_container_width=True): st.switch_page("pages/staff_dashboard.py")
-    st.markdown("</div></div>", unsafe_allow_html=True)
-with grid_right:
-    st.markdown("<div class='card-glow'><div class='card-content'><h3>HQ Administration</h3><p>Analyze logs and secure configurations.</p>", unsafe_allow_html=True)
-    if st.button("Unlock Admin Panel", use_container_width=True): st.session_state.show_mgmt_password = True
-    st.markdown("</div></div>", unsafe_allow_html=True)
 # =========================================================
 # ANIMATED HEADER & UI
 # =========================================================
