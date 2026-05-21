@@ -147,7 +147,7 @@ with grid_right:
         remaining = int(st.session_state.mgmt_lock_until - time.time())
         st.button(f"Console Locked ({remaining}s) 🔒", disabled=True, use_container_width=True, key="mgmt_btn")
     else:
-        if st.button("Unlock Admin Panel", use_container_width=True, key="mgmt_btn"):
+        if st.button("Unlock Admin Panel →", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
             st.rerun()
     st.markdown('</div></div>', unsafe_allow_html=True)
