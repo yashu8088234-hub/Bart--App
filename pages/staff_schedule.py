@@ -26,12 +26,8 @@ try:
 
 
 
-    st.write("### Regular Staff")
-    st.dataframe(df[['BRANCH_NAME', 'SHIFT', 'NAME', 'DAY_OFF', 'MOBILE']], use_container_width=True)
-
-    st.write("### Covering Staff")
-    st.dataframe(df[['BRANCH_NAME', 'SHIFT', 'COVERING_NAME', 'COVERING_DAY_OFF', 'COVERING_MOBILE']], use_container_width=True)
-    
+    st.write("Current columns in your sheet are:", df.columns.tolist()) 
+    return df
     # Simple search/filter
     branch_search = st.selectbox("Select Branch to View", ["All"] + list(df['BranchName'].unique()))
     
@@ -41,6 +37,9 @@ try:
         filtered_df = df
         
     st.dataframe(filtered_df, use_container_width=True)
+  
+
+
 
 except Exception as e:
     st.error(f"Error loading schedule: {e}")
