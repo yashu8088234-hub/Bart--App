@@ -13,17 +13,24 @@ st.set_page_config(page_title="Staff Schedule", layout="wide")
 st.title("📅 Staff Schedule View")
 
 # 2. FUNCTION TO LOAD DATA
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=609)
+  
 def get_schedule():
-    # Make sure 'Schedules' tab exists in your MASTERBRANCHSHEET
     sheet = client.open("MASTERBRANCHSHEET").worksheet("Schedules")
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
     return df
-
 # 3. DISPLAY DATA
 try:
     df = get_schedule()
+
+
+
+    st.write("### Regular Staff")
+    st.dataframe(df[['BRANCH_NAME', 'SHIFT', 'NAME', 'DAY_OFF', 'MOBILE']], use_container_width=True)
+
+    st.write("### Covering Staff")
+    st.dataframe(df[['BRANCH_NAME', 'SHIFT', 'COVERING_NAME', 'COVERING_DAY_OFF', 'COVERING_MOBILE']], use_container_width=True)
     
     # Simple search/filter
     branch_search = st.selectbox("Select Branch to View", ["All"] + list(df['BranchName'].unique()))
