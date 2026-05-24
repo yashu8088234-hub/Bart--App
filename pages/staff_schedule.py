@@ -1,74 +1,357 @@
 import streamlit as st
 import gspread
 import pandas as pd
+import time
 from oauth2client.service_account import ServiceAccountCredentials
 
-# Page config
-st.set_page_config(layout="wide", page_title="Staff Management")
+# =========================================================
+# PAGE CONFIG
+# =========================================================
 
-# ----------------- CONFIG & DATA LOAD -----------------
-creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+st.set_page_config(
+    layout="wide",
+    page_title="Staff Schedule Management"
+)
+
+# =========================================================
+# SESSION CHECK
+# =========================================================
 
 if "branch_info" not in st.session_state:
-    st.warning("Session expired. Please re-login.")
-    if st.button("Return Home"): st.switch_page("app.py")
+    st.warning("Session expired. Please login again.")
+    if st.button("Return Home"):
+        st.switch_page("app.py")
     st.stop()
 
 branch_info = st.session_state.branch_info
+
+# =========================================================
+# GOOGLE SHEETS CONNECTION
+# =========================================================
+
+@st.cache_resource
+def connect_gsheet():
+
+    creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        creds_dict,
+        scope
+    )
+
+    client = gspread.authorize(creds)
+
+    return client
+
+client = connect_gsheet()
+
+# =========================================================
+# OPEN BRANCH SHEET
+# =========================================================
+
 sheet = client.open_by_key(branch_info["SheetID"])
 
-# Fetch Data
+# =========================================================
+# LOAD STAFF DATA
+# =========================================================
+
 @st.cache_data(ttl=60)
-def fetch_schedule():
-    ws = sheet.worksheet("StaffSchedule") # Ensure this tab exists
-    return pd.DataFrame(ws.get_all_records())
+def load_staff_schedule(sheet_id):
 
-df = fetch_schedule()
+    local_sheet = client.open_by_key(sheet_id)
 
-# ----------------- UI: SEARCH & HEADER -----------------
-st.title(f"📅 Staff Schedule: {branch_info['BranchName']}")
-search_query = st.text_input("🔍 Search staff by name or shift...", "")
+    try:
+        ws = local_sheet.worksheet("StaffSchedule")
+    except:
+        ws = local_sheet.add_worksheet(
+            title="StaffSchedule",
+            rows=1000,
+            cols=20
+        )
 
-# Apply filter
-filtered_df = df
+        headers = [
+            "StaffID",
+            "EmployeeName",
+            "MobileNumber",
+            "Role",
+            "Shift",
+            "OffDay",
+            "Status",
+            "Notes"
+        ]
+
+        ws.append_row(headers)
+
+    data = ws.get_all_records()
+
+    if len(data) == 0:
+        return pd.DataFrame(columns=[
+            "StaffID",
+            "EmployeeName",
+            "MobileNumber",
+            "Role",
+            "Shift",
+            "OffDay",
+            "Status",
+            "Notes"
+        ])
+
+    return pd.DataFrame(data)
+
+df = load_staff_schedule(branch_info["SheetID"])
+
+# =========================================================
+# PAGE HEADER
+# =========================================================
+
+st.title(f"📅 Staff Schedule - {branch_info['BranchName']}")
+
+st.caption(f"Branch Code: {branch_info['BranchCode']}")
+
+# =========================================================
+# KPI SECTION
+# =========================================================
+
+total_staff = len(df)
+
+morning_staff = len(df[df["Shift"] == "MORNING"])
+
+evening_staff = len(df[df["Shift"] == "EVENING"])
+
+active_staff = len(df[df["Status"] == "ACTIVE"])
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Total Staff", total_staff)
+col2.metric("Morning Shift", morning_staff)
+col3.metric("Evening Shift", evening_staff)
+col4.metric("Active Staff", active_staff)
+
+st.divider()
+
+# =========================================================
+# SEARCH + FILTERS
+# =========================================================
+
+st.subheader("🔍 Search & Filters")
+
+f1, f2, f3 = st.columns(3)
+
+with f1:
+    search_query = st.text_input(
+        "Search Staff",
+        placeholder="Name / Mobile / Role"
+    )
+
+with f2:
+    shift_filter = st.selectbox(
+        "Filter Shift",
+        ["ALL", "MORNING", "EVENING"]
+    )
+
+with f3:
+    status_filter = st.selectbox(
+        "Filter Status",
+        ["ALL", "ACTIVE", "INACTIVE"]
+    )
+
+filtered_df = df.copy()
+
+# SEARCH
 if search_query:
-    filtered_df = df[df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)]
 
-# ----------------- INTERACTIVE EDITOR -----------------
-st.subheader("Edit Schedule & Credentials")
-st.info("💡 Edit cells below. Changes will be saved to the database on click.")
+    filtered_df = filtered_df[
+        filtered_df.apply(
+            lambda row: row.astype(str)
+            .str.contains(search_query, case=False)
+            .any(),
+            axis=1
+        )
+    ]
+
+# SHIFT FILTER
+if shift_filter != "ALL":
+    filtered_df = filtered_df[
+        filtered_df["Shift"] == shift_filter
+    ]
+
+# STATUS FILTER
+if status_filter != "ALL":
+    filtered_df = filtered_df[
+        filtered_df["Status"] == status_filter
+    ]
+
+# =========================================================
+# DATA EDITOR
+# =========================================================
+
+st.subheader("📝 Edit Staff Schedule")
 
 edited_df = st.data_editor(
     filtered_df,
     use_container_width=True,
     num_rows="dynamic",
+    hide_index=True,
     column_config={
-        "MOBILE NUMBER": st.column_config.NumberColumn("Mobile", format="%d"),
-        "SHIFT": st.column_config.SelectboxColumn("Shift Type", options=["MORNING", "EVENING"]),
+
+        "StaffID": st.column_config.TextColumn(
+            "Staff ID",
+            help="Unique employee ID",
+            required=True
+        ),
+
+        "EmployeeName": st.column_config.TextColumn(
+            "Employee Name",
+            required=True
+        ),
+
+        "MobileNumber": st.column_config.TextColumn(
+            "Mobile Number"
+        ),
+
+        "Role": st.column_config.SelectboxColumn(
+            "Role",
+            options=[
+                "Manager",
+                "Supervisor",
+                "Cashier",
+                "Kitchen",
+                "Cleaner",
+                "Barista",
+                "Driver",
+                "Staff"
+            ]
+        ),
+
+        "Shift": st.column_config.SelectboxColumn(
+            "Shift",
+            options=[
+                "MORNING",
+                "EVENING"
+            ]
+        ),
+
+        "OffDay": st.column_config.SelectboxColumn(
+            "Off Day",
+            options=[
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday"
+            ]
+        ),
+
+        "Status": st.column_config.SelectboxColumn(
+            "Status",
+            options=[
+                "ACTIVE",
+                "INACTIVE"
+            ]
+        ),
+
+        "Notes": st.column_config.TextColumn(
+            "Notes"
+        )
+
     }
 )
 
-# ----------------- SAVE LOGIC -----------------
-if st.button("💾 Save Changes to Master Sheet", type="primary"):
-    try:
-        ws = sheet.worksheet("StaffSchedule")
-        ws.clear()
-        ws.update([edited_df.columns.values.tolist()] + edited_df.values.tolist())
-        st.success("✅ Schedule updated!")
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"Error saving: {e}")
+# =========================================================
+# SAVE BUTTON
+# =========================================================
 
-# ----------------- QUICK REFERENCES -----------------
-with st.expander("🔗 Reference Links & Credentials"):
-    st.write("Keep your branch-specific URLs and login notes here.")
-    # You can link this to a separate "References" sheet if preferred
-    cred_notes = st.text_area("Internal Notes / Credential Links", height=150)
-    if st.button("Update Notes"):
-        st.success("Notes saved locally (Connect to DB to persist).")
+st.divider()
 
-if st.button("⬅ Back to Dashboard"):
+save_col1, save_col2 = st.columns([1, 5])
+
+with save_col1:
+
+    if st.button(
+        "💾 SAVE",
+        type="primary",
+        use_container_width=True
+    ):
+
+        try:
+
+            ws = sheet.worksheet("StaffSchedule")
+
+            # CLEAN DATA
+            edited_df = edited_df.fillna("")
+
+            # PREPARE DATA
+            final_data = [
+                edited_df.columns.tolist()
+            ] + edited_df.values.tolist()
+
+            # CLEAR ONLY CONTENT
+            ws.clear()
+
+            # UPDATE
+            ws.update(final_data)
+
+            # CLEAR CACHE
+            st.cache_data.clear()
+
+            st.success("✅ Staff schedule updated successfully.")
+
+            time.sleep(1)
+
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Error saving data: {e}")
+
+# =========================================================
+# DOWNLOAD SECTION
+# =========================================================
+
+st.divider()
+
+download_df = edited_df.copy()
+
+csv = download_df.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+    label="⬇ Download Staff Schedule CSV",
+    data=csv,
+    file_name=f"{branch_info['BranchCode']}_staff_schedule.csv",
+    mime="text/csv",
+    use_container_width=True
+)
+
+# =========================================================
+# QUICK NOTES SECTION
+# =========================================================
+
+with st.expander("📌 Internal Notes"):
+
+    st.info(
+        "Use this area for temporary notes, links, or reminders."
+    )
+
+    notes = st.text_area(
+        "Branch Internal Notes",
+        height=150,
+        placeholder="Enter notes here..."
+    )
+
+    if st.button("Save Notes"):
+        st.success("Notes saved locally.")
+
+# =========================================================
+# BACK BUTTON
+# =========================================================
+
+st.divider()
+
+if st.button("⬅ Back To Dashboard"):
     st.switch_page("app.py")
