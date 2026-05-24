@@ -85,7 +85,7 @@ day_dates = [
 ]
 
 # =========================================
-# 4. LOAD DATA (FIXED SAFE)
+# 4. LOAD DATA (FIXED)
 # =========================================
 
 def get_filtered_data():
@@ -163,14 +163,13 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (FIXED ARROW ISSUE)
+# NORMAL MODE (FIXED)
 # =========================================
 
 else:
 
     for day in DAYS:
 
-        # 🔥 FIX: safer column detection
         start_candidates = [
             f"{day}: Start",
             f"{day} Start",
@@ -187,8 +186,19 @@ else:
         start_col = next((c for c in start_candidates if c in df_display.columns), None)
         end_col = next((c for c in end_candidates if c in df_display.columns), None)
 
-        start_val = df_display[start_col] if start_col else ""
-        end_val = df_display[end_col] if end_col else ""
+        # -------------------------
+        # SAFE SERIES HANDLING
+        # -------------------------
+
+        if start_col:
+            start_val = df_display[start_col]
+        else:
+            start_val = pd.Series([""] * len(df_display))
+
+        if end_col:
+            end_val = df_display[end_col]
+        else:
+            end_val = pd.Series([""] * len(df_display))
 
         df_display[day] = (
             start_val.fillna("").astype(str)
@@ -250,6 +260,9 @@ else:
             "font-size": "12px",
             "padding-left": "6px",
             "padding-right": "6px"
+        },
+        ".ag-root-wrapper": {
+            "border-radius": "10px"
         }
     }
 
@@ -288,7 +301,10 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     if "Name" in new_data.columns:
         new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
+    final_df = pd.concat(
+        [remaining_data, new_data],
+        ignore_index=True
+    )
 
     ws.clear()
 
