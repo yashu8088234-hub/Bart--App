@@ -168,12 +168,12 @@ else:
             "headerName": "Name",
             "field": "Name",
             "pinned": "left",
-            "width": 120
+            "width": 130
         },
         {
             "headerName": "Role",
             "field": "Role",
-            "width": 120
+            "width": 130
         }
     ]
 
@@ -182,7 +182,7 @@ else:
         column_defs.append({
             "headerName": day_dates[i],
             "field": day,
-            "width": 120
+            "width": 130
         })
 
     grid_options = {
