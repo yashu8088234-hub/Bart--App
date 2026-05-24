@@ -225,6 +225,11 @@ if search:
 
 st.subheader(f"📝 Schedule ({week_label})")
 
+
+if st.session_state.get("reset_planner", False):
+    df = pd.DataFrame(columns=required_columns)
+    st.session_state["reset_planner"] = False
+
 edited_df = st.data_editor(
     df,
     use_container_width=True,
@@ -263,10 +268,12 @@ if st.button("💾 SAVE WEEKLY SCHEDULE", type="primary"):
     ws.clear()
     ws.update(final)
 
-    st.success("Saved successfully")
+    st.success("✅ Schedule saved successfully")
+
+    # CLEAR ONLY UI (NOT GOOGLE SHEET)
+    st.session_state["reset_planner"] = True
 
     st.rerun()
-
 # =========================================================
 # WEEKLY OVERVIEW (YOUR REQUESTED FORMAT)
 # =========================================================
