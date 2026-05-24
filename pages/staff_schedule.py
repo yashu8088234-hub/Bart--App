@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(
     layout="wide",
-    page_title="Staff Schedule Management"
+    page_title="Staff Schedule"
 )
 
 # =========================================================
@@ -19,8 +19,10 @@ st.set_page_config(
 
 if "branch_info" not in st.session_state:
     st.warning("Session expired. Please login again.")
+
     if st.button("Return Home"):
         st.switch_page("app.py")
+
     st.stop()
 
 branch_info = st.session_state.branch_info
@@ -48,16 +50,17 @@ def connect_gsheet():
 
     return client
 
+
 client = connect_gsheet()
 
 # =========================================================
-# OPEN BRANCH SHEET
+# OPEN SHEET
 # =========================================================
 
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# LOAD STAFF DATA
+# LOAD STAFF SCHEDULE
 # =========================================================
 
 @st.cache_data(ttl=60)
@@ -67,7 +70,9 @@ def load_staff_schedule(sheet_id):
 
     try:
         ws = local_sheet.worksheet("StaffSchedule")
+
     except:
+
         ws = local_sheet.add_worksheet(
             title="StaffSchedule",
             rows=1000,
@@ -90,6 +95,7 @@ def load_staff_schedule(sheet_id):
     data = ws.get_all_records()
 
     if len(data) == 0:
+
         return pd.DataFrame(columns=[
             "StaffID",
             "EmployeeName",
@@ -101,12 +107,52 @@ def load_staff_schedule(sheet_id):
             "Notes"
         ])
 
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+
+    return df
+
 
 df = load_staff_schedule(branch_info["SheetID"])
 
 # =========================================================
-# PAGE HEADER
+# CLEAN DATAFRAME
+# =========================================================
+
+df.columns = df.columns.str.strip()
+
+df = df.fillna("")
+
+# =========================================================
+# REQUIRED COLUMNS
+# =========================================================
+
+required_columns = [
+    "StaffID",
+    "EmployeeName",
+    "MobileNumber",
+    "Role",
+    "Shift",
+    "OffDay",
+    "Status",
+    "Notes"
+]
+
+for col in required_columns:
+
+    if col not in df.columns:
+        df[col] = ""
+
+# FORCE STRING TYPE
+
+for col in required_columns:
+    df[col] = df[col].astype(str)
+
+# KEEP ONLY REQUIRED COLUMNS
+
+df = df[required_columns]
+
+# =========================================================
+# PAGE TITLE
 # =========================================================
 
 st.title(f"📅 Staff Schedule - {branch_info['BranchName']}")
@@ -128,14 +174,17 @@ active_staff = len(df[df["Status"] == "ACTIVE"])
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Total Staff", total_staff)
+
 col2.metric("Morning Shift", morning_staff)
+
 col3.metric("Evening Shift", evening_staff)
+
 col4.metric("Active Staff", active_staff)
 
 st.divider()
 
 # =========================================================
-# SEARCH + FILTERS
+# FILTERS
 # =========================================================
 
 st.subheader("🔍 Search & Filters")
@@ -143,26 +192,40 @@ st.subheader("🔍 Search & Filters")
 f1, f2, f3 = st.columns(3)
 
 with f1:
+
     search_query = st.text_input(
         "Search Staff",
-        placeholder="Name / Mobile / Role"
+        placeholder="Search name / mobile / role"
     )
 
 with f2:
+
     shift_filter = st.selectbox(
-        "Filter Shift",
-        ["ALL", "MORNING", "EVENING"]
+        "Shift Filter",
+        [
+            "ALL",
+            "MORNING",
+            "EVENING"
+        ]
     )
 
 with f3:
+
     status_filter = st.selectbox(
-        "Filter Status",
-        ["ALL", "ACTIVE", "INACTIVE"]
+        "Status Filter",
+        [
+            "ALL",
+            "ACTIVE",
+            "INACTIVE"
+        ]
     )
 
 filtered_df = df.copy()
 
-# SEARCH
+# =========================================================
+# SEARCH FILTER
+# =========================================================
+
 if search_query:
 
     filtered_df = filtered_df[
@@ -174,17 +237,34 @@ if search_query:
         )
     ]
 
+# =========================================================
 # SHIFT FILTER
+# =========================================================
+
 if shift_filter != "ALL":
+
     filtered_df = filtered_df[
         filtered_df["Shift"] == shift_filter
     ]
 
+# =========================================================
 # STATUS FILTER
+# =========================================================
+
 if status_filter != "ALL":
+
     filtered_df = filtered_df[
         filtered_df["Status"] == status_filter
     ]
+
+# =========================================================
+# FINAL CLEAN BEFORE EDITOR
+# =========================================================
+
+filtered_df = filtered_df.fillna("")
+
+for col in required_columns:
+    filtered_df[col] = filtered_df[col].astype(str)
 
 # =========================================================
 # DATA EDITOR
@@ -197,17 +277,15 @@ edited_df = st.data_editor(
     use_container_width=True,
     num_rows="dynamic",
     hide_index=True,
+
     column_config={
 
         "StaffID": st.column_config.TextColumn(
-            "Staff ID",
-            help="Unique employee ID",
-            required=True
+            "Staff ID"
         ),
 
         "EmployeeName": st.column_config.TextColumn(
-            "Employee Name",
-            required=True
+            "Employee Name"
         ),
 
         "MobileNumber": st.column_config.TextColumn(
@@ -217,6 +295,7 @@ edited_df = st.data_editor(
         "Role": st.column_config.SelectboxColumn(
             "Role",
             options=[
+                "",
                 "Manager",
                 "Supervisor",
                 "Cashier",
@@ -231,6 +310,7 @@ edited_df = st.data_editor(
         "Shift": st.column_config.SelectboxColumn(
             "Shift",
             options=[
+                "",
                 "MORNING",
                 "EVENING"
             ]
@@ -239,6 +319,7 @@ edited_df = st.data_editor(
         "OffDay": st.column_config.SelectboxColumn(
             "Off Day",
             options=[
+                "",
                 "Sunday",
                 "Monday",
                 "Tuesday",
@@ -252,6 +333,7 @@ edited_df = st.data_editor(
         "Status": st.column_config.SelectboxColumn(
             "Status",
             options=[
+                "",
                 "ACTIVE",
                 "INACTIVE"
             ]
@@ -265,7 +347,7 @@ edited_df = st.data_editor(
 )
 
 # =========================================================
-# SAVE BUTTON
+# SAVE SECTION
 # =========================================================
 
 st.divider()
@@ -287,15 +369,22 @@ with save_col1:
             # CLEAN DATA
             edited_df = edited_df.fillna("")
 
-            # PREPARE DATA
+            # FORCE STRING
+            for col in required_columns:
+                edited_df[col] = edited_df[col].astype(str)
+
+            # KEEP COLUMN ORDER
+            edited_df = edited_df[required_columns]
+
+            # PREPARE FINAL DATA
             final_data = [
-                edited_df.columns.tolist()
+                required_columns
             ] + edited_df.values.tolist()
 
-            # CLEAR ONLY CONTENT
+            # CLEAR SHEET
             ws.clear()
 
-            # UPDATE
+            # UPDATE SHEET
             ws.update(final_data)
 
             # CLEAR CACHE
@@ -308,17 +397,16 @@ with save_col1:
             st.rerun()
 
         except Exception as e:
+
             st.error(f"Error saving data: {e}")
 
 # =========================================================
-# DOWNLOAD SECTION
+# DOWNLOAD CSV
 # =========================================================
 
 st.divider()
 
-download_df = edited_df.copy()
-
-csv = download_df.to_csv(index=False).encode("utf-8")
+csv = edited_df.to_csv(index=False).encode("utf-8")
 
 st.download_button(
     label="⬇ Download Staff Schedule CSV",
@@ -329,19 +417,18 @@ st.download_button(
 )
 
 # =========================================================
-# QUICK NOTES SECTION
+# INTERNAL NOTES
 # =========================================================
 
 with st.expander("📌 Internal Notes"):
 
     st.info(
-        "Use this area for temporary notes, links, or reminders."
+        "Use this section for temporary branch notes."
     )
 
     notes = st.text_area(
-        "Branch Internal Notes",
-        height=150,
-        placeholder="Enter notes here..."
+        "Branch Notes",
+        height=150
     )
 
     if st.button("Save Notes"):
