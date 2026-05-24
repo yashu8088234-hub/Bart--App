@@ -147,8 +147,8 @@ else:
             "sortable": False,
             "cellStyle": {"textAlign": "left"}
         },
-        "headerHeight": 45,
-        "rowHeight": 42,
+        "headerHeight": 35,
+        "rowHeight": 32,
 
         # ✅ IMPORTANT: makes it scrollable instead of huge
         "domLayout": "normal"
@@ -169,7 +169,7 @@ else:
         custom_css=custom_css,
 
         # ✅ ~10 rows visible height
-        height=7 * 42 + 90,
+        height=8 * 42 + 90,
 
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
