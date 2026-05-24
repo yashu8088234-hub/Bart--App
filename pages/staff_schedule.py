@@ -141,12 +141,12 @@ config = {
 df_display = df.copy()
 
 # =========================================
-# PREPARE COLUMNS
+# SHIFT MODE
 # =========================================
 
-for i, day in enumerate(DAYS):
+if shift_mode:
 
-    if shift_mode:
+    for i, day in enumerate(DAYS):
 
         # REMOVE TIME COLUMNS
         start_col = f"{day}: Start"
@@ -177,20 +177,27 @@ for i, day in enumerate(DAYS):
             )
         )
 
-    else:
+    edited_df = st.data_editor(
+        df_display,
+        column_config=config,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
-        # REMOVE SHIFT COLUMN
-        if day in df_display.columns:
+# =========================================
+# NORMAL VIEW MODE
+# ONE COLUMN PER DAY
+# =========================================
 
-            df_display.drop(
-                columns=[day],
-                inplace=True
-            )
+else:
+
+    # CREATE DISPLAY COLUMNS
+    for day in DAYS:
 
         start_col = f"{day}: Start"
         end_col = f"{day}: End"
 
-        # SUPPORT OLD "Finish"
+        # SUPPORT OLD FINISH COLUMN
         alt_end_col = f"{day}: Finish"
 
         if start_col not in df_display.columns:
@@ -210,40 +217,18 @@ for i, day in enumerate(DAYS):
             else:
                 df_display[end_col] = ""
 
-# =========================================
-# SHIFT MODE
-# =========================================
-
-if shift_mode:
-
-    edited_df = st.data_editor(
-        df_display,
-        column_config=config,
-        num_rows="dynamic",
-        use_container_width=True
-    )
-
-# =========================================
-# NORMAL MODE (AGGRID)
-# =========================================
-
-else:
-
-    # ORDER COLUMNS
-    ordered_cols = ["Name", "Role"]
-
-    for day in DAYS:
-
-        ordered_cols.append(
-            f"{day}: Start"
+        # COMBINE START + END
+        df_display[day] = (
+            df_display[start_col].fillna("").astype(str)
+            + " → " +
+            df_display[end_col].fillna("").astype(str)
         )
 
-        ordered_cols.append(
-            f"{day}: End"
-        )
+    # KEEP ONLY NEEDED COLUMNS
+    keep_cols = ["Name", "Role"] + DAYS
 
     existing_cols = [
-        c for c in ordered_cols
+        c for c in keep_cols
         if c in df_display.columns
     ]
 
@@ -259,59 +244,30 @@ else:
             "headerName": "Name",
             "field": "Name",
             "pinned": "left",
-            "editable": True,
+            "editable": False,
             "width": 180
         },
 
         {
             "headerName": "Role",
             "field": "Role",
-            "editable": True,
-            "width": 180,
-            "cellEditor": "agSelectCellEditor",
-            "cellEditorParams": {
-                "values": ROLE_OPTIONS
-            }
+            "editable": False,
+            "width": 180
         }
     ]
 
-    # GROUPED DAY HEADERS
+    # SINGLE DAY COLUMN
     for i, day in enumerate(DAYS):
-
-        day_label = day_dates[i]
 
         column_defs.append({
 
-            "headerName": day_label,
+            "headerName": day_dates[i],
 
-            "children": [
+            "field": day,
 
-                {
-                    "headerName": "Start",
-                    "field": f"{day}: Start",
-                    "editable": True,
-                    "width": 120,
+            "editable": False,
 
-                    "cellEditor": "agSelectCellEditor",
-
-                    "cellEditorParams": {
-                        "values": TIME_OPTIONS
-                    }
-                },
-
-                {
-                    "headerName": "End",
-                    "field": f"{day}: End",
-                    "editable": True,
-                    "width": 120,
-
-                    "cellEditor": "agSelectCellEditor",
-
-                    "cellEditorParams": {
-                        "values": TIME_OPTIONS
-                    }
-                }
-            ]
+            "width": 170
         })
 
     # =====================================
@@ -329,8 +285,6 @@ else:
 
         "headerHeight": 45,
 
-        "groupHeaderHeight": 50,
-
         "rowHeight": 42,
 
         "animateRows": True
@@ -342,15 +296,10 @@ else:
 
     custom_css = {
 
-        ".ag-header-group-cell-label": {
-            "justify-content": "center",
-            "font-weight": "bold",
-            "font-size": "15px"
-        },
-
         ".ag-header-cell-label": {
             "justify-content": "center",
-            "font-size": "13px"
+            "font-weight": "bold",
+            "font-size": "14px"
         },
 
         ".ag-cell": {
@@ -363,20 +312,19 @@ else:
     # SHOW GRID
     # =====================================
 
-    grid_response = AgGrid(
+    AgGrid(
         df_display,
         gridOptions=grid_options,
         custom_css=custom_css,
         height=650,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
-        editable=True,
+        editable=False,
         theme="streamlit"
     )
 
-    edited_df = pd.DataFrame(
-        grid_response["data"]
-    )
+    # KEEP ORIGINAL DATA FOR SAVE
+    edited_df = df.copy()
 
 # =========================================
 # 6. SAVE LOGIC (UNCHANGED)
