@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # =========================================
-# 1. AUTH & CONNECTION
+# 1. AUTH
 # =========================================
 
 if (
@@ -76,22 +76,19 @@ TIME_OPTIONS = (
 # 3. UI
 # =========================================
 
-st.title(
-    f"🏢 Schedule: {st.session_state.selected_branch}"
-)
+st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
 start_date = st.date_input("Week Start Date")
 
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-# DATE FORMAT
 day_dates = [
     (start_date + timedelta(days=i)).strftime("%a %d/%m")
     for i in range(7)
 ]
 
 # =========================================
-# 4. LOAD DATA
+# 4. LOAD DATA (FIXED)
 # =========================================
 
 def get_filtered_data():
@@ -99,32 +96,32 @@ def get_filtered_data():
     ws = master_sheet.worksheet("StaffSchedule")
     all_data = ws.get_all_records()
 
-    df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
+    df = pd.DataFrame(all_data)
 
     if df.empty:
-        df = pd.DataFrame(
-            columns=["Branch", "Date", "Name", "Role"] + DAYS
-        )
-        return df
+        return pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
 
-    # ============================
-    # ✅ FIX: CLEAN BRANCH MATCH
-    # ============================
-
+    # ✅ SAFE CLEAN FILTER (THIS FIXES YOUR ISSUE)
     df["Branch"] = df["Branch"].astype(str).str.strip().str.lower()
 
-    selected_branch = str(st.session_state.selected_branch).strip().lower()
+    selected = str(st.session_state.selected_branch).strip().lower()
 
-    return df[df["Branch"] == selected_branch]
+    filtered = df[df["Branch"] == selected].copy()
+
+    return filtered.reset_index(drop=True)
 
 
 df = get_filtered_data()
 
 # =========================================
-# 5. BUILD UI
+# 5. UI
 # =========================================
 
 st.subheader("Edit Roster")
+
+if df.empty:
+    st.warning("No data found for this branch.")
+    st.stop()
 
 config = {
     "Role": st.column_config.SelectboxColumn(
@@ -133,7 +130,7 @@ config = {
     )
 }
 
-df_display = df.copy()
+df_display = df.reset_index(drop=True).copy()
 
 # =========================================
 # SHIFT MODE
@@ -173,7 +170,7 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL VIEW MODE (AGGRID)
+# NORMAL MODE (AGGRID VIEW)
 # =========================================
 
 else:
@@ -188,7 +185,6 @@ else:
             df_display[start_col] = ""
 
         if end_col not in df_display.columns:
-
             if alt_end_col in df_display.columns:
                 df_display.rename(
                     columns={alt_end_col: end_col},
@@ -277,7 +273,7 @@ else:
     edited_df = df.copy()
 
 # =========================================
-# 6. SAVE LOGIC (UNCHANGED)
+# 6. SAVE
 # =========================================
 
 if st.button("💾 Save to Master Sheet", type="primary"):
@@ -296,9 +292,7 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     new_data["Date"] = str(start_date)
 
     if "Name" in new_data.columns:
-        new_data["Name"] = (
-            new_data["Name"].astype(str).str.upper()
-        )
+        new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
     final_df = pd.concat(
         [remaining_data, new_data],
@@ -306,6 +300,7 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     )
 
     ws.clear()
+
     ws.update(
         [final_df.columns.values.tolist()] +
         final_df.fillna("").values.tolist()
@@ -315,7 +310,7 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     st.rerun()
 
 # =========================================
-# 7. BACK BUTTON
+# 7. BACK
 # =========================================
 
 if st.button("⬅ Back"):
