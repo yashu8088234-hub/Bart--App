@@ -126,8 +126,12 @@ if edit_mode:
         key="editor"
     )
 
+    # init state
+    if "pending_update" not in st.session_state:
+        st.session_state.pending_update = None
+
     # =========================================
-    # CUSTOM TIME BLOCK
+    # CUSTOM TIME UI
     # =========================================
 
     for i, row in edited_df.iterrows():
@@ -155,19 +159,41 @@ if edit_mode:
 
                     value = f"{sh} {sap} - {eh} {eap}"
 
-                    # safer update (single row)
-                    if apply_all:
-                        for day in DAYS:
-                            edited_df.loc[i, day] = value
-                    else:
-                        edited_df.loc[i, d] = value
-
-                    st.success("Applied!")
+                    st.session_state.pending_update = {
+                        "row": i,
+                        "day": d,
+                        "value": value,
+                        "apply_all": apply_all
+                    }
 
                     st.rerun()
 
+    # =========================================
+    # APPLY AFTER RERUN (IMPORTANT FIX)
+    # =========================================
+
+    if st.session_state.pending_update:
+
+        upd = st.session_state.pending_update
+
+        i = upd["row"]
+        d = upd["day"]
+        value = upd["value"]
+        apply_all = upd["apply_all"]
+
+        if apply_all:
+            for day in DAYS:
+                edited_df.loc[i, day] = value
+        else:
+            edited_df.loc[i, d] = value
+
+        st.session_state.pending_update = None
+
+        st.success("✅ Custom time applied successfully!")
+        st.rerun()
+
 # =========================================
-# VIEW MODE (AGGRID)
+# VIEW MODE
 # =========================================
 
 else:
@@ -211,7 +237,7 @@ else:
     )
 
 # =========================================
-# SAVE
+# SAVE TO GOOGLE SHEETS
 # =========================================
 
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
@@ -233,10 +259,7 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     final = pd.concat([remaining, new_data], ignore_index=True)
 
     ws.clear()
-    ws.update(
-        [final.columns.tolist()] +
-        final.fillna("").values.tolist()
-    )
+    ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
@@ -245,8 +268,8 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     st.rerun()
 
 # =========================================
-# BACK
-# =================================
+# BACK BUTTON
+# =========================================
 
 if st.button("⬅ Back"):
     st.switch_page("app.py")
