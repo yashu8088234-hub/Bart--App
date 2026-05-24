@@ -36,7 +36,7 @@ sheet = client.open_by_key(branch_info["SheetID"])
 # WEEK
 # =========================================================
 
-st.title("📅 Weekly Staff Scheduler")
+st.title("📅 Weekly Scheduler")
 
 from_date = st.date_input("Week Start", datetime.date.today())
 
@@ -55,7 +55,7 @@ ROLE_OPTIONS = [
 ]
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA (SINGLE DATAFRAME ONLY)
 # =========================================================
 
 @st.cache_data(ttl=60)
@@ -75,10 +75,43 @@ for c in columns:
 df = df[columns]
 
 # =========================================================
-# EXCEL EDITOR
+# 🎨 COLOR TOOL (ICON STYLE ONLY)
 # =========================================================
 
-st.subheader("📝 Weekly Schedule")
+st.subheader("🧩 Tools")
+
+col1, col2, col3 = st.columns([1,1,8])
+
+with col1:
+    paint_mode = st.toggle("🎨")
+
+with col2:
+    st.markdown("🖌️")
+
+if "selected_color" not in st.session_state:
+    st.session_state.selected_color = "#ffffff"
+
+if paint_mode:
+    st.session_state.selected_color = st.color_picker(
+        "Pick Color",
+        value=st.session_state.selected_color,
+        label_visibility="collapsed"
+    )
+
+    st.success(f"Active Color Selected")
+
+# =========================================================
+# CELL COLOR STORAGE
+# =========================================================
+
+if "cell_colors" not in st.session_state:
+    st.session_state.cell_colors = {}
+
+# =========================================================
+# EXCEL EDITOR (ONLY ONE DATAFRAME)
+# =========================================================
+
+st.subheader("📊 Weekly Schedule (Single Sheet)")
 
 edited_df = st.data_editor(
     df,
@@ -94,36 +127,28 @@ edited_df = st.data_editor(
 )
 
 # =========================================================
-# 🎨 PAINT MODE (MINIMAL ICON STYLE)
+# 🖱️ CELL SELECTOR (NO EXTRA TABLE)
 # =========================================================
-
-col1, col2 = st.columns([1,6])
-
-with col1:
-    paint_mode = st.toggle("🎨")
-
-if "cell_colors" not in st.session_state:
-    st.session_state.cell_colors = {}
 
 if paint_mode:
 
-    with col2:
-        color = st.color_picker("Pick", label_visibility="collapsed")
+    st.markdown("### 🖱️ Select Cell to Apply Color")
 
-    row = st.number_input("Row", min_value=0, step=1)
-    col = st.selectbox("Column", columns)
+    row_index = st.number_input("Row Index", min_value=0, step=1)
+    column_name = st.selectbox("Column", columns)
 
-    if st.button("Apply"):
-        st.session_state.cell_colors[f"{row}_{col}"] = color
-        st.success("Applied")
+    if st.button("Apply Selected Color"):
+        key = f"{row_index}_{column_name}"
+        st.session_state.cell_colors[key] = st.session_state.selected_color
+        st.success("Cell colored")
 
 # =========================================================
-# STYLE FUNCTION
+# STYLE SINGLE DATAFRAME ONLY
 # =========================================================
 
-def style_df(df):
+def style_table(df):
 
-    def highlight(row):
+    def apply(row):
 
         styles = [""] * len(row)
 
@@ -136,12 +161,12 @@ def style_df(df):
 
         return styles
 
-    return df.style.apply(highlight, axis=1)
+    return df.style.apply(apply, axis=1)
 
-st.dataframe(style_df(edited_df), use_container_width=True)
+st.dataframe(style_table(edited_df), use_container_width=True)
 
 # =========================================================
-# SAVE
+# SAVE (ONLY ONE DATAFRAME USED)
 # =========================================================
 
 colA, colB = st.columns(2)
