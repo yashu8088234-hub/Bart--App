@@ -72,12 +72,16 @@ for i, day in enumerate(DAYS):
         end_col = f"{day}: Finish"
 
         if start_col in df_display.columns:
-            df_display.drop(columns=[start_col, end_col], inplace=True)
+            cols_to_drop = [start_col]
+            if end_col in df_display.columns:
+                cols_to_drop.append(end_col)
+
+            df_display.drop(columns=cols_to_drop, inplace=True)
 
         if day not in df_display.columns:
             df_display[day] = ""
 
-        # ✅ UPDATED HEADER FORMAT
+        # SHIFT MODE CONFIG
         config[day] = st.column_config.SelectboxColumn(
             f"({day_dates[i]})",
             options=SHIFT_OPTIONS
@@ -89,30 +93,92 @@ for i, day in enumerate(DAYS):
             df_display.drop(columns=[day], inplace=True)
 
         start_col = f"{day}: Start"
-        end_col = f"{day}: Finish"
+        end_col = f"{day}: End"
 
         if start_col not in df_display.columns:
             df_display[start_col] = ""
+
         if end_col not in df_display.columns:
             df_display[end_col] = ""
 
-        # ✅ UPDATED HEADER FORMAT
-        config[start_col] = st.column_config.SelectboxColumn(
-            f"({day_dates[i]}) Start",
-            options=TIME_OPTIONS
-        )
+# ==============================
+# ✅ NORMAL MODE HEADER GROUPING
+# ==============================
 
-        config[end_col] = st.column_config.SelectboxColumn(
-            f"({day_dates[i]}) End",
-            options=TIME_OPTIONS
-        )
+if not shift_mode:
 
-edited_df = st.data_editor(
-    df_display,
-    column_config=config,
-    num_rows="dynamic",
-    use_container_width=True
-)
+    # Ensure base columns exist
+    if "Name" not in df_display.columns:
+        df_display["Name"] = ""
+
+    if "Role" not in df_display.columns:
+        df_display["Role"] = ""
+
+    # Build ordered multi-index columns
+    multi_columns = [
+        ("Info", "Name"),
+        ("Info", "Role")
+    ]
+
+    rename_map = {
+        "Name": ("Info", "Name"),
+        "Role": ("Info", "Role")
+    }
+
+    for i, day in enumerate(DAYS):
+
+        day_label = day_dates[i]
+
+        start_col = f"{day}: Start"
+        end_col = f"{day}: End"
+
+        # fallback support if old data has Finish
+        if end_col not in df_display.columns:
+            alt_end = f"{day}: Finish"
+
+            if alt_end in df_display.columns:
+                df_display.rename(columns={alt_end: end_col}, inplace=True)
+            else:
+                df_display[end_col] = ""
+
+        if start_col not in df_display.columns:
+            df_display[start_col] = ""
+
+        rename_map[start_col] = (day_label, "Start")
+        rename_map[end_col] = (day_label, "End")
+
+        multi_columns.append((day_label, "Start"))
+        multi_columns.append((day_label, "End"))
+
+    # rename columns
+    df_display = df_display.rename(columns=rename_map)
+
+    # keep only needed columns in order
+    existing_cols = [c for c in multi_columns if c in df_display.columns]
+
+    df_display = df_display[existing_cols]
+
+else:
+
+    # SHIFT MODE (UNCHANGED)
+    edited_df = st.data_editor(
+        df_display,
+        column_config=config,
+        num_rows="dynamic",
+        use_container_width=True
+    )
+
+# ==============================
+# ✅ NORMAL MODE DATA EDITOR
+# ==============================
+
+if not shift_mode:
+
+    edited_df = st.data_editor(
+        df_display,
+        num_rows="dynamic",
+        use_container_width=True
+    )
 
 # 6. SAVE LOGIC (UNCHANGED)
 if st.button("💾 Save to Master Sheet", type="primary"):
@@ -120,17 +186,51 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     ws = master_sheet.worksheet("StaffSchedule")
     full_data = pd.DataFrame(ws.get_all_records())
 
-    remaining_data = full_data[full_data["Branch"] != st.session_state.selected_branch]
+    remaining_data = full_data[
+        full_data["Branch"] != st.session_state.selected_branch
+    ]
 
     new_data = edited_df.copy()
+
+    # ==============================
+    # ✅ FLATTEN MULTIINDEX COLUMNS
+    # ==============================
+    if not shift_mode and isinstance(new_data.columns, pd.MultiIndex):
+
+        flat_columns = []
+
+        for top, bottom in new_data.columns:
+
+            if top == "Info":
+                flat_columns.append(bottom)
+
+            else:
+                day_name = DAYS[day_dates.index(top)]
+
+                flat_columns.append(f"{day_name}: {bottom}")
+
+        new_data.columns = flat_columns
+
     new_data["Branch"] = st.session_state.selected_branch
     new_data["Date"] = str(start_date)
-    new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
+    if "Name" in new_data.columns:
+        new_data["Name"] = (
+            new_data["Name"]
+            .astype(str)
+            .str.upper()
+        )
+
+    final_df = pd.concat(
+        [remaining_data, new_data],
+        ignore_index=True
+    )
 
     ws.clear()
-    ws.update([final_df.columns.values.tolist()] + final_df.fillna("").values.tolist())
+    ws.update(
+        [final_df.columns.values.tolist()] +
+        final_df.fillna("").values.tolist()
+    )
 
     st.success("✅ Saved Successfully!")
     st.rerun()
