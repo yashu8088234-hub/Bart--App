@@ -19,23 +19,32 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
     ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 )
 
-gs = gspread.authorize(creds)
-ws = gs.open_by_key("1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0").worksheet("StaffSchedule")
+master_sheet = gspread.authorize(creds).open_by_key(
+    "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
+)
+
+ws = master_sheet.worksheet("StaffSchedule")
 
 # =========================
 # 2. CONFIG
 # =========================
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
-SHIFT_OPTIONS = ["Morning shift", "Mid shift", "Evening shift", "Night shift"]
-TIME_OPTIONS = [f"{h}:00 AM" for h in range(1, 13)] + [f"{h}:00 PM" for h in range(1, 13)] + ["OFF"]
+ROLE_OPTIONS = [
+    "Staff",
+    "Supervisor",
+    "Acting Supervisor",
+    "Team Leader",
+    "Acting Team Leader"
+]
 
-SHIFT_COLORS = {
-    "Morning shift": "#FFF3B0",
-    "Mid shift": "#BDE0FE",
-    "Evening shift": "#CDB4DB",
-    "Night shift": "#A2D2FF",
-}
+SHIFT_OPTIONS = ["Morning shift", "Mid shift", "Evening shift", "Night shift"]
+
+TIME_OPTIONS = (
+    [f"{h}:00 AM" for h in range(1, 13)] +
+    [f"{h}:00 PM" for h in range(1, 13)] +
+    ["OFF"]
+)
 
 # =========================
 # 3. UI
@@ -45,122 +54,101 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 start_date = st.date_input("Week Start Date")
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-day_dates = [(start_date + timedelta(days=i)).strftime("%a %d/%m") for i in range(7)]
+day_dates = [
+    (start_date + timedelta(days=i)).strftime("%a %d/%m")
+    for i in range(7)
+]
 
 # =========================
 # 4. LOAD DATA
 # =========================
 def load_data():
-    df = pd.DataFrame(ws.get_all_records())
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
 
     if df.empty:
         df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
 
-    return df[df["Branch"] == st.session_state.selected_branch].copy()
+    return df[df["Branch"] == st.session_state.selected_branch]
 
 
 df = load_data()
 
 # =========================
-# 5. CLEAN STRUCTURE (NO GHOST COLUMNS)
+# 5. BUILD CLEAN DISPLAY DF (IMPORTANT FIX)
 # =========================
+base_cols = ["Role"]
+
 df_display = df.copy()
 
+# FORCE CLEAN REBUILD (prevents ghost columns)
 for day in DAYS:
-    for col in [day, f"{day}: Start", f"{day}: End", f"{day}: Finish"]:
+    shift_col = day
+    start_col = f"{day}: Start"
+    end_col = f"{day}: Finish"
+
+    # remove both schemas first
+    for col in [shift_col, start_col, end_col]:
         if col in df_display.columns:
             df_display.drop(columns=[col], inplace=True)
 
+# =========================
+# REBUILD BASE STRUCTURE
+# =========================
 for day in DAYS:
     if shift_mode:
         df_display[day] = df.get(day, "")
     else:
         df_display[f"{day}: Start"] = df.get(f"{day}: Start", "")
-        df_display[f"{day}: End"] = df.get(f"{day}: End", df.get(f"{day}: Finish", ""))
-
-# Ensure base columns
-if "Role" not in df_display.columns:
-    df_display["Role"] = ""
-if "Name" not in df_display.columns:
-    df_display["Name"] = ""
+        df_display[f"{day}: Finish"] = df.get(f"{day}: Finish", "")
 
 # =========================
-# 6. CONFLICT DETECTION
-# =========================
-def detect_conflicts(data):
-    conflicts = []
-
-    for i, row in data.iterrows():
-        for day in DAYS:
-            val = row.get(day) if shift_mode else row.get(f"{day}: Start")
-
-            if isinstance(val, str) and val.strip() == "":
-                continue
-
-            # simple rule: duplicate shift assignment check
-            if val in SHIFT_OPTIONS and list(data[day].values).count(val) > 1:
-                conflicts.append((i, day))
-
-    return conflicts
-
-
-conflicts = detect_conflicts(df_display)
-
-if conflicts:
-    st.warning("⚠ Some shifts are duplicated across staff (check assignments)")
-
-# =========================
-# 7. COLUMN CONFIG
+# 6. COLUMN CONFIG
 # =========================
 config = {
-    "Name": st.column_config.TextColumn("Name"),
-    "Role": st.column_config.SelectboxColumn("Role", options=[
-        "Staff",
-        "Supervisor",
-        "Acting Supervisor",
-        "Team Leader",
-        "Acting Team Leader"
-    ])
+    "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
 }
 
 for i, day in enumerate(DAYS):
 
-    label = f"({day_dates[i]})"
-
     if shift_mode:
         config[day] = st.column_config.SelectboxColumn(
-            label,
+            f"({day_dates[i]})",
             options=SHIFT_OPTIONS
         )
     else:
-        config[f"{day}: Start"] = st.column_config.SelectboxColumn(
-            f"{label} Start",
+        start_col = f"{day}: Start"
+        end_col = f"{day}: Finish"
+
+        config[start_col] = st.column_config.SelectboxColumn(
+            f"({day_dates[i]}) Start",
             options=TIME_OPTIONS
         )
-        config[f"{day}: End"] = st.column_config.SelectboxColumn(
-            f"{label} End",
+
+        config[end_col] = st.column_config.SelectboxColumn(
+            f"({day_dates[i]}) End",
             options=TIME_OPTIONS
         )
 
 # =========================
-# 8. UI TABLE
+# 7. EDITOR
 # =========================
 edited_df = st.data_editor(
     df_display,
     column_config=config,
-    use_container_width=True,
-    num_rows="dynamic"
+    num_rows="dynamic",
+    use_container_width=True
 )
 
 # =========================
-# 9. SAVE (SAFE UPSERT)
+# 8. SAVE (SAFE + CLEAN)
 # =========================
-if st.button("💾 Save Schedule", type="primary"):
+if st.button("💾 Save to Master Sheet", type="primary"):
 
-    all_data = pd.DataFrame(ws.get_all_records())
+    full_data = pd.DataFrame(ws.get_all_records())
 
-    # remove only this branch
-    all_data = all_data[all_data["Branch"] != st.session_state.selected_branch]
+    # remove old branch data
+    full_data = full_data[full_data["Branch"] != st.session_state.selected_branch]
 
     new_data = edited_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
@@ -169,16 +157,16 @@ if st.button("💾 Save Schedule", type="primary"):
     if "Name" in new_data.columns:
         new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final = pd.concat([all_data, new_data], ignore_index=True)
+    final_df = pd.concat([full_data, new_data], ignore_index=True)
 
     ws.clear()
-    ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+    ws.update([final_df.columns.tolist()] + final_df.fillna("").values.tolist())
 
-    st.success("✅ Schedule updated successfully")
+    st.success("✅ Saved Successfully!")
     st.rerun()
 
 # =========================
-# 10. BACK
+# 9. BACK
 # =========================
 if st.button("⬅ Back"):
     st.switch_page("app.py")
