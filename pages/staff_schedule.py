@@ -24,9 +24,26 @@ master_sheet = gspread.authorize(creds).open_by_key(
 # 2. CONFIG
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
-ROLE_OPTIONS = ["Staff", "Supervisor", "Acting Supervisor", "Team Leader", "Acting Team Leader"]
-SHIFT_OPTIONS = ["Morning shift", "Mid shift", "Evening shift", "Night shift"]
-TIME_OPTIONS = [f"{h}:00 AM" for h in range(1, 13)] + [f"{h}:00 PM" for h in range(1, 13)] + ["OFF"]
+ROLE_OPTIONS = [
+    "Staff",
+    "Supervisor",
+    "Acting Supervisor",
+    "Team Leader",
+    "Acting Team Leader"
+]
+
+SHIFT_OPTIONS = [
+    "Morning shift",
+    "Mid shift",
+    "Evening shift",
+    "Night shift"
+]
+
+TIME_OPTIONS = (
+    [f"{h}:00 AM" for h in range(1, 13)] +
+    [f"{h}:00 PM" for h in range(1, 13)] +
+    ["OFF"]
+)
 
 # 3. UI
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
@@ -34,7 +51,7 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 start_date = st.date_input("Week Start Date")
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-# ✅ FIXED DATE FORMAT (Sun 24/05)
+# ✅ DATE FORMAT
 day_dates = [
     (start_date + timedelta(days=i)).strftime("%a %d/%m")
     for i in range(7)
@@ -42,24 +59,30 @@ day_dates = [
 
 # 4. LOAD DATA
 def get_filtered_data():
+
     ws = master_sheet.worksheet("StaffSchedule")
     all_data = ws.get_all_records()
 
     df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
     if df.empty:
-        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+        df = pd.DataFrame(
+            columns=["Branch", "Date", "Name", "Role"] + DAYS
+        )
 
     return df[df["Branch"] == st.session_state.selected_branch]
 
 
 df = get_filtered_data()
 
-# 5. BUILD UI (UNCHANGED LOGIC)
+# 5. BUILD UI
 st.subheader("Edit Roster")
 
 config = {
-    "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
+    "Role": st.column_config.SelectboxColumn(
+        "Role",
+        options=ROLE_OPTIONS
+    )
 }
 
 df_display = df.copy()
@@ -67,12 +90,15 @@ df_display = df.copy()
 for i, day in enumerate(DAYS):
 
     if shift_mode:
-        # remove time columns if exist
+
+        # REMOVE TIME COLUMNS IF EXIST
         start_col = f"{day}: Start"
         end_col = f"{day}: Finish"
 
         if start_col in df_display.columns:
+
             cols_to_drop = [start_col]
+
             if end_col in df_display.columns:
                 cols_to_drop.append(end_col)
 
@@ -81,86 +107,43 @@ for i, day in enumerate(DAYS):
         if day not in df_display.columns:
             df_display[day] = ""
 
-        # SHIFT MODE CONFIG
+        # SHIFT MODE COLUMN
         config[day] = st.column_config.SelectboxColumn(
             f"({day_dates[i]})",
             options=SHIFT_OPTIONS
         )
 
     else:
-        # remove shift column if exists
+
+        # REMOVE SHIFT COLUMN IF EXISTS
         if day in df_display.columns:
             df_display.drop(columns=[day], inplace=True)
 
         start_col = f"{day}: Start"
         end_col = f"{day}: End"
 
-        if start_col not in df_display.columns:
-            df_display[start_col] = ""
+        # SUPPORT OLD "Finish" COLUMNS
+        alt_end_col = f"{day}: Finish"
 
         if end_col not in df_display.columns:
-            df_display[end_col] = ""
 
-# ==============================
-# ✅ NORMAL MODE HEADER GROUPING
-# ==============================
-
-if not shift_mode:
-
-    # Ensure base columns exist
-    if "Name" not in df_display.columns:
-        df_display["Name"] = ""
-
-    if "Role" not in df_display.columns:
-        df_display["Role"] = ""
-
-    # Build ordered multi-index columns
-    multi_columns = [
-        ("Info", "Name"),
-        ("Info", "Role")
-    ]
-
-    rename_map = {
-        "Name": ("Info", "Name"),
-        "Role": ("Info", "Role")
-    }
-
-    for i, day in enumerate(DAYS):
-
-        day_label = day_dates[i]
-
-        start_col = f"{day}: Start"
-        end_col = f"{day}: End"
-
-        # fallback support if old data has Finish
-        if end_col not in df_display.columns:
-            alt_end = f"{day}: Finish"
-
-            if alt_end in df_display.columns:
-                df_display.rename(columns={alt_end: end_col}, inplace=True)
+            if alt_end_col in df_display.columns:
+                df_display.rename(
+                    columns={alt_end_col: end_col},
+                    inplace=True
+                )
             else:
                 df_display[end_col] = ""
 
         if start_col not in df_display.columns:
             df_display[start_col] = ""
 
-        rename_map[start_col] = (day_label, "Start")
-        rename_map[end_col] = (day_label, "End")
+# ==============================
+# SHIFT MODE (UNCHANGED)
+# ==============================
 
-        multi_columns.append((day_label, "Start"))
-        multi_columns.append((day_label, "End"))
+if shift_mode:
 
-    # rename columns
-    df_display = df_display.rename(columns=rename_map)
-
-    # keep only needed columns in order
-    existing_cols = [c for c in multi_columns if c in df_display.columns]
-
-    df_display = df_display[existing_cols]
-
-else:
-
-    # SHIFT MODE (UNCHANGED)
     edited_df = st.data_editor(
         df_display,
         column_config=config,
@@ -169,18 +152,117 @@ else:
     )
 
 # ==============================
-# ✅ NORMAL MODE DATA EDITOR
+# NORMAL MODE WITH GROUPED HEADERS
 # ==============================
 
-if not shift_mode:
+else:
+
+    # ORDER COLUMNS PROPERLY
+    ordered_cols = ["Name", "Role"]
+
+    for day in DAYS:
+        ordered_cols.append(f"{day}: Start")
+        ordered_cols.append(f"{day}: End")
+
+    existing_cols = [
+        col for col in ordered_cols
+        if col in df_display.columns
+    ]
+
+    df_display = df_display[existing_cols]
+
+    # ==============================
+    # CUSTOM HEADER ROW
+    # ==============================
+
+    header_cols = st.columns(
+        [1.8, 1.5] + [2.2] * 7
+    )
+
+    header_cols[0].markdown(
+        "<div style='font-weight:bold; font-size:18px;'>Name</div>",
+        unsafe_allow_html=True
+    )
+
+    header_cols[1].markdown(
+        "<div style='font-weight:bold; font-size:18px;'>Role</div>",
+        unsafe_allow_html=True
+    )
+
+    for i, day_label in enumerate(day_dates):
+
+        header_cols[i + 2].markdown(
+            f"""
+            <div style="
+                text-align:center;
+                font-weight:bold;
+                font-size:17px;
+                margin-bottom:0px;
+            ">
+                {day_label}
+            </div>
+
+            <div style="
+                display:flex;
+                justify-content:space-between;
+                padding:0 18px;
+                font-size:13px;
+                color:gray;
+                margin-top:-5px;
+            ">
+                <span>Start</span>
+                <span>End</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ==============================
+    # DATA EDITOR
+    # ==============================
 
     edited_df = st.data_editor(
         df_display,
+
+        column_config={
+
+            "Name": st.column_config.TextColumn(
+                "",
+                width="medium"
+            ),
+
+            "Role": st.column_config.SelectboxColumn(
+                "",
+                options=ROLE_OPTIONS,
+                width="medium"
+            ),
+
+            **{
+                f"{day}: Start": st.column_config.SelectboxColumn(
+                    "",
+                    options=TIME_OPTIONS,
+                    width="small"
+                )
+                for day in DAYS
+            },
+
+            **{
+                f"{day}: End": st.column_config.SelectboxColumn(
+                    "",
+                    options=TIME_OPTIONS,
+                    width="small"
+                )
+                for day in DAYS
+            }
+        },
+
         num_rows="dynamic",
-        use_container_width=True
+        use_container_width=True,
+        hide_index=True
     )
 
 # 6. SAVE LOGIC (UNCHANGED)
+
 if st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
@@ -191,25 +273,6 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     ]
 
     new_data = edited_df.copy()
-
-    # ==============================
-    # ✅ FLATTEN MULTIINDEX COLUMNS
-    # ==============================
-    if not shift_mode and isinstance(new_data.columns, pd.MultiIndex):
-
-        flat_columns = []
-
-        for top, bottom in new_data.columns:
-
-            if top == "Info":
-                flat_columns.append(bottom)
-
-            else:
-                day_name = DAYS[day_dates.index(top)]
-
-                flat_columns.append(f"{day_name}: {bottom}")
-
-        new_data.columns = flat_columns
 
     new_data["Branch"] = st.session_state.selected_branch
     new_data["Date"] = str(start_date)
@@ -227,6 +290,7 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     )
 
     ws.clear()
+
     ws.update(
         [final_df.columns.values.tolist()] +
         final_df.fillna("").values.tolist()
@@ -236,5 +300,6 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     st.rerun()
 
 # 7. BACK BUTTON
+
 if st.button("⬅ Back"):
     st.switch_page("app.py")
