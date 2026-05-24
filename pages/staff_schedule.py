@@ -1,12 +1,10 @@
-
-  
 import streamlit as st
-
 import gspread
 import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
 
-st.set_page_config(layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(layout="wide", page_title="Staff Schedule")
 
 # ---------------- AUTH & SETUP ----------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
@@ -23,12 +21,22 @@ client = gspread.authorize(creds)
 # Open the branch-specific sheet
 sheet = client.open_by_key(st.session_state.branch_info["SheetID"])
 
-# ---------------- LOAD DATA ----------------
-@st.cache_data(ttl=60)
+# ---------------- DATA HANDLING ----------------
 def get_schedule():
-    ws = sheet.worksheet("StaffSchedule")
+    try:
+        ws = sheet.worksheet("StaffSchedule")
+    except gspread.exceptions.WorksheetNotFound:
+        # Auto-create if missing
+        ws = sheet.add_worksheet(title="StaffSchedule", rows="100", cols="9")
+        headers = ["Name", "Role", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        ws.append_row(headers)
+    
     data = ws.get_all_records()
     return pd.DataFrame(data)
+
+# Load data into session state
+if "df_schedule" not in st.session_state:
+    st.session_state.df_schedule = get_schedule()
 
 # ---------------- UI ----------------
 st.title(f"Staff Schedule: {st.session_state.selected_branch}")
@@ -36,17 +44,14 @@ st.title(f"Staff Schedule: {st.session_state.selected_branch}")
 roles = ["Staff", "Supervisor", "Acting Supervisor", "Team Leader", "Acting Team Leader"]
 shifts = ["Morning", "Mid Shift", "Evening", "Night"]
 
-# Initialize session state for the editor
-if "df_schedule" not in st.session_state:
-    st.session_state.df_schedule = get_schedule()
-
-# Date Range Selection
+# Date Selection
 col1, col2 = st.columns(2)
-start_date = col1.date_input("Schedule Start Date")
-end_date = col2.date_input("Schedule End Date")
+start_date = col1.date_input("Start Date")
+end_date = col2.date_input("End Date")
+
+st.subheader("Weekly Roster")
 
 # Data Editor
-st.subheader("Weekly Roster")
 edited_df = st.data_editor(
     st.session_state.df_schedule,
     column_config={
@@ -68,10 +73,13 @@ if st.button("💾 Save Schedule"):
     try:
         ws = sheet.worksheet("StaffSchedule")
         ws.clear()
+        # Update with headers + data
         ws.update([edited_df.columns.values.tolist()] + edited_df.values.tolist())
         st.success("Schedule saved successfully!")
+        # Update session state to avoid stale data
+        st.session_state.df_schedule = edited_df
     except Exception as e:
-        st.error(f"Error saving: {e}")
+        st.error(f"Error saving to Google Sheets: {e}")
 
 if st.button("⬅ Back"):
     st.switch_page("app.py")
