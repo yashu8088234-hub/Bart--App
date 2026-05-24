@@ -6,82 +6,54 @@ import time
 from oauth2client.service_account import ServiceAccountCredentials
 
 # =========================================================
-# PAGE CONFIG
+# CONFIG
 # =========================================================
 
-st.set_page_config(
-    layout="wide",
-    page_title="Weekly Staff Schedule"
-)
-
-# =========================================================
-# SESSION CHECK
-# =========================================================
+st.set_page_config(layout="wide", page_title="Weekly Staff Schedule")
 
 if "branch_info" not in st.session_state:
-
-    st.warning("Session expired. Please login again.")
-
-    if st.button("Return Home"):
-        st.switch_page("app.py")
-
+    st.warning("Session expired")
     st.stop()
 
 branch_info = st.session_state.branch_info
 
 # =========================================================
-# GOOGLE SHEETS CONNECTION
+# GOOGLE SHEETS
 # =========================================================
 
 @st.cache_resource
-def connect_gsheet():
-
-    creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-
+def connect():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        creds_dict,
-        scope
+        st.secrets["GOOGLE_CREDS_JSON"],
+        ["https://spreadsheets.google.com/feeds",
+         "https://www.googleapis.com/auth/drive"]
     )
+    return gspread.authorize(creds)
 
-    client = gspread.authorize(creds)
-
-    return client
-
-
-client = connect_gsheet()
-
+client = connect()
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# WEEK CALCULATION
+# DATE RANGE (USER SELECT)
 # =========================================================
 
-today = datetime.date.today()
+st.title("📅 Weekly Staff Scheduler")
 
-start_of_week = today - datetime.timedelta(days=today.weekday())
+col1, col2 = st.columns(2)
 
-week_string = start_of_week.strftime("%Y-%m-%d")
+with col1:
+    from_date = st.date_input("From Date", datetime.date.today())
 
-# =========================================================
-# PAGE HEADER
-# =========================================================
+with col2:
+    to_date = st.date_input("To Date", datetime.date.today() + datetime.timedelta(days=6))
 
-st.title(f"📅 Weekly Staff Schedule")
-
-st.subheader(f"{branch_info['BranchName']}")
-
-st.caption(f"Week Starting: {week_string}")
+week_label = f"{from_date} to {to_date}"
 
 # =========================================================
-# WORKSHEET SETUP
+# WORKSHEET
 # =========================================================
 
-worksheet_name = f"WeeklySchedule_{week_string}"
+worksheet_name = f"Weekly_{from_date}"
 
 required_columns = [
     "StaffID",
@@ -96,6 +68,27 @@ required_columns = [
     "Friday",
     "Notes"
 ]
+
+@st.cache_data(ttl=60)
+def load_data():
+    try:
+        ws = sheet.worksheet(worksheet_name)
+    except:
+        ws = sheet.add_worksheet(worksheet_name, 1000, 20)
+        ws.append_row(required_columns)
+
+    data = ws.get_all_records()
+    return pd.DataFrame(data) if data else pd.DataFrame(columns=required_columns)
+
+df = load_data()
+
+df = df.fillna("")
+
+for c in required_columns:
+    if c not in df.columns:
+        df[c] = ""
+
+df = df[required_columns]
 
 # =========================================================
 # LOAD / CREATE SHEET
@@ -200,45 +193,6 @@ with top1:
 
             st.error(f"Error: {e}")
 
-# =========================================================
-# KPI SECTION
-# =========================================================
-
-total_staff = len(df)
-
-morning_count = 0
-evening_count = 0
-off_count = 0
-
-day_columns = [
-    "Saturday",
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday"
-]
-
-for day in day_columns:
-
-    morning_count += len(df[df[day] == "M"])
-
-    evening_count += len(df[df[day] == "E"])
-
-    off_count += len(df[df[day] == "OFF"])
-
-k1, k2, k3, k4 = st.columns(4)
-
-k1.metric("Total Staff", total_staff)
-
-k2.metric("Morning Shifts", morning_count)
-
-k3.metric("Evening Shifts", evening_count)
-
-k4.metric("OFF Days", off_count)
-
-st.divider()
 
 # =========================================================
 # SEARCH FILTER
@@ -262,176 +216,79 @@ if search:
         )
     ]
 
-# =========================================================
-# SHIFT LEGEND
-# =========================================================
 
-with st.expander("📘 Shift Codes"):
 
-    st.markdown("""
-    - **M** = Morning Shift  
-    - **E** = Evening Shift  
-    - **OFF** = Weekly Off  
-    - **LV** = Leave  
-    - **ABS** = Absent  
-    """)
 
 # =========================================================
-# DATA EDITOR
+# EDITOR (NO SHIFT CODES UI)
 # =========================================================
 
-shift_options = [
-    "",
-    "M",
-    "E",
-    "OFF",
-    "LV",
-    "ABS"
-]
-
-
-
-
-
-# RESET EDITOR AFTER SAVE
-
-if "editor_reset" not in st.session_state:
-    st.session_state["editor_reset"] = False
-
-if st.session_state["editor_reset"]:
-
-    filtered_df = pd.DataFrame(columns=required_columns)
-
-    st.session_state["editor_reset"] = False
-st.subheader("📝 Weekly Schedule Planner")
+st.subheader(f"📝 Schedule ({week_label})")
 
 edited_df = st.data_editor(
-    filtered_df,
+    df,
     use_container_width=True,
     num_rows="dynamic",
     hide_index=True,
-
     column_config={
+        "StaffID": st.column_config.TextColumn("Staff ID"),
+        "EmployeeName": st.column_config.TextColumn("Employee Name"),
+        "Role": st.column_config.TextColumn("Role"),
 
-        "StaffID": st.column_config.TextColumn(
-            "Staff ID"
-        ),
+        "Saturday": st.column_config.TextColumn("Saturday"),
+        "Sunday": st.column_config.TextColumn("Sunday"),
+        "Monday": st.column_config.TextColumn("Monday"),
+        "Tuesday": st.column_config.TextColumn("Tuesday"),
+        "Wednesday": st.column_config.TextColumn("Wednesday"),
+        "Thursday": st.column_config.TextColumn("Thursday"),
+        "Friday": st.column_config.TextColumn("Friday"),
 
-        "EmployeeName": st.column_config.TextColumn(
-            "Employee Name"
-        ),
-
-        "Role": st.column_config.SelectboxColumn(
-            "Role",
-            options=[
-                "",
-                "Manager",
-                "Supervisor",
-                "Cashier",
-                "Kitchen",
-                "Cleaner",
-                "Barista",
-                "Driver",
-                "Staff"
-            ]
-        ),
-
-        "Saturday": st.column_config.SelectboxColumn(
-            "Saturday",
-            options=shift_options
-        ),
-
-        "Sunday": st.column_config.SelectboxColumn(
-            "Sunday",
-            options=shift_options
-        ),
-
-        "Monday": st.column_config.SelectboxColumn(
-            "Monday",
-            options=shift_options
-        ),
-
-        "Tuesday": st.column_config.SelectboxColumn(
-            "Tuesday",
-            options=shift_options
-        ),
-
-        "Wednesday": st.column_config.SelectboxColumn(
-            "Wednesday",
-            options=shift_options
-        ),
-
-        "Thursday": st.column_config.SelectboxColumn(
-            "Thursday",
-            options=shift_options
-        ),
-
-        "Friday": st.column_config.SelectboxColumn(
-            "Friday",
-            options=shift_options
-        ),
-
-        "Notes": st.column_config.TextColumn(
-            "Notes"
-        )
-
+        "Notes": st.column_config.TextColumn("Notes")
     }
 )
 
 # =========================================================
-# SAVE BUTTON
+# SAVE (NO KPI RESET, ONLY VISUAL RESET)
 # =========================================================
+
+if st.button("💾 SAVE WEEKLY SCHEDULE", type="primary"):
+
+    ws = sheet.worksheet(worksheet_name)
+
+    edited_df = edited_df.fillna("")
+    edited_df = edited_df[required_columns]
+
+    final = [required_columns] + edited_df.values.tolist()
+
+    ws.clear()
+    ws.update(final)
+
+    st.success("Saved successfully")
+
+    st.rerun()
+
 # =========================================================
-# SAVE BUTTON
+# WEEKLY OVERVIEW (YOUR REQUESTED FORMAT)
 # =========================================================
 
 st.divider()
+st.subheader("📊 Weekly Overview")
 
-save_col1, save_col2 = st.columns([1,5])
+overview_cols = [
+    "EmployeeName",
+    "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"
+]
 
-with save_col1:
+overview_df = edited_df[overview_cols].copy()
 
-    if st.button(
-        "💾 SAVE WEEKLY SCHEDULE",
-        type="primary",
-        use_container_width=True
-    ):
+st.dataframe(overview_df, use_container_width=True, hide_index=True)
 
-        try:
-
-            ws = sheet.worksheet(worksheet_name)
-
-            edited_df = edited_df.fillna("")
-
-            for col in required_columns:
-                edited_df[col] = edited_df[col].astype(str)
-
-            edited_df = edited_df[required_columns]
-
-            final_data = [
-                required_columns
-            ] + edited_df.values.tolist()
-
-            # SAVE DATA
-            ws.clear()
-
-            ws.update(final_data)
-
-            # CLEAR CACHE
-            st.cache_data.clear()
-
-            # CLEAR ONLY VISUAL EDITOR
-            st.session_state["editor_reset"] = True
-
-            st.success("✅ Weekly schedule saved successfully.")
-
-            time.sleep(1)
-
-            st.rerun()
-
-        except Exception as e:
-
-            st.error(f"Error saving schedule: {e}")
 # =========================================================
 # DOWNLOAD CSV
 # =========================================================
