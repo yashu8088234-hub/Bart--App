@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # =========================================
-# 1. AUTH & CONNECTION
+# 1. AUTH
 # =========================================
 
 if (
@@ -40,29 +40,17 @@ master_sheet = gspread.authorize(creds).open_by_key(
 # =========================================
 
 DAYS = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday"
+    "Sunday","Monday","Tuesday","Wednesday",
+    "Thursday","Friday","Saturday"
 ]
 
 ROLE_OPTIONS = [
-    "Staff",
-    "Supervisor",
-    "Acting Supervisor",
-    "Team Leader",
-    "Acting Team Leader"
+    "Staff","Supervisor","Acting Supervisor",
+    "Team Leader","Acting Team Leader"
 ]
 
 SHIFT_OPTIONS = [
-    "Morning shift",
-    "Mid shift",
-    "Evening shift",
-    "Night shift",
-    "Day off "
+    "Morning shift","Mid shift","Evening shift","Night shift, "Day off"
 ]
 
 # =========================================
@@ -71,13 +59,13 @@ SHIFT_OPTIONS = [
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
-# kept ONLY for future use (not connected to data)
 start_date = st.date_input("Week Start Date")
 
-shift_mode = st.toggle("Enable Shift-wise Mode")
+# ✅ renamed toggle
+edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 4. LOAD DATA (NO DATE USAGE)
+# 4. LOAD DATA
 # =========================================
 
 def get_filtered_data():
@@ -98,7 +86,7 @@ df = get_filtered_data()
 # 5. BUILD UI
 # =========================================
 
-st.subheader("Roster View")
+df_display = df.copy()
 
 config = {
     "Role": st.column_config.SelectboxColumn(
@@ -107,34 +95,22 @@ config = {
     )
 }
 
-df_display = df.copy()
-
-# =========================================
-# SHIFT PREPARATION
-# =========================================
-
 for day in DAYS:
 
-    if shift_mode:
+    if day not in df_display.columns:
+        df_display[day] = ""
 
-        if day not in df_display.columns:
-            df_display[day] = ""
-
+    if edit_mode:
         config[day] = st.column_config.SelectboxColumn(
             day,
             options=SHIFT_OPTIONS
         )
 
-    else:
-
-        if day not in df_display.columns:
-            df_display[day] = ""
-
 # =========================================
-# SHIFT MODE (EDITABLE)
+# EDIT MODE (SHIFT EDIT)
 # =========================================
 
-if shift_mode:
+if edit_mode:
 
     edited_df = st.data_editor(
         df_display,
@@ -144,36 +120,20 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (VIEW ONLY)
+# VIEW MODE (AGGRID - SCROLLABLE + COMPACT)
 # =========================================
 
 else:
 
     ordered_cols = ["Name", "Role"] + DAYS
-
-    existing_cols = [
-        c for c in ordered_cols
-        if c in df_display.columns
-    ]
-
-    df_display = df_display[existing_cols]
+    df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
 
     column_defs = [
-        {
-            "headerName": "Name",
-            "field": "Name",
-            "pinned": "left",
-            "width": 140
-        },
-        {
-            "headerName": "Role",
-            "field": "Role",
-            "width": 140
-        }
+        {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
+        {"headerName": "Role", "field": "Role", "width": 140}
     ]
 
     for day in DAYS:
-
         column_defs.append({
             "headerName": day,
             "field": day,
@@ -189,19 +149,12 @@ else:
         },
         "headerHeight": 45,
         "rowHeight": 42,
-        "animateRows": True
+
+        # ✅ IMPORTANT: makes it scrollable instead of huge
+        "domLayout": "normal"
     }
 
     custom_css = {
-        ".ag-header-group-cell-label": {
-            "justify-content": "flex-start",
-            "font-weight": "bold",
-            "font-size": "15px"
-        },
-        ".ag-header-cell-label": {
-            "justify-content": "flex-start",
-            "font-size": "13px"
-        },
         ".ag-cell": {
             "display": "flex",
             "justify-content": "flex-start",
@@ -214,8 +167,11 @@ else:
         df_display,
         gridOptions=grid_options,
         custom_css=custom_css,
-        height=650,
-        fit_columns_on_grid_load=False,
+
+        # ✅ ~10 rows visible height
+        height=10 * 42 + 90,
+
+        fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
         editable=False,
         theme="streamlit"
@@ -224,40 +180,41 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 6. SAVE LOGIC (NO DATE STORED)
+# 6. SAVE (ONLY IN EDIT MODE)
 # =========================================
 
-if st.button("💾 Save to Master Sheet", type="primary"):
+if edit_mode:
 
-    ws = master_sheet.worksheet("StaffSchedule")
+    if st.button("💾 Save to Master Sheet", type="primary"):
 
-    full_data = pd.DataFrame(ws.get_all_records())
+        ws = master_sheet.worksheet("StaffSchedule")
 
-    remaining_data = full_data[
-        full_data["Branch"] != st.session_state.selected_branch
-    ]
+        full_data = pd.DataFrame(ws.get_all_records())
 
-    new_data = edited_df.copy()
+        remaining_data = full_data[
+            full_data["Branch"] != st.session_state.selected_branch
+        ]
 
-    new_data["Branch"] = st.session_state.selected_branch
+        new_data = edited_df.copy()
+        new_data["Branch"] = st.session_state.selected_branch
 
-    if "Name" in new_data.columns:
-        new_data["Name"] = new_data["Name"].astype(str).str.upper()
+        if "Name" in new_data.columns:
+            new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
+        final_df = pd.concat([remaining_data, new_data], ignore_index=True)
 
-    ws.clear()
+        ws.clear()
 
-    ws.update(
-        [final_df.columns.values.tolist()] +
-        final_df.fillna("").values.tolist()
-    )
+        ws.update(
+            [final_df.columns.values.tolist()] +
+            final_df.fillna("").values.tolist()
+        )
 
-    st.success("✅ Saved Successfully!")
-    st.rerun()
+        st.success("✅ Saved Successfully!")
+        st.rerun()
 
 # =========================================
-# 7. BACK BUTTON
+# 7. BACK
 # =========================================
 
 if st.button("⬅ Back"):
