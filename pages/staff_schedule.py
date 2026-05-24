@@ -7,12 +7,19 @@ from datetime import datetime
 
 from st_aggrid import AgGrid
 
-st.set_page_config(layout="wide", page_title="BART Master Schedule")
+st.set_page_config(
+    layout="wide",
+    page_title="BART Master Schedule"
+)
 
-# ==============================
-# AUTH
-# ==============================
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
+# =========================================
+# 1. AUTH
+# =========================================
+
+if (
+    "authenticated" not in st.session_state
+    or not st.session_state.authenticated
+):
     st.error("Please login first.")
     st.stop()
 
@@ -20,15 +27,29 @@ creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(
     creds_dict,
-    ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
 )
 
 master_sheet = gspread.authorize(creds).open_by_key(
     "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 )
 
-# ==============================
-DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+# =========================================
+# 2. CONFIG
+# =========================================
+
+DAYS = [
+    "Sunday","Monday","Tuesday","Wednesday",
+    "Thursday","Friday","Saturday"
+]
+
+ROLE_OPTIONS = [
+    "Staff","Supervisor","Acting Supervisor",
+    "Team Leader","Acting Team Leader"
+]
 
 SHIFT_OPTIONS = [
     "Morning shift",
@@ -39,129 +60,228 @@ SHIFT_OPTIONS = [
     "Custom Time"
 ]
 
-ROLE_OPTIONS = [
-    "Staff","Supervisor","Acting Supervisor","Team Leader","Acting Team Leader"
-]
+# =========================================
+# 3. UI
+# =========================================
 
-# ==============================
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
 edit_mode = st.toggle("Edit Mode Only")
 
-# ==============================
-def get_data():
+# =========================================
+# 4. LOAD DATA (VIEW ONLY)
+# =========================================
+
+def get_filtered_data():
     ws = master_sheet.worksheet("StaffSchedule")
-    df = pd.DataFrame(ws.get_all_records())
+    all_data = ws.get_all_records()
+
+    df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
+
     if df.empty:
-        df = pd.DataFrame(columns=["Branch","Date","Name","Role"] + DAYS)
+        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+
     return df[df["Branch"] == st.session_state.selected_branch]
 
-df = get_data()
 
-existing_names = df["Name"].dropna().unique().tolist()
+df = get_filtered_data()
 
-# ==============================
-# SESSION STATE FOR CELL EDIT
-# ==============================
-if "edit_cell" not in st.session_state:
-    st.session_state.edit_cell = None
+# =========================================
+# 5. NAME AUTOCOMPLETE
+# =========================================
 
-# ==============================
-# EDIT MODE (WHATSAPP STYLE)
-# ==============================
+existing_names = df[
+    df["Branch"] == st.session_state.selected_branch
+]["Name"].dropna().unique().tolist()
+
+# =========================================
+# 6. CONFIG
+# =========================================
+
+config = {
+    "Name": st.column_config.SelectboxColumn(
+        "Name",
+        options=existing_names,
+        help="Select employee"
+    ),
+    "Role": st.column_config.SelectboxColumn(
+        "Role",
+        options=ROLE_OPTIONS
+    )
+}
+
+for day in DAYS:
+    config[day] = st.column_config.SelectboxColumn(
+        day,
+        options=SHIFT_OPTIONS
+    )
+
+# =========================================
+# 7. EDIT MODE (EMPTY INPUT TABLE)
+# =========================================
+
 if edit_mode:
 
-    df_display = pd.DataFrame(columns=["Name","Role"] + DAYS)
+    df_display = pd.DataFrame(
+        columns=["Name", "Role"] + DAYS
+    )
 
     edited_df = st.data_editor(
         df_display,
+        column_config=config,
         num_rows="dynamic",
         use_container_width=True
     )
 
-    # ==============================
-    # CELL SELECTOR (SIMULATED CLICK)
-    # ==============================
-    st.markdown("### ✏️ Tap a Cell to Edit")
+    # =====================================
+    # CUSTOM TIME PICKER (12-HR SIMPLE)
+    # =====================================
 
-    row_idx = st.number_input("Row", min_value=0, step=1)
-    day = st.selectbox("Day", DAYS)
+    for i, row in edited_df.iterrows():
+        for day in DAYS:
 
-    shift = st.selectbox("Shift Type", SHIFT_OPTIONS)
+            if row[day] == "Custom Time":
 
-    start_time = None
-    end_time = None
+                st.markdown(f"### ⏰ {row['Name']} - {day}")
 
-    if shift == "Custom Time":
+                col1, col2, col3 = st.columns(3)
 
-        col1, col2 = st.columns(2)
+                with col1:
+                    sh = st.selectbox(
+                        "Start Hour",
+                        [str(h) for h in range(1, 13)],
+                        key=f"{i}_{day}_sh"
+                    )
 
-        with col1:
-            start_time = st.time_input("Start Time")
+                with col2:
+                    sm = st.selectbox(
+                        "Min",
+                        ["00", "30"],
+                        key=f"{i}_{day}_sm"
+                    )
 
-        with col2:
-            end_time = st.time_input("End Time")
+                with col3:
+                    sap = st.selectbox(
+                        "AM/PM",
+                        ["AM", "PM"],
+                        key=f"{i}_{day}_sap"
+                    )
 
-    if st.button("Apply Change"):
+                col4, col5, col6 = st.columns(3)
 
-        if row_idx < len(edited_df):
+                with col4:
+                    eh = st.selectbox(
+                        "End Hour",
+                        [str(h) for h in range(1, 13)],
+                        key=f"{i}_{day}_eh"
+                    )
 
-            if shift == "Custom Time":
-                value = f"{start_time.strftime('%I:%M %p')} - {end_time.strftime('%I:%M %p')}"
-            else:
-                value = shift
+                with col5:
+                    em = st.selectbox(
+                        "Min",
+                        ["00", "30"],
+                        key=f"{i}_{day}_em"
+                    )
 
-            edited_df.at[row_idx, day] = value
+                with col6:
+                    eap = st.selectbox(
+                        "AM/PM",
+                        ["AM", "PM"],
+                        key=f"{i}_{day}_eap"
+                    )
 
-            st.success("Updated instantly ✔️")
+                start_time = f"{sh}:{sm} {sap}"
+                end_time = f"{eh}:{em} {eap}"
 
-# ==============================
-# VIEW MODE (UNCHANGED)
-# ==============================
+                edited_df.at[i, day] = f"{start_time} - {end_time}"
+
+# =========================================
+# 8. VIEW MODE (AGGRID)
+# =========================================
+
 else:
 
     df_display = df.copy()
 
+    ordered_cols = ["Name", "Role", "Date"] + DAYS
+    df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
+
     column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left"},
-        {"headerName":"Role","field":"Role"},
-        {"headerName":"Date","field":"Date"}
+        {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
+        {"headerName": "Role", "field": "Role", "width": 150},
+        {"headerName": "Date", "field": "Date", "width": 180},
     ]
 
-    for d in DAYS:
-        column_defs.append({"headerName":d,"field":d})
+    for day in DAYS:
+        column_defs.append({
+            "headerName": day,
+            "field": day,
+            "width": 140
+        })
+
+    grid_options = {
+        "columnDefs": column_defs,
+        "defaultColDef": {
+            "resizable": True,
+            "sortable": False,
+            "cellStyle": {"textAlign": "left"}
+        },
+        "headerHeight": 35,
+        "rowHeight": 32,
+        "domLayout": "normal"
+    }
 
     grid_response = AgGrid(
         df_display,
-        gridOptions={
-            "columnDefs": column_defs,
-            "defaultColDef": {"resizable": True},
-            "rowHeight": 32,
-            "domLayout": "normal"
-        },
-        height=500,
+        gridOptions=grid_options,
+        height=8 * 42 + 90,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        editable=False,
         theme="streamlit"
     )
 
-# ==============================
-# SAVE
-# ==============================
-if edit_mode and st.button("💾 Save"):
+    edited_df = pd.DataFrame(grid_response["data"])
 
-    ws = master_sheet.worksheet("StaffSchedule")
+# =========================================
+# 9. SAVE
+# =========================================
 
-    full = pd.DataFrame(ws.get_all_records())
+if edit_mode:
 
-    remaining = full[full["Branch"] != st.session_state.selected_branch]
+    if st.button("💾 Save to Master Sheet", type="primary"):
 
-    new = edited_df.copy()
-    new["Branch"] = st.session_state.selected_branch
-    new["Date"] = datetime.now().strftime("%A %d %B")
+        ws = master_sheet.worksheet("StaffSchedule")
 
-    final = pd.concat([remaining, new], ignore_index=True)
+        full_data = pd.DataFrame(ws.get_all_records())
 
-    ws.clear()
-    ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+        remaining_data = full_data[
+            full_data["Branch"] != st.session_state.selected_branch
+        ]
 
-    st.success("Saved ✔️")
-    st.rerun()
+        new_data = edited_df.copy()
+
+        new_data["Branch"] = st.session_state.selected_branch
+        new_data["Date"] = datetime.now().strftime("%A %d %B")
+
+        if "Name" in new_data.columns:
+            new_data["Name"] = new_data["Name"].astype(str).str.upper()
+
+        final_df = pd.concat([remaining_data, new_data], ignore_index=True)
+
+        ws.clear()
+
+        ws.update(
+            [final_df.columns.values.tolist()] +
+            final_df.fillna("").values.tolist()
+        )
+
+        st.success("✅ Saved Successfully!")
+        st.rerun()
+
+# =========================================
+# 10. BACK
+# =========================================
+
+if st.button("⬅ Back"):
+    st.switch_page("app.py")
