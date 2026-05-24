@@ -7,10 +7,7 @@ from datetime import timedelta
 
 from st_aggrid import AgGrid
 
-st.set_page_config(
-    layout="wide",
-    page_title="BART Master Schedule"
-)
+st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
 # =========================================
 # 1. AUTH
@@ -88,7 +85,7 @@ day_dates = [
 ]
 
 # =========================================
-# 4. LOAD DATA (FIXED)
+# 4. LOAD DATA (FIXED SAFE)
 # =========================================
 
 def get_filtered_data():
@@ -101,14 +98,10 @@ def get_filtered_data():
     if df.empty:
         return pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
 
-    # ✅ SAFE CLEAN FILTER (THIS FIXES YOUR ISSUE)
     df["Branch"] = df["Branch"].astype(str).str.strip().str.lower()
-
     selected = str(st.session_state.selected_branch).strip().lower()
 
-    filtered = df[df["Branch"] == selected].copy()
-
-    return filtered.reset_index(drop=True)
+    return df[df["Branch"] == selected].reset_index(drop=True)
 
 
 df = get_filtered_data()
@@ -130,7 +123,7 @@ config = {
     )
 }
 
-df_display = df.reset_index(drop=True).copy()
+df_display = df.copy()
 
 # =========================================
 # SHIFT MODE
@@ -170,33 +163,37 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (AGGRID VIEW)
+# NORMAL MODE (FIXED ARROW ISSUE)
 # =========================================
 
 else:
 
     for day in DAYS:
 
-        start_col = f"{day}: Start"
-        end_col = f"{day}: End"
-        alt_end_col = f"{day}: Finish"
+        # 🔥 FIX: safer column detection
+        start_candidates = [
+            f"{day}: Start",
+            f"{day} Start",
+            f"{day}_Start"
+        ]
 
-        if start_col not in df_display.columns:
-            df_display[start_col] = ""
+        end_candidates = [
+            f"{day}: End",
+            f"{day}: Finish",
+            f"{day} End",
+            f"{day}_End"
+        ]
 
-        if end_col not in df_display.columns:
-            if alt_end_col in df_display.columns:
-                df_display.rename(
-                    columns={alt_end_col: end_col},
-                    inplace=True
-                )
-            else:
-                df_display[end_col] = ""
+        start_col = next((c for c in start_candidates if c in df_display.columns), None)
+        end_col = next((c for c in end_candidates if c in df_display.columns), None)
+
+        start_val = df_display[start_col] if start_col else ""
+        end_val = df_display[end_col] if end_col else ""
 
         df_display[day] = (
-            df_display[start_col].fillna("").astype(str)
+            start_val.fillna("").astype(str)
             + " → " +
-            df_display[end_col].fillna("").astype(str)
+            end_val.fillna("").astype(str)
         )
 
     keep_cols = ["Name", "Role"] + DAYS
@@ -253,9 +250,6 @@ else:
             "font-size": "12px",
             "padding-left": "6px",
             "padding-right": "6px"
-        },
-        ".ag-root-wrapper": {
-            "border-radius": "10px"
         }
     }
 
@@ -294,10 +288,7 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     if "Name" in new_data.columns:
         new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final_df = pd.concat(
-        [remaining_data, new_data],
-        ignore_index=True
-    )
+    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
 
     ws.clear()
 
