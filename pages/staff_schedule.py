@@ -289,6 +289,20 @@ shift_options = [
     "ABS"
 ]
 
+
+
+
+
+# RESET EDITOR AFTER SAVE
+
+if "editor_reset" not in st.session_state:
+    st.session_state["editor_reset"] = False
+
+if st.session_state["editor_reset"]:
+
+    filtered_df = pd.DataFrame(columns=required_columns)
+
+    st.session_state["editor_reset"] = False
 st.subheader("📝 Weekly Schedule Planner")
 
 edited_df = st.data_editor(
@@ -398,23 +412,18 @@ with save_col1:
                 required_columns
             ] + edited_df.values.tolist()
 
-            # CLEAR OLD DATA
+            # SAVE DATA
             ws.clear()
 
-            # SAVE NEW DATA
             ws.update(final_data)
 
             # CLEAR CACHE
             st.cache_data.clear()
 
-            # CLEAR DATAFRAME AFTER SAVE
-            empty_df = pd.DataFrame(columns=required_columns)
+            # CLEAR ONLY VISUAL EDITOR
+            st.session_state["editor_reset"] = True
 
-            ws.clear()
-
-            ws.append_row(required_columns)
-
-            st.success("✅ Weekly schedule submitted successfully.")
+            st.success("✅ Weekly schedule saved successfully.")
 
             time.sleep(1)
 
