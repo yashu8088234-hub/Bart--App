@@ -1,6 +1,7 @@
 import streamlit as st
 import gspread
 import pandas as pd
+import datetime
 import time
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -10,7 +11,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(
     layout="wide",
-    page_title="Staff Schedule"
+    page_title="Weekly Staff Schedule"
 )
 
 # =========================================================
@@ -18,6 +19,7 @@ st.set_page_config(
 # =========================================================
 
 if "branch_info" not in st.session_state:
+
     st.warning("Session expired. Please login again.")
 
     if st.button("Return Home"):
@@ -53,111 +55,150 @@ def connect_gsheet():
 
 client = connect_gsheet()
 
-# =========================================================
-# OPEN SHEET
-# =========================================================
-
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# LOAD STAFF SCHEDULE
+# WEEK CALCULATION
+# =========================================================
+
+today = datetime.date.today()
+
+start_of_week = today - datetime.timedelta(days=today.weekday())
+
+week_string = start_of_week.strftime("%Y-%m-%d")
+
+# =========================================================
+# PAGE HEADER
+# =========================================================
+
+st.title(f"📅 Weekly Staff Schedule")
+
+st.subheader(f"{branch_info['BranchName']}")
+
+st.caption(f"Week Starting: {week_string}")
+
+# =========================================================
+# WORKSHEET SETUP
+# =========================================================
+
+worksheet_name = f"WeeklySchedule_{week_string}"
+
+required_columns = [
+    "StaffID",
+    "EmployeeName",
+    "Role",
+    "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Notes"
+]
+
+# =========================================================
+# LOAD / CREATE SHEET
 # =========================================================
 
 @st.cache_data(ttl=60)
-def load_staff_schedule(sheet_id):
-
-    local_sheet = client.open_by_key(sheet_id)
+def load_schedule():
 
     try:
-        ws = local_sheet.worksheet("StaffSchedule")
+
+        ws = sheet.worksheet(worksheet_name)
 
     except:
 
-        ws = local_sheet.add_worksheet(
-            title="StaffSchedule",
+        ws = sheet.add_worksheet(
+            title=worksheet_name,
             rows=1000,
             cols=20
         )
 
-        headers = [
-            "StaffID",
-            "EmployeeName",
-            "MobileNumber",
-            "Role",
-            "Shift",
-            "OffDay",
-            "Status",
-            "Notes"
-        ]
-
-        ws.append_row(headers)
+        ws.append_row(required_columns)
 
     data = ws.get_all_records()
 
     if len(data) == 0:
 
-        return pd.DataFrame(columns=[
-            "StaffID",
-            "EmployeeName",
-            "MobileNumber",
-            "Role",
-            "Shift",
-            "OffDay",
-            "Status",
-            "Notes"
-        ])
+        return pd.DataFrame(columns=required_columns)
 
     df = pd.DataFrame(data)
 
     return df
 
 
-df = load_staff_schedule(branch_info["SheetID"])
+df = load_schedule()
 
 # =========================================================
-# CLEAN DATAFRAME
+# CLEAN DATA
 # =========================================================
 
 df.columns = df.columns.str.strip()
 
 df = df.fillna("")
 
-# =========================================================
-# REQUIRED COLUMNS
-# =========================================================
-
-required_columns = [
-    "StaffID",
-    "EmployeeName",
-    "MobileNumber",
-    "Role",
-    "Shift",
-    "OffDay",
-    "Status",
-    "Notes"
-]
-
 for col in required_columns:
 
     if col not in df.columns:
         df[col] = ""
 
-# FORCE STRING TYPE
-
 for col in required_columns:
     df[col] = df[col].astype(str)
-
-# KEEP ONLY REQUIRED COLUMNS
 
 df = df[required_columns]
 
 # =========================================================
-# PAGE TITLE
+# COPY PREVIOUS WEEK BUTTON
 # =========================================================
 
-st.title(f"📅 Staff Schedule - {branch_info['BranchName']}")
+top1, top2, top3 = st.columns([1,1,5])
 
-st.caption(f"Branch Code: {branch_info['BranchCode']}")
+with top1:
+
+    if st.button("📋 Copy Last Week"):
+
+        try:
+
+            previous_week = start_of_week - datetime.timedelta(days=7)
+
+            previous_week_string = previous_week.strftime("%Y-%m-%d")
+
+            previous_sheet_name = f"WeeklySchedule_{previous_week_string}"
+
+            previous_ws = sheet.worksheet(previous_sheet_name)
+
+            previous_data = previous_ws.get_all_records()
+
+            if previous_data:
+
+                current_ws = sheet.worksheet(worksheet_name)
+
+                current_ws.clear()
+
+                previous_df = pd.DataFrame(previous_data)
+
+                final_data = [
+                    previous_df.columns.tolist()
+                ] + previous_df.values.tolist()
+
+                current_ws.update(final_data)
+
+                st.success("Previous week copied successfully.")
+
+                st.cache_data.clear()
+
+                time.sleep(1)
+
+                st.rerun()
+
+            else:
+                st.warning("Previous week is empty.")
+
+        except Exception as e:
+
+            st.error(f"Error: {e}")
 
 # =========================================================
 # KPI SECTION
@@ -165,112 +206,90 @@ st.caption(f"Branch Code: {branch_info['BranchCode']}")
 
 total_staff = len(df)
 
-morning_staff = len(df[df["Shift"] == "MORNING"])
+morning_count = 0
+evening_count = 0
+off_count = 0
 
-evening_staff = len(df[df["Shift"] == "EVENING"])
+day_columns = [
+    "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"
+]
 
-active_staff = len(df[df["Status"] == "ACTIVE"])
+for day in day_columns:
 
-col1, col2, col3, col4 = st.columns(4)
+    morning_count += len(df[df[day] == "M"])
 
-col1.metric("Total Staff", total_staff)
+    evening_count += len(df[df[day] == "E"])
 
-col2.metric("Morning Shift", morning_staff)
+    off_count += len(df[df[day] == "OFF"])
 
-col3.metric("Evening Shift", evening_staff)
+k1, k2, k3, k4 = st.columns(4)
 
-col4.metric("Active Staff", active_staff)
+k1.metric("Total Staff", total_staff)
+
+k2.metric("Morning Shifts", morning_count)
+
+k3.metric("Evening Shifts", evening_count)
+
+k4.metric("OFF Days", off_count)
 
 st.divider()
-
-# =========================================================
-# FILTERS
-# =========================================================
-
-st.subheader("🔍 Search & Filters")
-
-f1, f2, f3 = st.columns(3)
-
-with f1:
-
-    search_query = st.text_input(
-        "Search Staff",
-        placeholder="Search name / mobile / role"
-    )
-
-with f2:
-
-    shift_filter = st.selectbox(
-        "Shift Filter",
-        [
-            "ALL",
-            "MORNING",
-            "EVENING"
-        ]
-    )
-
-with f3:
-
-    status_filter = st.selectbox(
-        "Status Filter",
-        [
-            "ALL",
-            "ACTIVE",
-            "INACTIVE"
-        ]
-    )
-
-filtered_df = df.copy()
 
 # =========================================================
 # SEARCH FILTER
 # =========================================================
 
-if search_query:
+search = st.text_input(
+    "🔍 Search Staff",
+    placeholder="Search name / role / ID"
+)
+
+filtered_df = df.copy()
+
+if search:
 
     filtered_df = filtered_df[
         filtered_df.apply(
             lambda row: row.astype(str)
-            .str.contains(search_query, case=False)
+            .str.contains(search, case=False)
             .any(),
             axis=1
         )
     ]
 
 # =========================================================
-# SHIFT FILTER
+# SHIFT LEGEND
 # =========================================================
 
-if shift_filter != "ALL":
+with st.expander("📘 Shift Codes"):
 
-    filtered_df = filtered_df[
-        filtered_df["Shift"] == shift_filter
-    ]
-
-# =========================================================
-# STATUS FILTER
-# =========================================================
-
-if status_filter != "ALL":
-
-    filtered_df = filtered_df[
-        filtered_df["Status"] == status_filter
-    ]
-
-# =========================================================
-# FINAL CLEAN BEFORE EDITOR
-# =========================================================
-
-filtered_df = filtered_df.fillna("")
-
-for col in required_columns:
-    filtered_df[col] = filtered_df[col].astype(str)
+    st.markdown("""
+    - **M** = Morning Shift  
+    - **E** = Evening Shift  
+    - **OFF** = Weekly Off  
+    - **LV** = Leave  
+    - **ABS** = Absent  
+    """)
 
 # =========================================================
 # DATA EDITOR
 # =========================================================
 
-st.subheader("📝 Edit Staff Schedule")
+shift_options = [
+    "",
+    "M",
+    "E",
+    "OFF",
+    "LV",
+    "ABS"
+]
+
+st.subheader("📝 Weekly Schedule Planner")
 
 edited_df = st.data_editor(
     filtered_df,
@@ -288,10 +307,6 @@ edited_df = st.data_editor(
             "Employee Name"
         ),
 
-        "MobileNumber": st.column_config.TextColumn(
-            "Mobile Number"
-        ),
-
         "Role": st.column_config.SelectboxColumn(
             "Role",
             options=[
@@ -307,36 +322,39 @@ edited_df = st.data_editor(
             ]
         ),
 
-        "Shift": st.column_config.SelectboxColumn(
-            "Shift",
-            options=[
-                "",
-                "MORNING",
-                "EVENING"
-            ]
+        "Saturday": st.column_config.SelectboxColumn(
+            "Saturday",
+            options=shift_options
         ),
 
-        "OffDay": st.column_config.SelectboxColumn(
-            "Off Day",
-            options=[
-                "",
-                "Sunday",
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday"
-            ]
+        "Sunday": st.column_config.SelectboxColumn(
+            "Sunday",
+            options=shift_options
         ),
 
-        "Status": st.column_config.SelectboxColumn(
-            "Status",
-            options=[
-                "",
-                "ACTIVE",
-                "INACTIVE"
-            ]
+        "Monday": st.column_config.SelectboxColumn(
+            "Monday",
+            options=shift_options
+        ),
+
+        "Tuesday": st.column_config.SelectboxColumn(
+            "Tuesday",
+            options=shift_options
+        ),
+
+        "Wednesday": st.column_config.SelectboxColumn(
+            "Wednesday",
+            options=shift_options
+        ),
+
+        "Thursday": st.column_config.SelectboxColumn(
+            "Thursday",
+            options=shift_options
+        ),
+
+        "Friday": st.column_config.SelectboxColumn(
+            "Friday",
+            options=shift_options
         ),
 
         "Notes": st.column_config.TextColumn(
@@ -347,50 +365,43 @@ edited_df = st.data_editor(
 )
 
 # =========================================================
-# SAVE SECTION
+# SAVE BUTTON
 # =========================================================
 
 st.divider()
 
-save_col1, save_col2 = st.columns([1, 5])
+save_col1, save_col2 = st.columns([1,5])
 
 with save_col1:
 
     if st.button(
-        "💾 SAVE",
+        "💾 SAVE WEEKLY SCHEDULE",
         type="primary",
         use_container_width=True
     ):
 
         try:
 
-            ws = sheet.worksheet("StaffSchedule")
+            ws = sheet.worksheet(worksheet_name)
 
-            # CLEAN DATA
             edited_df = edited_df.fillna("")
 
-            # FORCE STRING
             for col in required_columns:
                 edited_df[col] = edited_df[col].astype(str)
 
-            # KEEP COLUMN ORDER
             edited_df = edited_df[required_columns]
 
-            # PREPARE FINAL DATA
             final_data = [
                 required_columns
             ] + edited_df.values.tolist()
 
-            # CLEAR SHEET
             ws.clear()
 
-            # UPDATE SHEET
             ws.update(final_data)
 
-            # CLEAR CACHE
             st.cache_data.clear()
 
-            st.success("✅ Staff schedule updated successfully.")
+            st.success("✅ Weekly schedule saved successfully.")
 
             time.sleep(1)
 
@@ -398,37 +409,105 @@ with save_col1:
 
         except Exception as e:
 
-            st.error(f"Error saving data: {e}")
+            st.error(f"Error saving schedule: {e}")
 
 # =========================================================
 # DOWNLOAD CSV
 # =========================================================
 
-st.divider()
-
 csv = edited_df.to_csv(index=False).encode("utf-8")
 
 st.download_button(
-    label="⬇ Download Staff Schedule CSV",
+    label="⬇ Download Weekly Schedule",
     data=csv,
-    file_name=f"{branch_info['BranchCode']}_staff_schedule.csv",
+    file_name=f"{branch_info['BranchCode']}_{week_string}_schedule.csv",
     mime="text/csv",
     use_container_width=True
 )
 
 # =========================================================
+# STAFFING ANALYTICS
+# =========================================================
+
+st.divider()
+
+st.subheader("📊 Weekly Staffing Overview")
+
+analytics = []
+
+for day in day_columns:
+
+    morning = len(df[df[day] == "M"])
+
+    evening = len(df[df[day] == "E"])
+
+    off = len(df[df[day] == "OFF"])
+
+    leave = len(df[df[day] == "LV"])
+
+    analytics.append({
+        "Day": day,
+        "Morning": morning,
+        "Evening": evening,
+        "OFF": off,
+        "Leave": leave
+    })
+
+analytics_df = pd.DataFrame(analytics)
+
+st.dataframe(
+    analytics_df,
+    use_container_width=True,
+    hide_index=True
+)
+
+# =========================================================
+# UNDERSTAFF ALERTS
+# =========================================================
+
+st.divider()
+
+st.subheader("🚨 Understaff Alerts")
+
+alerts = []
+
+for day in day_columns:
+
+    morning = len(df[df[day] == "M"])
+
+    evening = len(df[df[day] == "E"])
+
+    if morning < 2:
+
+        alerts.append(
+            f"{day}: Low MORNING staffing ({morning})"
+        )
+
+    if evening < 2:
+
+        alerts.append(
+            f"{day}: Low EVENING staffing ({evening})"
+        )
+
+if alerts:
+
+    for alert in alerts:
+        st.warning(alert)
+
+else:
+
+    st.success("✅ Staffing levels look healthy.")
+
+# =========================================================
 # INTERNAL NOTES
 # =========================================================
 
-with st.expander("📌 Internal Notes"):
-
-    st.info(
-        "Use this section for temporary branch notes."
-    )
+with st.expander("📌 Manager Notes"):
 
     notes = st.text_area(
-        "Branch Notes",
-        height=150
+        "Weekly Notes",
+        height=150,
+        placeholder="Add shift notes, leave comments, staffing reminders..."
     )
 
     if st.button("Save Notes"):
@@ -441,4 +520,5 @@ with st.expander("📌 Internal Notes"):
 st.divider()
 
 if st.button("⬅ Back To Dashboard"):
+
     st.switch_page("app.py")
