@@ -5,6 +5,7 @@ import time
 
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+from st_aggrid import AgGrid
 
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
@@ -98,7 +99,7 @@ df = df[df["Branch"] == st.session_state.selected_branch].copy()
 existing_names = df["Name"].dropna().unique().tolist()
 
 # =========================================
-# EDIT TABLE
+# CONFIG
 # =========================================
 
 config = {
@@ -108,6 +109,10 @@ config = {
 
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
+
+# =========================================
+# EDIT MODE
+# =========================================
 
 if edit_mode:
 
@@ -121,16 +126,13 @@ if edit_mode:
         key="editor"
     )
 
-    # =========================================
-    # INLINE CUSTOM TIME (NO POPUP)
-    # =========================================
-
+    # INLINE CUSTOM TIME (no popup)
     for i, row in edited_df.iterrows():
         for d in DAYS:
 
             if row.get(d) == "➕ Custom Time":
 
-                st.info(f"⏰ Custom Time for **{row.get('Name')} - {d}**")
+                st.info(f"⏰ Custom Time for {row.get('Name')} - {d}")
 
                 col1, col2, col3 = st.columns(3)
 
@@ -162,6 +164,50 @@ if edit_mode:
 
                     st.success("Applied!")
                     st.rerun()
+
+# =========================================
+# VIEW MODE (RESTORED AGGRID)
+# =========================================
+
+else:
+
+    df_display = df.copy()
+
+    ordered_cols = ["Name", "Role", "Date"] + DAYS
+    df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
+
+    column_defs = [
+        {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
+        {"headerName": "Role", "field": "Role", "width": 150},
+        {"headerName": "Date", "field": "Date", "width": 180},
+    ]
+
+    for d in DAYS:
+        column_defs.append({
+            "headerName": d,
+            "field": d,
+            "width": 140
+        })
+
+    grid_options = {
+        "columnDefs": column_defs,
+        "defaultColDef": {
+            "resizable": True,
+            "sortable": False,
+            "cellStyle": {"textAlign": "left"}
+        },
+        "headerHeight": 35,
+        "rowHeight": 32,
+    }
+
+    AgGrid(
+        df_display,
+        gridOptions=grid_options,
+        height=500,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True,
+        theme="streamlit"
+    )
 
 # =========================================
 # SAVE
