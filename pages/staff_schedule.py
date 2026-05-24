@@ -8,7 +8,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 # CONFIG
 # =========================================================
 
-st.set_page_config(layout="wide", page_title="Weekly Staff Schedule")
+st.set_page_config(layout="wide", page_title="Weekly Schedule")
 
 if "branch_info" not in st.session_state:
     st.warning("Session expired")
@@ -33,119 +33,111 @@ client = connect()
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# WEEK SELECTION
+# WEEK
 # =========================================================
 
-st.title("📅 Weekly Staff Scheduler (Excel Style)")
+st.title("📅 Weekly Staff Schedule")
 
-from_date = st.date_input("Week Start", datetime.date.today())
-to_date = st.date_input("Week End", datetime.date.today() + datetime.timedelta(days=6))
+from_date = st.date_input("Week Start Date", datetime.date.today())
 
 worksheet_name = f"Weekly_{from_date}"
 
 days = ["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]
 
+columns = ["StaffID","EmployeeName","Role",*days,"Notes"]
+
 # =========================================================
-# LOAD DATA
+# LOAD (ONLY ONCE)
 # =========================================================
 
 @st.cache_data(ttl=60)
-def load():
+def load_data():
     try:
         ws = sheet.worksheet(worksheet_name)
         data = ws.get_all_records()
         return pd.DataFrame(data)
     except:
-        return pd.DataFrame(columns=[
-            "StaffID","EmployeeName","Role",
-            *days,
-            "Notes"
-        ])
+        return pd.DataFrame(columns=columns)
 
-df = load()
+df = load_data()
 
-# ensure columns exist
-cols = ["StaffID","EmployeeName","Role",*days,"Notes"]
-
-for c in cols:
+for c in columns:
     if c not in df.columns:
         df[c] = ""
 
-df = df[cols]
+df = df[columns]
 
 # =========================================================
-# MAIN EXCEL EDITOR (ONLY ONE PLACE)
+# SINGLE EXCEL EDITOR
 # =========================================================
 
-st.subheader("📝 Weekly Schedule (Excel Sheet Style)")
+st.subheader("📊 Weekly Schedule (Excel View)")
 
 edited_df = st.data_editor(
     df,
     use_container_width=True,
     num_rows="dynamic",
-    hide_index=True,
-    column_config={
-        "StaffID": st.column_config.TextColumn("Staff ID"),
-        "EmployeeName": st.column_config.TextColumn("Employee Name"),
-        "Role": st.column_config.TextColumn("Role"),
-
-        "Saturday": st.column_config.TextColumn("Sat"),
-        "Sunday": st.column_config.TextColumn("Sun"),
-        "Monday": st.column_config.TextColumn("Mon"),
-        "Tuesday": st.column_config.TextColumn("Tue"),
-        "Wednesday": st.column_config.TextColumn("Wed"),
-        "Thursday": st.column_config.TextColumn("Thu"),
-        "Friday": st.column_config.TextColumn("Fri"),
-
-        "Notes": st.column_config.TextColumn("Notes")
-    }
-)
-
-# =========================================================
-# SAVE
-# =========================================================
-
-if st.button("💾 SAVE WEEKLY SCHEDULE", type="primary"):
-
-    ws = sheet.worksheet(worksheet_name)
-
-    edited_df = edited_df.fillna("")
-    edited_df = edited_df[cols]
-
-    final = [cols] + edited_df.values.tolist()
-
-    ws.clear()
-    ws.update(final)
-
-    st.success("✅ Saved successfully")
-
-    st.rerun()
-
-# =========================================================
-# WEEKLY OVERVIEW (SAME DATAFRAME)
-# =========================================================
-
-st.divider()
-st.subheader("📊 Weekly Overview")
-
-st.dataframe(
-    edited_df[["EmployeeName"] + days],
-    use_container_width=True,
     hide_index=True
 )
 
 # =========================================================
-# DOWNLOAD
+# SAVE BUTTON
 # =========================================================
 
-csv = edited_df.to_csv(index=False).encode("utf-8")
+col1, col2 = st.columns([1,5])
 
-st.download_button(
-    "⬇ Download",
-    csv,
-    file_name=f"{branch_info['BranchCode']}_weekly_{from_date}.csv",
-    mime="text/csv"
-)
+with col1:
+
+    if st.button("💾 SAVE", type="primary"):
+
+        ws = sheet.worksheet(worksheet_name)
+
+        edited_df = edited_df.fillna("")
+        edited_df = edited_df[columns]
+
+        final = [columns] + edited_df.values.tolist()
+
+        ws.clear()
+        ws.update(final)
+
+        st.success("Saved successfully")
+        st.rerun()
+
+# =========================================================
+# DOWNLOAD BUTTON
+# =========================================================
+
+with col2:
+
+    csv = edited_df.to_csv(index=False).encode("utf-8")
+
+    st.download_button(
+        "⬇ DOWNLOAD",
+        csv,
+        file_name=f"{branch_info['BranchCode']}_weekly_{from_date}.csv",
+        mime="text/csv"
+    )
+
+# =========================================================
+# COLORED TABLE VIEW (VISUAL ONLY)
+# =========================================================
+
+st.divider()
+st.subheader("🎨 Visual Weekly View")
+
+def color_rows(row):
+    if "OFF" in row.values:
+        return ["background-color: #ffe5e5"] * len(row)
+    elif "Morning" in row.values:
+        return ["background-color: #e6f7ff"] * len(row)
+    elif "Evening" in row.values:
+        return ["background-color: #fff7e6"] * len(row)
+    else:
+        return [""] * len(row)
+
+styled = edited_df.style.apply(color_rows, axis=1)
+
+st.dataframe(styled, use_container_width=True)
 
 # =========================================================
 # BACK
