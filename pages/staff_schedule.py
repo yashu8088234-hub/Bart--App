@@ -4,12 +4,11 @@ import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from st_aggrid import AgGrid
 
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
 # =========================================
-# 1. AUTH
+# AUTH
 # =========================================
 
 if (
@@ -34,7 +33,7 @@ master_sheet = gspread.authorize(creds).open_by_key(
 )
 
 # =========================================
-# 2. CONFIG
+# CONFIG
 # =========================================
 
 DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
@@ -50,30 +49,32 @@ SHIFT_OPTIONS = [
     "Evening shift",
     "Night shift",
     "OFF",
-    "Custom Time"
+    "➕ Custom Time"
 ]
 
 # =========================================
-# 3. STATE (POPUP CONTROL)
+# STATE
+# =================================
+
+if "popup" not in st.session_state:
+    st.session_state.popup = False
+
+if "popup_target" not in st.session_state:
+    st.session_state.popup_target = None
+
+if "popup_key" not in st.session_state:
+    st.session_state.popup_key = 0
+
 # =========================================
-
-if "custom_time_open" not in st.session_state:
-    st.session_state.custom_time_open = False
-
-if "custom_time_target" not in st.session_state:
-    st.session_state.custom_time_target = None
-
-
-# =========================================
-# 4. UI
-# =========================================
+# UI
+# =================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 5. LOAD DATA
-# =========================================
+# LOAD DATA
+# =================================
 
 def get_filtered_data():
     ws = master_sheet.worksheet("StaffSchedule")
@@ -91,19 +92,16 @@ df = get_filtered_data()
 existing_names = df["Name"].dropna().unique().tolist()
 
 # =========================================
-# 6. EDIT MODE TABLE
-# =========================================
+# EDIT TABLE
+# =================================
 
 config = {
     "Name": st.column_config.SelectboxColumn("Name", options=existing_names),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
-for day in DAYS:
-    config[day] = st.column_config.SelectboxColumn(
-        day,
-        options=SHIFT_OPTIONS
-    )
+for d in DAYS:
+    config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
 
 if edit_mode:
     df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
@@ -112,96 +110,99 @@ if edit_mode:
         df_display,
         column_config=config,
         num_rows="dynamic",
-        use_container_width=True
+        use_container_width=True,
+        key="editor"
     )
 
     # =========================================
-    # SMALL CONTROL PANEL (NO SPACE WASTE)
+    # AUTO DETECT CUSTOM TIME SELECTION
     # =========================================
 
-    st.markdown("### ⚡ Quick Custom Time Setup")
+    for i, row in edited_df.iterrows():
+        for d in DAYS:
+            if row.get(d) == "➕ Custom Time":
 
-    col1, col2, col3 = st.columns(3)
+                st.session_state.popup = True
+                st.session_state.popup_target = {
+                    "row": i,
+                    "day": d,
+                    "name": row.get("Name", "")
+                }
 
-    with col1:
-        selected_person = st.selectbox("Employee", edited_df["Name"].dropna().tolist() if not edited_df.empty else [])
+                # reset cell to avoid loop reopen
+                edited_df.at[i, d] = ""
 
-    with col2:
-        selected_day = st.selectbox("Day", DAYS)
-
-    with col3:
-        if st.button("⏰ Set Custom Time"):
-            st.session_state.custom_time_open = True
-            st.session_state.custom_time_target = {
-                "name": selected_person,
-                "day": selected_day
-            }
+                st.rerun()
 
 # =========================================
-# 7. MODAL POPUP (CLEAN CALENDAR STYLE)
-# =========================================
+# POPUP (MODAL)
+# =================================
 
 @st.dialog("⏰ Custom Time Picker")
-def custom_time_dialog():
+def time_popup():
 
-    target = st.session_state.custom_time_target
+    target = st.session_state.popup_target
+    uid = st.session_state.popup_key
 
-    st.write(f"**Employee:** {target['name']}")
-    st.write(f"**Day:** {target['day']}")
+    st.write(f"👤 **Employee:** {target['name']}")
+    st.write(f"📅 **Day:** {target['day']}")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        sh = st.selectbox("Start Hour", list(range(1, 13)))
+        sh = st.selectbox("Start Hour", list(range(1, 13)), key=f"sh_{uid}")
     with col2:
-        sm = st.selectbox("Min", ["00", "30"])
+        sm = st.selectbox("Min", ["00", "30"], key=f"sm_{uid}")
     with col3:
-        sap = st.selectbox("AM/PM", ["AM", "PM"])
+        sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{uid}")
 
     col4, col5, col6 = st.columns(3)
 
     with col4:
-        eh = st.selectbox("End Hour", list(range(1, 13)))
+        eh = st.selectbox("End Hour", list(range(1, 13)), key=f"eh_{uid}")
     with col5:
-        em = st.selectbox("Min", ["00", "30"])
+        em = st.selectbox("Min", ["00", "30"], key=f"em_{uid}")
     with col6:
-        eap = st.selectbox("AM/PM", ["AM", "PM"])
+        eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{uid}")
 
-    apply_all = st.checkbox("Apply to all days")
+    apply_all = st.checkbox("Apply to all days", key=f"all_{uid}")
 
-    if st.button("Save Time"):
-        time_value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
+    if st.button("Save", key=f"save_{uid}"):
 
-        name = target["name"]
-        day = target["day"]
+        value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
 
-        idx = edited_df[edited_df["Name"] == name].index
+        idx = edited_df[
+            edited_df["Name"] == target["name"]
+        ].index
 
         if apply_all:
             for d in DAYS:
-                edited_df.loc[idx, d] = time_value
+                edited_df.loc[idx, d] = value
         else:
-            edited_df.loc[idx, day] = time_value
+            edited_df.loc[idx, target["day"]] = value
 
-        st.session_state.custom_time_open = False
-        st.success("Saved!")
+        st.session_state.popup = False
+        st.session_state.popup_target = None
+        st.session_state.popup_key += 1
+
         st.rerun()
 
 
-if st.session_state.custom_time_open:
-    custom_time_dialog()
+# trigger modal
+if st.session_state.popup:
+    time_popup()
 
 # =========================================
-# 8. SAVE
-# =========================================
+# SAVE
+# =================================
 
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
-    full_data = pd.DataFrame(ws.get_all_records())
+    full = pd.DataFrame(ws.get_all_records())
 
-    remaining = full_data[
-        full_data["Branch"] != st.session_state.selected_branch
+    remaining = full[
+        full["Branch"] != st.session_state.selected_branch
     ]
 
     new_data = edited_df.copy()
@@ -211,20 +212,20 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     if "Name" in new_data.columns:
         new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-    final_df = pd.concat([remaining, new_data], ignore_index=True)
+    final = pd.concat([remaining, new_data], ignore_index=True)
 
     ws.clear()
     ws.update(
-        [final_df.columns.tolist()] +
-        final_df.fillna("").values.tolist()
+        [final.columns.tolist()] +
+        final.fillna("").values.tolist()
     )
 
     st.success("✅ Saved Successfully!")
     st.rerun()
 
 # =========================================
-# 9. BACK
-# =========================================
+# BACK
+# =================================
 
 if st.button("⬅ Back"):
     st.switch_page("app.py")
