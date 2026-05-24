@@ -34,7 +34,7 @@ client = connect()
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# DATE RANGE (USER SELECT)
+# DATE RANGE
 # =========================================================
 
 st.title("📅 Weekly Staff Scheduler")
@@ -69,8 +69,12 @@ required_columns = [
     "Notes"
 ]
 
+# =========================================================
+# LOAD DATA
+# =========================================================
+
 @st.cache_data(ttl=60)
-def load_data():
+def load_schedule():
     try:
         ws = sheet.worksheet(worksheet_name)
     except:
@@ -80,7 +84,7 @@ def load_data():
     data = ws.get_all_records()
     return pd.DataFrame(data) if data else pd.DataFrame(columns=required_columns)
 
-df = load_data()
+df = load_schedule()
 
 df = df.fillna("")
 
@@ -91,283 +95,165 @@ for c in required_columns:
 df = df[required_columns]
 
 # =========================================================
-# LOAD / CREATE SHEET
+# COPY LAST WEEK
 # =========================================================
 
-@st.cache_data(ttl=60)
-def load_schedule():
+if st.button("📋 Copy Last Week"):
 
     try:
+        prev = from_date - datetime.timedelta(days=7)
+        prev_sheet = f"Weekly_{prev}"
 
-        ws = sheet.worksheet(worksheet_name)
+        ws_prev = sheet.worksheet(prev_sheet)
+        ws_curr = sheet.worksheet(worksheet_name)
 
-    except:
+        data = ws_prev.get_all_values()
 
-        ws = sheet.add_worksheet(
-            title=worksheet_name,
-            rows=1000,
-            cols=20
-        )
+        if data:
+            ws_curr.clear()
+            ws_curr.update(data)
+            st.success("Copied last week")
+            st.rerun()
 
-        ws.append_row(required_columns)
-
-    data = ws.get_all_records()
-
-    if len(data) == 0:
-
-        return pd.DataFrame(columns=required_columns)
-
-    df = pd.DataFrame(data)
-
-    return df
-
-
-df = load_schedule()
+    except Exception as e:
+        st.warning("No previous week found")
 
 # =========================================================
-# CLEAN DATA
+# SEARCH
 # =========================================================
 
-df.columns = df.columns.str.strip()
-
-df = df.fillna("")
-
-for col in required_columns:
-
-    if col not in df.columns:
-        df[col] = ""
-
-for col in required_columns:
-    df[col] = df[col].astype(str)
-
-df = df[required_columns]
-
-# =========================================================
-# COPY PREVIOUS WEEK BUTTON
-# =========================================================
-
-top1, top2, top3 = st.columns([1,1,5])
-
-with top1:
-
-    if st.button("📋 Copy Last Week"):
-
-        try:
-
-            previous_week = start_of_week - datetime.timedelta(days=7)
-
-            previous_week_string = previous_week.strftime("%Y-%m-%d")
-
-            previous_sheet_name = f"WeeklySchedule_{previous_week_string}"
-
-            previous_ws = sheet.worksheet(previous_sheet_name)
-
-            previous_data = previous_ws.get_all_records()
-
-            if previous_data:
-
-                current_ws = sheet.worksheet(worksheet_name)
-
-                current_ws.clear()
-
-                previous_df = pd.DataFrame(previous_data)
-
-                final_data = [
-                    previous_df.columns.tolist()
-                ] + previous_df.values.tolist()
-
-                current_ws.update(final_data)
-
-                st.success("Previous week copied successfully.")
-
-                st.cache_data.clear()
-
-                time.sleep(1)
-
-                st.rerun()
-
-            else:
-                st.warning("Previous week is empty.")
-
-        except Exception as e:
-
-            st.error(f"Error: {e}")
-
-
-# =========================================================
-# SEARCH FILTER
-# =========================================================
-
-search = st.text_input(
-    "🔍 Search Staff",
-    placeholder="Search name / role / ID"
-)
+search = st.text_input("🔍 Search Staff")
 
 filtered_df = df.copy()
 
 if search:
-
     filtered_df = filtered_df[
         filtered_df.apply(
-            lambda row: row.astype(str)
-            .str.contains(search, case=False)
-            .any(),
+            lambda r: r.astype(str).str.contains(search, case=False).any(),
             axis=1
         )
     ]
 
-
-
-
 # =========================================================
-# EDITOR (NO SHIFT CODES UI)
+# DRAG-STYLE SHIFT TOOL
 # =========================================================
 
-st.subheader(f"📝 Schedule ({week_label})")
+st.subheader("🎯 Shift Selector")
 
-
-if st.session_state.get("reset_planner", False):
-    df = pd.DataFrame(columns=required_columns)
-    st.session_state["reset_planner"] = False
-
-edited_df = st.data_editor(
-    df,
-    use_container_width=True,
-    num_rows="dynamic",
-    hide_index=True,
-    column_config={
-        "StaffID": st.column_config.TextColumn("Staff ID"),
-        "EmployeeName": st.column_config.TextColumn("Employee Name"),
-        "Role": st.column_config.TextColumn("Role"),
-
-        "Saturday": st.column_config.TextColumn("Saturday"),
-        "Sunday": st.column_config.TextColumn("Sunday"),
-        "Monday": st.column_config.TextColumn("Monday"),
-        "Tuesday": st.column_config.TextColumn("Tuesday"),
-        "Wednesday": st.column_config.TextColumn("Wednesday"),
-        "Thursday": st.column_config.TextColumn("Thursday"),
-        "Friday": st.column_config.TextColumn("Friday"),
-
-        "Notes": st.column_config.TextColumn("Notes")
-    }
+shift = st.selectbox(
+    "Choose Shift",
+    ["", "Morning", "Evening", "OFF", "Leave"]
 )
 
+days = ["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]
+
 # =========================================================
-# SAVE (NO KPI RESET, ONLY VISUAL RESET)
+# INIT STATE
+# =========================================================
+
+if "grid" not in st.session_state:
+    st.session_state.grid = {}
+
+for staff in filtered_df["EmployeeName"]:
+    if staff not in st.session_state.grid:
+        st.session_state.grid[staff] = {d: "" for d in days}
+
+# =========================================================
+# CLICK-TO-ASSIGN GRID (DRAG REPLACEMENT)
+# =========================================================
+
+st.subheader("📅 Weekly Grid (Click to Assign)")
+
+for staff in filtered_df["EmployeeName"]:
+
+    st.markdown(f"### 👤 {staff}")
+
+    cols = st.columns(len(days))
+
+    for i, day in enumerate(days):
+
+        val = st.session_state.grid[staff][day]
+
+        if cols[i].button(val if val else "➕", key=f"{staff}_{day}"):
+
+            st.session_state.grid[staff][day] = shift
+
+# =========================================================
+# SAVE
 # =========================================================
 
 if st.button("💾 SAVE WEEKLY SCHEDULE", type="primary"):
 
     ws = sheet.worksheet(worksheet_name)
 
-    edited_df = edited_df.fillna("")
-    edited_df = edited_df[required_columns]
+    final = [required_columns]
 
-    final = [required_columns] + edited_df.values.tolist()
+    for idx, row in filtered_df.iterrows():
+
+        staff = row["EmployeeName"]
+
+        new_row = [
+            row["StaffID"],
+            staff,
+            row["Role"]
+        ]
+
+        for d in days:
+            new_row.append(st.session_state.grid[staff][d])
+
+        new_row.append("")
+
+        final.append(new_row)
 
     ws.clear()
     ws.update(final)
 
-    st.success("✅ Schedule saved successfully")
-
-    # CLEAR ONLY UI (NOT GOOGLE SHEET)
-    st.session_state["reset_planner"] = True
+    st.success("✅ Schedule saved")
 
     st.rerun()
+
 # =========================================================
-# WEEKLY OVERVIEW (YOUR REQUESTED FORMAT)
+# WEEKLY OVERVIEW
 # =========================================================
 
 st.divider()
 st.subheader("📊 Weekly Overview")
 
-overview_cols = [
-    "EmployeeName",
-    "Saturday",
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday"
-]
+overview = pd.DataFrame()
 
-overview_df = edited_df[overview_cols].copy()
+try:
+    ws = sheet.worksheet(worksheet_name)
+    overview = pd.DataFrame(ws.get_all_records())
+except:
+    pass
 
-st.dataframe(overview_df, use_container_width=True, hide_index=True)
+if not overview.empty:
 
-# =========================================================
-# DOWNLOAD CSV
-# =========================================================
-
-csv = edited_df.to_csv(index=False).encode("utf-8")
-
-st.download_button(
-    label="⬇ Download Weekly Schedule",
-    data=csv,
-    file_name=f"{branch_info['BranchCode']}_weekly_schedule_{from_date.strftime('%Y%m%d')}_{to_date.strftime('%Y%m%d')}.csv",
-    mime="text/csv",
-    use_container_width=True
-)
-
-# =========================================================
-# STAFFING ANALYTICS
-# =========================================================
-
-st.divider()
-
-st.subheader("📊 Weekly Staffing Overview")
-
-analytics = []
-
-for day in day_columns:
-
-    morning = len(df[df[day] == "M"])
-
-    evening = len(df[df[day] == "E"])
-
-    off = len(df[df[day] == "OFF"])
-
-    leave = len(df[df[day] == "LV"])
-
-    analytics.append({
-        "Day": day,
-        "Morning": morning,
-        "Evening": evening,
-        "OFF": off,
-        "Leave": leave
-    })
-
-analytics_df = pd.DataFrame(analytics)
-
-st.dataframe(
-    analytics_df,
-    use_container_width=True,
-    hide_index=True
-)
-
-
-# =========================================================
-# INTERNAL NOTES
-# =========================================================
-
-with st.expander("📌 Manager Notes"):
-
-    notes = st.text_area(
-        "Weekly Notes",
-        height=150,
-        placeholder="Add shift notes, leave comments, staffing reminders..."
+    st.dataframe(
+        overview[["EmployeeName"] + days],
+        use_container_width=True,
+        hide_index=True
     )
 
-    if st.button("Save Notes"):
-        st.success("Notes saved locally.")
+else:
+    st.info("No schedule yet")
 
 # =========================================================
-# BACK BUTTON
+# DOWNLOAD
 # =========================================================
 
-st.divider()
+csv = df.to_csv(index=False).encode("utf-8")
 
-if st.button("⬅ Back To Dashboard"):
+st.download_button(
+    "⬇ Download Schedule",
+    csv,
+    file_name=f"{branch_info['BranchCode']}_weekly_{from_date}.csv",
+    mime="text/csv"
+)
 
+# =========================================================
+# BACK
+# =========================================================
+
+if st.button("⬅ Back"):
     st.switch_page("app.py")
