@@ -9,7 +9,7 @@ from datetime import datetime
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
 # =========================================
-# AUTH (ONCE ONLY)
+# AUTH
 # =========================================
 
 if (
@@ -55,18 +55,17 @@ SHIFT_OPTIONS = [
 ]
 
 # =========================================
-# CACHE (🔥 KEY FIX)
+# CACHE (NO API SPAM)
 # =========================================
 
-CACHE_TTL = 60  # 1 minute
+CACHE_TTL = 60
 
 if "cached_df" not in st.session_state:
     st.session_state.cached_df = None
     st.session_state.last_fetch = 0
 
 
-def load_data_once():
-    """ONLY hits API if cache expired"""
+def load_data():
     now = time.time()
 
     if (
@@ -87,31 +86,13 @@ def load_data_once():
 
 
 # =========================================
-# POPUP STATE
-# =========================================
-
-if "popup" not in st.session_state:
-    st.session_state.popup = False
-
-if "popup_target" not in st.session_state:
-    st.session_state.popup_target = None
-
-if "popup_key" not in st.session_state:
-    st.session_state.popup_key = 0
-
-# =========================================
 # UI
 # =========================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-# =========================================
-# LOAD (CACHED ONLY)
-# =========================================
-
-df = load_data_once()
-
+df = load_data()
 df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
 existing_names = df["Name"].dropna().unique().tolist()
@@ -140,83 +121,55 @@ if edit_mode:
         key="editor"
     )
 
-    # detect custom time
+    # =========================================
+    # INLINE CUSTOM TIME (NO POPUP)
+    # =========================================
+
     for i, row in edited_df.iterrows():
         for d in DAYS:
+
             if row.get(d) == "➕ Custom Time":
 
-                st.session_state.popup = True
-                st.session_state.popup_target = {
-                    "row": i,
-                    "day": d,
-                    "name": row.get("Name", "")
-                }
+                st.info(f"⏰ Custom Time for **{row.get('Name')} - {d}**")
 
-                edited_df.at[i, d] = ""
-                st.rerun()
+                col1, col2, col3 = st.columns(3)
 
-# =========================================
-# POPUP
-# =================================
+                with col1:
+                    sh = st.selectbox("Start Hour", list(range(1, 13)), key=f"sh_{i}_{d}")
+                    sm = st.selectbox("Min", ["00", "30"], key=f"sm_{i}_{d}")
+                    sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{i}_{d}")
 
-@st.dialog("⏰ Custom Time Picker")
-def time_popup():
+                with col2:
+                    eh = st.selectbox("End Hour", list(range(1, 13)), key=f"eh_{i}_{d}")
+                    em = st.selectbox("Min", ["00", "30"], key=f"em_{i}_{d}")
+                    eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{i}_{d}")
 
-    target = st.session_state.popup_target
-    uid = st.session_state.popup_key
+                apply_all = st.checkbox("Apply to all days", key=f"all_{i}_{d}")
 
-    col1, col2, col3 = st.columns(3)
+                if st.button("Apply", key=f"apply_{i}_{d}"):
 
-    with col1:
-        sh = st.selectbox("Start Hour", list(range(1, 13)), key=f"sh_{uid}")
-    with col2:
-        sm = st.selectbox("Min", ["00", "30"], key=f"sm_{uid}")
-    with col3:
-        sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{uid}")
+                    value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
 
-    col4, col5, col6 = st.columns(3)
+                    idx = edited_df[
+                        edited_df["Name"] == row["Name"]
+                    ].index
 
-    with col4:
-        eh = st.selectbox("End Hour", list(range(1, 13)), key=f"eh_{uid}")
-    with col5:
-        em = st.selectbox("Min", ["00", "30"], key=f"em_{uid}")
-    with col6:
-        eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{uid}")
+                    if apply_all:
+                        for day in DAYS:
+                            edited_df.loc[idx, day] = value
+                    else:
+                        edited_df.loc[idx, d] = value
 
-    apply_all = st.checkbox("Apply to all days", key=f"all_{uid}")
-
-    if st.button("Save", key=f"save_{uid}"):
-
-        value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
-
-        idx = edited_df[
-            edited_df["Name"] == target["name"]
-        ].index
-
-        if apply_all:
-            for d in DAYS:
-                edited_df.loc[idx, d] = value
-        else:
-            edited_df.loc[idx, target["day"]] = value
-
-        st.session_state.popup = False
-        st.session_state.popup_target = None
-        st.session_state.popup_key += 1
-
-        st.rerun()
-
-
-if st.session_state.popup:
-    time_popup()
+                    st.success("Applied!")
+                    st.rerun()
 
 # =========================================
-# SAVE (ONLY THIS HITS API)
-# =================================
+# SAVE
+# =========================================
 
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
-
     full = st.session_state.cached_df.copy()
 
     remaining = full[
@@ -238,7 +191,6 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         final.fillna("").values.tolist()
     )
 
-    # refresh cache AFTER save
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
 
