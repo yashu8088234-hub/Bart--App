@@ -56,7 +56,7 @@ SHIFT_OPTIONS = [
 ]
 
 # =========================================
-# CACHE (NO API SPAM)
+# CACHE
 # =========================================
 
 CACHE_TTL = 60
@@ -99,7 +99,7 @@ df = df[df["Branch"] == st.session_state.selected_branch].copy()
 existing_names = df["Name"].dropna().unique().tolist()
 
 # =========================================
-# CONFIG
+# CONFIG FOR EDITOR
 # =========================================
 
 config = {
@@ -126,7 +126,10 @@ if edit_mode:
         key="editor"
     )
 
-    # INLINE CUSTOM TIME (no popup)
+    # =========================================
+    # CUSTOM TIME BLOCK
+    # =========================================
+
     for i, row in edited_df.iterrows():
         for d in DAYS:
 
@@ -134,39 +137,37 @@ if edit_mode:
 
                 st.info(f"⏰ Custom Time for {row.get('Name')} - {d}")
 
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
 
                 with col1:
-                    sh = st.selectbox("Start Hour", list(range(1, 13)), key=f"sh_{i}_{d}")
-                    sm = st.selectbox("Min", ["00", "30"], key=f"sm_{i}_{d}")
+                    st.markdown("### Start Time")
+                    sh = st.selectbox("Hour", list(range(1, 13)), key=f"sh_{i}_{d}")
                     sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{i}_{d}")
 
                 with col2:
-                    eh = st.selectbox("End Hour", list(range(1, 13)), key=f"eh_{i}_{d}")
-                    em = st.selectbox("Min", ["00", "30"], key=f"em_{i}_{d}")
+                    st.markdown("### End Time")
+                    eh = st.selectbox("Hour", list(range(1, 13)), key=f"eh_{i}_{d}")
                     eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{i}_{d}")
 
                 apply_all = st.checkbox("Apply to all days", key=f"all_{i}_{d}")
 
                 if st.button("Apply", key=f"apply_{i}_{d}"):
 
-                    value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
+                    value = f"{sh} {sap} - {eh} {eap}"
 
-                    idx = edited_df[
-                        edited_df["Name"] == row["Name"]
-                    ].index
-
+                    # safer update (single row)
                     if apply_all:
                         for day in DAYS:
-                            edited_df.loc[idx, day] = value
+                            edited_df.loc[i, day] = value
                     else:
-                        edited_df.loc[idx, d] = value
+                        edited_df.loc[i, d] = value
 
                     st.success("Applied!")
+
                     st.rerun()
 
 # =========================================
-# VIEW MODE (RESTORED AGGRID)
+# VIEW MODE (AGGRID)
 # =========================================
 
 else:
