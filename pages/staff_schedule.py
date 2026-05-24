@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import time
 
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
@@ -8,7 +9,7 @@ from datetime import datetime
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
 # =========================================
-# AUTH
+# AUTH (ONCE ONLY)
 # =========================================
 
 if (
@@ -28,7 +29,8 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(
     ]
 )
 
-master_sheet = gspread.authorize(creds).open_by_key(
+client = gspread.authorize(creds)
+master_sheet = client.open_by_key(
     "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 )
 
@@ -53,8 +55,40 @@ SHIFT_OPTIONS = [
 ]
 
 # =========================================
-# STATE
-# =================================
+# CACHE (🔥 KEY FIX)
+# =========================================
+
+CACHE_TTL = 60  # 1 minute
+
+if "cached_df" not in st.session_state:
+    st.session_state.cached_df = None
+    st.session_state.last_fetch = 0
+
+
+def load_data_once():
+    """ONLY hits API if cache expired"""
+    now = time.time()
+
+    if (
+        st.session_state.cached_df is None
+        or now - st.session_state.last_fetch > CACHE_TTL
+    ):
+        ws = master_sheet.worksheet("StaffSchedule")
+        data = ws.get_all_records()
+        df = pd.DataFrame(data) if data else pd.DataFrame()
+
+        if df.empty:
+            df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+
+        st.session_state.cached_df = df
+        st.session_state.last_fetch = now
+
+    return st.session_state.cached_df
+
+
+# =========================================
+# POPUP STATE
+# =========================================
 
 if "popup" not in st.session_state:
     st.session_state.popup = False
@@ -67,33 +101,24 @@ if "popup_key" not in st.session_state:
 
 # =========================================
 # UI
-# =================================
+# =========================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# LOAD DATA
-# =================================
+# LOAD (CACHED ONLY)
+# =========================================
 
-def get_filtered_data():
-    ws = master_sheet.worksheet("StaffSchedule")
-    all_data = ws.get_all_records()
-    df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
+df = load_data_once()
 
-    if df.empty:
-        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
-
-    return df[df["Branch"] == st.session_state.selected_branch]
-
-
-df = get_filtered_data()
+df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
 existing_names = df["Name"].dropna().unique().tolist()
 
 # =========================================
 # EDIT TABLE
-# =================================
+# =========================================
 
 config = {
     "Name": st.column_config.SelectboxColumn("Name", options=existing_names),
@@ -104,6 +129,7 @@ for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
 
 if edit_mode:
+
     df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     edited_df = st.data_editor(
@@ -114,10 +140,7 @@ if edit_mode:
         key="editor"
     )
 
-    # =========================================
-    # AUTO DETECT CUSTOM TIME SELECTION
-    # =========================================
-
+    # detect custom time
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "➕ Custom Time":
@@ -129,13 +152,11 @@ if edit_mode:
                     "name": row.get("Name", "")
                 }
 
-                # reset cell to avoid loop reopen
                 edited_df.at[i, d] = ""
-
                 st.rerun()
 
 # =========================================
-# POPUP (MODAL)
+# POPUP
 # =================================
 
 @st.dialog("⏰ Custom Time Picker")
@@ -143,9 +164,6 @@ def time_popup():
 
     target = st.session_state.popup_target
     uid = st.session_state.popup_key
-
-    st.write(f"👤 **Employee:** {target['name']}")
-    st.write(f"📅 **Day:** {target['day']}")
 
     col1, col2, col3 = st.columns(3)
 
@@ -188,18 +206,18 @@ def time_popup():
         st.rerun()
 
 
-# trigger modal
 if st.session_state.popup:
     time_popup()
 
 # =========================================
-# SAVE
+# SAVE (ONLY THIS HITS API)
 # =================================
 
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
-    full = pd.DataFrame(ws.get_all_records())
+
+    full = st.session_state.cached_df.copy()
 
     remaining = full[
         full["Branch"] != st.session_state.selected_branch
@@ -219,6 +237,10 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         [final.columns.tolist()] +
         final.fillna("").values.tolist()
     )
+
+    # refresh cache AFTER save
+    st.session_state.cached_df = final
+    st.session_state.last_fetch = time.time()
 
     st.success("✅ Saved Successfully!")
     st.rerun()
