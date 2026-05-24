@@ -6,41 +6,41 @@ from oauth2client.service_account import ServiceAccountCredentials
 # ---------------- PAGE SETUP ----------------
 st.set_page_config(layout="wide", page_title="BART Advanced Roster")
 
-# ---------------- AUTH & CONNECTION ----------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("Please login from the main portal first.")
-    if st.button("Go to Login"):
-        st.switch_page("app.py")
     st.stop()
 
-# Use the branch-specific sheet defined in your main portal
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
-
-# Connect to the branch sheet
 sheet = client.open_by_key(st.session_state.branch_info["SheetID"])
 
-# ---------------- CONFIGURATION: HEADERS ----------------
+# ---------------- CONFIGURATION ----------------
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-HEADERS = ["Name", "Role"]
-for day in DAYS:
-    HEADERS.append(f"{day} Start")
-    HEADERS.append(f"{day} Finish")
-
 ROLE_OPTIONS = ["Staff", "Supervisor", "Acting Supervisor", "Team Leader", "Acting Team Leader"]
 
-# ---------------- DATA INITIALIZATION ----------------
+# Create Time Dropdown Options (1-12, AM/PM)
+times = []
+for h in range(1, 13):
+    times.append(f"{h}:00 AM")
+    times.append(f"{h}:00 PM")
+times.append("OFF")
+
+HEADERS = ["Name", "Role"]
+for day in DAYS:
+    HEADERS.append(f"{day}: Start")
+    HEADERS.append(f"{day}: Finish")
+
+# ---------------- DATA HANDLING ----------------
 def get_or_create_sheet():
     try:
         ws = sheet.worksheet("StaffSchedule")
         data = ws.get_all_values()
-        if len(data) < 1: # Empty
+        if len(data) < 1:
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
-        else:
-            return pd.DataFrame(data[1:], columns=data[0])
+        return pd.DataFrame(data[1:], columns=data[0])
     except gspread.exceptions.WorksheetNotFound:
         ws = sheet.add_worksheet(title="StaffSchedule", rows="100", cols=len(HEADERS))
         ws.append_row(HEADERS)
@@ -49,43 +49,42 @@ def get_or_create_sheet():
 if "df_schedule" not in st.session_state:
     st.session_state.df_schedule = get_or_create_sheet()
 
-# ---------------- UI LAYOUT ----------------
+# ---------------- UI ----------------
 st.title(f"🏢 Weekly Schedule: {st.session_state.selected_branch}")
-st.markdown("---")
 
-# Date Selection
-col1, col2 = st.columns(2)
-start_date = col1.date_input("Start Date of Week")
-end_date = col2.date_input("End Date of Week")
+# Column config dictionary for the Data Editor
+column_config = {
+    "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, required=True),
+}
+# Add time dropdowns to all 14 time columns
+for day in DAYS:
+    column_config[f"{day}: Start"] = st.column_config.SelectboxColumn("Start", options=times)
+    column_config[f"{day}: Finish"] = st.column_config.SelectboxColumn("Finish", options=times)
 
-st.markdown("### 📋 Staff Roster Management")
-st.info("Use the 'Add row' button to create new entries. Select 'Role' from the dropdown. Fill in Start/Finish times manually.")
-
-# Data Editor
 edited_df = st.data_editor(
     st.session_state.df_schedule,
-    column_config={
-        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, required=True),
-    },
+    column_config=column_config,
     num_rows="dynamic",
-    use_container_width=True,
-    key="main_editor"
+    use_container_width=True
 )
 
 # ---------------- SAVE OPERATIONS ----------------
-if st.button("💾 Save Schedule to Database", type="primary"):
-    with st.spinner("Saving data..."):
+if st.button("💾 Save Schedule", type="primary"):
+    # Name Uppercase Conversion Logic
+    if "Name" in edited_df.columns:
+        edited_df["Name"] = edited_df["Name"].astype(str).str.upper()
+    
+    with st.spinner("Saving..."):
         try:
             ws = sheet.worksheet("StaffSchedule")
             ws.clear()
-            # Prepare data: Headers + Values
             data_to_write = [HEADERS] + edited_df.fillna("").values.tolist()
             ws.update(data_to_write)
-            st.success("✅ Schedule saved successfully!")
+            st.success("✅ Saved and Names converted to Uppercase!")
             st.session_state.df_schedule = edited_df
+            st.rerun()
         except Exception as e:
-            st.error(f"❌ An error occurred: {e}")
+            st.error(f"❌ Error: {e}")
 
-st.markdown("---")
-if st.button("⬅ Back to Dashboard"):
+if st.button("⬅ Back"):
     st.switch_page("app.py")
