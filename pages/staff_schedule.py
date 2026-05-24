@@ -61,11 +61,10 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
 start_date = st.date_input("Week Start Date")
 
-# ✅ renamed toggle
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 4. LOAD DATA
+# 4. LOAD DATA (ONLY FOR VIEW MODE)
 # =========================================
 
 def get_filtered_data():
@@ -86,8 +85,6 @@ df = get_filtered_data()
 # 5. BUILD UI
 # =========================================
 
-df_display = df.copy()
-
 config = {
     "Role": st.column_config.SelectboxColumn(
         "Role",
@@ -95,22 +92,29 @@ config = {
     )
 }
 
+# =========================================
+# SHIFT PREP
+# =========================================
+
 for day in DAYS:
 
-    if day not in df_display.columns:
-        df_display[day] = ""
-
     if edit_mode:
+        # ✅ CREATE BLANK DATAFRAME ONLY
         config[day] = st.column_config.SelectboxColumn(
             day,
             options=SHIFT_OPTIONS
         )
 
 # =========================================
-# EDIT MODE (SHIFT EDIT)
+# EDIT MODE (BLANK INPUT TABLE)
 # =========================================
 
 if edit_mode:
+
+    # 🚀 IMPORTANT: EMPTY DATAFRAME
+    df_display = pd.DataFrame(
+        columns=["Name", "Role"] + DAYS
+    )
 
     edited_df = st.data_editor(
         df_display,
@@ -120,10 +124,12 @@ if edit_mode:
     )
 
 # =========================================
-# VIEW MODE (AGGRID - SCROLLABLE + COMPACT)
+# VIEW MODE (FROM GOOGLE SHEET)
 # =========================================
 
 else:
+
+    df_display = df.copy()
 
     ordered_cols = ["Name", "Role"] + DAYS
     df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
@@ -149,8 +155,6 @@ else:
         },
         "headerHeight": 35,
         "rowHeight": 32,
-
-        # ✅ IMPORTANT: makes it scrollable instead of huge
         "domLayout": "normal"
     }
 
@@ -167,10 +171,7 @@ else:
         df_display,
         gridOptions=grid_options,
         custom_css=custom_css,
-
-        # ✅ ~10 rows visible height
         height=8 * 42 + 90,
-
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
         editable=False,
@@ -180,7 +181,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 6. SAVE (ONLY IN EDIT MODE)
+# 6. SAVE (ONLY EDIT MODE)
 # =========================================
 
 if edit_mode:
@@ -211,6 +212,8 @@ if edit_mode:
         )
 
         st.success("✅ Saved Successfully!")
+
+        # ✅ CLEAR UI DATA ONLY (NOT GOOGLE SHEET)
         st.rerun()
 
 # =========================================
