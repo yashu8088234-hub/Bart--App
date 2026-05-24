@@ -50,7 +50,7 @@ ROLE_OPTIONS = [
 ]
 
 SHIFT_OPTIONS = [
-    "Morning shift","Mid shift","Evening shift","Night shift, "Day off"
+    "Morning shift","Mid shift","Evening shift","Night shift"
 ]
 
 # =========================================
@@ -130,7 +130,7 @@ else:
 
     column_defs = [
         {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
-        {"headerName": "Role", "field": "Role", "width": 140}
+        {"headerName": "Role", "field": "Role", "width": 150}
     ]
 
     for day in DAYS:
