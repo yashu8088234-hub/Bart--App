@@ -2,7 +2,6 @@ import streamlit as st
 import gspread
 import pandas as pd
 import datetime
-import time
 from oauth2client.service_account import ServiceAccountCredentials
 
 # =========================================================
@@ -34,149 +33,73 @@ client = connect()
 sheet = client.open_by_key(branch_info["SheetID"])
 
 # =========================================================
-# DATE RANGE
+# WEEK SELECTION
 # =========================================================
 
-st.title("📅 Weekly Staff Scheduler")
+st.title("📅 Weekly Staff Scheduler (Excel Style)")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    from_date = st.date_input("From Date", datetime.date.today())
-
-with col2:
-    to_date = st.date_input("To Date", datetime.date.today() + datetime.timedelta(days=6))
-
-week_label = f"{from_date} to {to_date}"
-
-# =========================================================
-# WORKSHEET
-# =========================================================
+from_date = st.date_input("Week Start", datetime.date.today())
+to_date = st.date_input("Week End", datetime.date.today() + datetime.timedelta(days=6))
 
 worksheet_name = f"Weekly_{from_date}"
 
-required_columns = [
-    "StaffID",
-    "EmployeeName",
-    "Role",
-    "Saturday",
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Notes"
-]
+days = ["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]
 
 # =========================================================
 # LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=60)
-def load_schedule():
+def load():
     try:
         ws = sheet.worksheet(worksheet_name)
+        data = ws.get_all_records()
+        return pd.DataFrame(data)
     except:
-        ws = sheet.add_worksheet(worksheet_name, 1000, 20)
-        ws.append_row(required_columns)
+        return pd.DataFrame(columns=[
+            "StaffID","EmployeeName","Role",
+            *days,
+            "Notes"
+        ])
 
-    data = ws.get_all_records()
-    return pd.DataFrame(data) if data else pd.DataFrame(columns=required_columns)
+df = load()
 
-df = load_schedule()
+# ensure columns exist
+cols = ["StaffID","EmployeeName","Role",*days,"Notes"]
 
-df = df.fillna("")
-
-for c in required_columns:
+for c in cols:
     if c not in df.columns:
         df[c] = ""
 
-df = df[required_columns]
+df = df[cols]
 
 # =========================================================
-# COPY LAST WEEK
+# MAIN EXCEL EDITOR (ONLY ONE PLACE)
 # =========================================================
 
-if st.button("📋 Copy Last Week"):
+st.subheader("📝 Weekly Schedule (Excel Sheet Style)")
 
-    try:
-        prev = from_date - datetime.timedelta(days=7)
-        prev_sheet = f"Weekly_{prev}"
+edited_df = st.data_editor(
+    df,
+    use_container_width=True,
+    num_rows="dynamic",
+    hide_index=True,
+    column_config={
+        "StaffID": st.column_config.TextColumn("Staff ID"),
+        "EmployeeName": st.column_config.TextColumn("Employee Name"),
+        "Role": st.column_config.TextColumn("Role"),
 
-        ws_prev = sheet.worksheet(prev_sheet)
-        ws_curr = sheet.worksheet(worksheet_name)
+        "Saturday": st.column_config.TextColumn("Sat"),
+        "Sunday": st.column_config.TextColumn("Sun"),
+        "Monday": st.column_config.TextColumn("Mon"),
+        "Tuesday": st.column_config.TextColumn("Tue"),
+        "Wednesday": st.column_config.TextColumn("Wed"),
+        "Thursday": st.column_config.TextColumn("Thu"),
+        "Friday": st.column_config.TextColumn("Fri"),
 
-        data = ws_prev.get_all_values()
-
-        if data:
-            ws_curr.clear()
-            ws_curr.update(data)
-            st.success("Copied last week")
-            st.rerun()
-
-    except Exception as e:
-        st.warning("No previous week found")
-
-# =========================================================
-# SEARCH
-# =========================================================
-
-search = st.text_input("🔍 Search Staff")
-
-filtered_df = df.copy()
-
-if search:
-    filtered_df = filtered_df[
-        filtered_df.apply(
-            lambda r: r.astype(str).str.contains(search, case=False).any(),
-            axis=1
-        )
-    ]
-
-# =========================================================
-# DRAG-STYLE SHIFT TOOL
-# =========================================================
-
-st.subheader("🎯 Shift Selector")
-
-shift = st.selectbox(
-    "Choose Shift",
-    ["", "Morning", "Evening", "OFF", "Leave"]
+        "Notes": st.column_config.TextColumn("Notes")
+    }
 )
-
-days = ["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]
-
-# =========================================================
-# INIT STATE
-# =========================================================
-
-if "grid" not in st.session_state:
-    st.session_state.grid = {}
-
-for staff in filtered_df["EmployeeName"]:
-    if staff not in st.session_state.grid:
-        st.session_state.grid[staff] = {d: "" for d in days}
-
-# =========================================================
-# CLICK-TO-ASSIGN GRID (DRAG REPLACEMENT)
-# =========================================================
-
-st.subheader("📅 Weekly Grid (Click to Assign)")
-
-for staff in filtered_df["EmployeeName"]:
-
-    st.markdown(f"### 👤 {staff}")
-
-    cols = st.columns(len(days))
-
-    for i, day in enumerate(days):
-
-        val = st.session_state.grid[staff][day]
-
-        if cols[i].button(val if val else "➕", key=f"{staff}_{day}"):
-
-            st.session_state.grid[staff][day] = shift
 
 # =========================================================
 # SAVE
@@ -186,66 +109,39 @@ if st.button("💾 SAVE WEEKLY SCHEDULE", type="primary"):
 
     ws = sheet.worksheet(worksheet_name)
 
-    final = [required_columns]
+    edited_df = edited_df.fillna("")
+    edited_df = edited_df[cols]
 
-    for idx, row in filtered_df.iterrows():
-
-        staff = row["EmployeeName"]
-
-        new_row = [
-            row["StaffID"],
-            staff,
-            row["Role"]
-        ]
-
-        for d in days:
-            new_row.append(st.session_state.grid[staff][d])
-
-        new_row.append("")
-
-        final.append(new_row)
+    final = [cols] + edited_df.values.tolist()
 
     ws.clear()
     ws.update(final)
 
-    st.success("✅ Schedule saved")
+    st.success("✅ Saved successfully")
 
     st.rerun()
 
 # =========================================================
-# WEEKLY OVERVIEW
+# WEEKLY OVERVIEW (SAME DATAFRAME)
 # =========================================================
 
 st.divider()
 st.subheader("📊 Weekly Overview")
 
-overview = pd.DataFrame()
-
-try:
-    ws = sheet.worksheet(worksheet_name)
-    overview = pd.DataFrame(ws.get_all_records())
-except:
-    pass
-
-if not overview.empty:
-
-    st.dataframe(
-        overview[["EmployeeName"] + days],
-        use_container_width=True,
-        hide_index=True
-    )
-
-else:
-    st.info("No schedule yet")
+st.dataframe(
+    edited_df[["EmployeeName"] + days],
+    use_container_width=True,
+    hide_index=True
+)
 
 # =========================================================
 # DOWNLOAD
 # =========================================================
 
-csv = df.to_csv(index=False).encode("utf-8")
+csv = edited_df.to_csv(index=False).encode("utf-8")
 
 st.download_button(
-    "⬇ Download Schedule",
+    "⬇ Download",
     csv,
     file_name=f"{branch_info['BranchCode']}_weekly_{from_date}.csv",
     mime="text/csv"
