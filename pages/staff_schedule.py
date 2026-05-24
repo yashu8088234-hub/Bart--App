@@ -66,24 +66,18 @@ SHIFT_OPTIONS = [
     "Night shift"
 ]
 
-TIME_OPTIONS = (
-    [f"{h}:00 AM" for h in range(1, 13)] +
-    [f"{h}:00 PM" for h in range(1, 13)] +
-    ["OFF"]
-)
-
 # =========================================
 # 3. UI
 # =========================================
 
-st.title(
-    f"🏢 Schedule: {st.session_state.selected_branch}"
-)
+st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
+# still kept for future use (as you requested)
 start_date = st.date_input("Week Start Date")
 
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
+# only display labels (not used in logic yet)
 day_dates = [
     (start_date + timedelta(days=i)).strftime("%a %d/%m")
     for i in range(7)
@@ -111,7 +105,7 @@ df = get_filtered_data()
 # 5. BUILD UI
 # =========================================
 
-st.subheader("Edit Roster")
+st.subheader("Roster View")
 
 config = {
     "Role": st.column_config.SelectboxColumn(
@@ -123,27 +117,14 @@ config = {
 df_display = df.copy()
 
 # =========================================
-# PREPARE COLUMNS
+# SHIFT PREPARATION (NO START/END LOGIC)
 # =========================================
 
 for i, day in enumerate(DAYS):
 
     if shift_mode:
 
-        start_col = f"{day}: Start"
-        end_col = f"{day}: End"
-
-        cols_to_drop = []
-
-        if start_col in df_display.columns:
-            cols_to_drop.append(start_col)
-
-        if end_col in df_display.columns:
-            cols_to_drop.append(end_col)
-
-        if cols_to_drop:
-            df_display.drop(columns=cols_to_drop, inplace=True)
-
+        # ensure day column exists
         if day not in df_display.columns:
             df_display[day] = ""
 
@@ -154,24 +135,9 @@ for i, day in enumerate(DAYS):
 
     else:
 
-        if day in df_display.columns:
-            df_display.drop(columns=[day], inplace=True)
-
-        start_col = f"{day}: Start"
-        end_col = f"{day}: End"
-        alt_end_col = f"{day}: Finish"
-
-        if start_col not in df_display.columns:
-            df_display[start_col] = ""
-
-        if end_col not in df_display.columns:
-            if alt_end_col in df_display.columns:
-                df_display.rename(
-                    columns={alt_end_col: end_col},
-                    inplace=True
-                )
-            else:
-                df_display[end_col] = ""
+        # just ensure column exists
+        if day not in df_display.columns:
+            df_display[day] = ""
 
 # =========================================
 # SHIFT MODE (EDITABLE)
@@ -187,16 +153,12 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (DISPLAY ONLY - FIXED)
+# NORMAL MODE (VIEW ONLY GRID)
 # =========================================
 
 else:
 
-    ordered_cols = ["Name", "Role"]
-
-    for day in DAYS:
-        ordered_cols.append(f"{day}: Start")
-        ordered_cols.append(f"{day}: End")
+    ordered_cols = ["Name", "Role"] + DAYS
 
     existing_cols = [
         c for c in ordered_cols
@@ -206,14 +168,12 @@ else:
     df_display = df_display[existing_cols]
 
     column_defs = [
-
         {
             "headerName": "Name",
             "field": "Name",
             "pinned": "left",
             "width": 180
         },
-
         {
             "headerName": "Role",
             "field": "Role",
@@ -223,24 +183,10 @@ else:
 
     for i, day in enumerate(DAYS):
 
-        day_label = day_dates[i]
-
         column_defs.append({
-            "headerName": day_label,
-            "children": [
-
-                {
-                    "headerName": "Start",
-                    "field": f"{day}: Start",
-                    "width": 120
-                },
-
-                {
-                    "headerName": "End",
-                    "field": f"{day}: End",
-                    "width": 120
-                }
-            ]
+            "headerName": day_dates[i],
+            "field": day,
+            "width": 150
         })
 
     grid_options = {
@@ -250,7 +196,6 @@ else:
             "sortable": False
         },
         "headerHeight": 45,
-        "groupHeaderHeight": 50,
         "rowHeight": 42,
         "animateRows": True
     }
@@ -278,7 +223,7 @@ else:
         height=650,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
-        editable=False,   # ✅ IMPORTANT FIX
+        editable=False,
         theme="streamlit"
     )
 
