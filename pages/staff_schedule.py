@@ -84,7 +84,6 @@ start_date = st.date_input("Week Start Date")
 
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-# DATE FORMAT
 day_dates = [
     (start_date + timedelta(days=i)).strftime("%a %d/%m")
     for i in range(7)
@@ -95,32 +94,15 @@ day_dates = [
 # =========================================
 
 def get_filtered_data():
-
     ws = master_sheet.worksheet("StaffSchedule")
-
     all_data = ws.get_all_records()
 
-    df = (
-        pd.DataFrame(all_data)
-        if all_data
-        else pd.DataFrame()
-    )
+    df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
     if df.empty:
+        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"])
 
-        df = pd.DataFrame(
-            columns=[
-                "Branch",
-                "Date",
-                "Name",
-                "Role"
-            ]
-        )
-
-    return df[
-        df["Branch"] ==
-        st.session_state.selected_branch
-    ]
+    return df[df["Branch"] == st.session_state.selected_branch]
 
 
 df = get_filtered_data()
@@ -148,7 +130,6 @@ for i, day in enumerate(DAYS):
 
     if shift_mode:
 
-        # REMOVE TIME COLUMNS
         start_col = f"{day}: Start"
         end_col = f"{day}: End"
 
@@ -161,57 +142,39 @@ for i, day in enumerate(DAYS):
             cols_to_drop.append(end_col)
 
         if cols_to_drop:
-            df_display.drop(
-                columns=cols_to_drop,
-                inplace=True
-            )
+            df_display.drop(columns=cols_to_drop, inplace=True)
 
-        # CREATE SHIFT COLUMN
         if day not in df_display.columns:
             df_display[day] = ""
 
-        config[day] = (
-            st.column_config.SelectboxColumn(
-                f"({day_dates[i]})",
-                options=SHIFT_OPTIONS
-            )
+        config[day] = st.column_config.SelectboxColumn(
+            f"({day_dates[i]})",
+            options=SHIFT_OPTIONS
         )
 
     else:
 
-        # REMOVE SHIFT COLUMN
         if day in df_display.columns:
-
-            df_display.drop(
-                columns=[day],
-                inplace=True
-            )
+            df_display.drop(columns=[day], inplace=True)
 
         start_col = f"{day}: Start"
         end_col = f"{day}: End"
-
-        # SUPPORT OLD "Finish"
         alt_end_col = f"{day}: Finish"
 
         if start_col not in df_display.columns:
             df_display[start_col] = ""
 
         if end_col not in df_display.columns:
-
             if alt_end_col in df_display.columns:
-
                 df_display.rename(
-                    columns={
-                        alt_end_col: end_col
-                    },
+                    columns={alt_end_col: end_col},
                     inplace=True
                 )
-
             else:
                 df_display[end_col] = ""
 
 # =========================================
-# SHIFT MODE
+# SHIFT MODE (EDITABLE)
 # =========================================
 
 if shift_mode:
@@ -224,23 +187,16 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (AGGRID)
+# NORMAL MODE (DISPLAY ONLY - FIXED)
 # =========================================
 
 else:
 
-    # ORDER COLUMNS
     ordered_cols = ["Name", "Role"]
 
     for day in DAYS:
-
-        ordered_cols.append(
-            f"{day}: Start"
-        )
-
-        ordered_cols.append(
-            f"{day}: End"
-        )
+        ordered_cols.append(f"{day}: Start")
+        ordered_cols.append(f"{day}: End")
 
     existing_cols = [
         c for c in ordered_cols
@@ -249,119 +205,71 @@ else:
 
     df_display = df_display[existing_cols]
 
-    # =====================================
-    # COLUMN DEFINITIONS
-    # =====================================
-
     column_defs = [
 
         {
             "headerName": "Name",
             "field": "Name",
             "pinned": "left",
-            "editable": True,
             "width": 180
         },
 
         {
             "headerName": "Role",
             "field": "Role",
-            "editable": True,
-            "width": 180,
-            "cellEditor": "agSelectCellEditor",
-            "cellEditorParams": {
-                "values": ROLE_OPTIONS
-            }
+            "width": 180
         }
     ]
 
-    # GROUPED DAY HEADERS
     for i, day in enumerate(DAYS):
 
         day_label = day_dates[i]
 
         column_defs.append({
-
             "headerName": day_label,
-
             "children": [
 
                 {
                     "headerName": "Start",
                     "field": f"{day}: Start",
-                    "editable": True,
-                    "width": 120,
-
-                    "cellEditor": "agSelectCellEditor",
-
-                    "cellEditorParams": {
-                        "values": TIME_OPTIONS
-                    }
+                    "width": 120
                 },
 
                 {
                     "headerName": "End",
                     "field": f"{day}: End",
-                    "editable": True,
-                    "width": 120,
-
-                    "cellEditor": "agSelectCellEditor",
-
-                    "cellEditorParams": {
-                        "values": TIME_OPTIONS
-                    }
+                    "width": 120
                 }
             ]
         })
 
-    # =====================================
-    # GRID OPTIONS
-    # =====================================
-
     grid_options = {
-
         "columnDefs": column_defs,
-
         "defaultColDef": {
             "resizable": True,
             "sortable": False
         },
-
         "headerHeight": 45,
-
         "groupHeaderHeight": 50,
-
         "rowHeight": 42,
-
         "animateRows": True
     }
 
-    # =====================================
-    # CUSTOM CSS
-    # =====================================
-
     custom_css = {
-
         ".ag-header-group-cell-label": {
             "justify-content": "center",
             "font-weight": "bold",
             "font-size": "15px"
         },
-
         ".ag-header-cell-label": {
             "justify-content": "center",
             "font-size": "13px"
         },
-
         ".ag-cell": {
             "display": "flex",
             "align-items": "center"
         }
     }
-
-    # =====================================
-    # SHOW GRID
-    # =====================================
 
     grid_response = AgGrid(
         df_display,
@@ -370,56 +278,35 @@ else:
         height=650,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
-        editable=True,
+        editable=False,   # ✅ IMPORTANT FIX
         theme="streamlit"
     )
 
-    edited_df = pd.DataFrame(
-        grid_response["data"]
-    )
+    edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
 # 6. SAVE LOGIC (UNCHANGED)
 # =========================================
 
-if st.button(
-    "💾 Save to Master Sheet",
-    type="primary"
-):
+if st.button("💾 Save to Master Sheet", type="primary"):
 
-    ws = master_sheet.worksheet(
-        "StaffSchedule"
-    )
+    ws = master_sheet.worksheet("StaffSchedule")
 
-    full_data = pd.DataFrame(
-        ws.get_all_records()
-    )
+    full_data = pd.DataFrame(ws.get_all_records())
 
     remaining_data = full_data[
-        full_data["Branch"] !=
-        st.session_state.selected_branch
+        full_data["Branch"] != st.session_state.selected_branch
     ]
 
     new_data = edited_df.copy()
 
-    new_data["Branch"] = (
-        st.session_state.selected_branch
-    )
-
+    new_data["Branch"] = st.session_state.selected_branch
     new_data["Date"] = str(start_date)
 
     if "Name" in new_data.columns:
+        new_data["Name"] = new_data["Name"].astype(str).str.upper()
 
-        new_data["Name"] = (
-            new_data["Name"]
-            .astype(str)
-            .str.upper()
-        )
-
-    final_df = pd.concat(
-        [remaining_data, new_data],
-        ignore_index=True
-    )
+    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
 
     ws.clear()
 
@@ -429,7 +316,6 @@ if st.button(
     )
 
     st.success("✅ Saved Successfully!")
-
     st.rerun()
 
 # =========================================
@@ -437,5 +323,4 @@ if st.button(
 # =========================================
 
 if st.button("⬅ Back"):
-
     st.switch_page("app.py")
