@@ -34,18 +34,18 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 start_date = st.date_input("Week Start Date")
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-day_dates = [(start_date + timedelta(days=i)).strftime("%a %d/%m") for i in range(7)]
+# ✅ FIXED DATE FORMAT (Sun 24/05)
+day_dates = [
+    (start_date + timedelta(days=i)).strftime("%a %d/%m")
+    for i in range(7)
+]
 
 # 4. LOAD DATA
 def get_filtered_data():
     ws = master_sheet.worksheet("StaffSchedule")
     all_data = ws.get_all_records()
 
-    df = pd.DataFrame(
-        all_data
-        if all_data
-        else []
-    )
+    df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
     if df.empty:
         df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
@@ -55,7 +55,7 @@ def get_filtered_data():
 
 df = get_filtered_data()
 
-# 5. BUILD DISPLAY DATAFRAME + CONFIG CLEANLY
+# 5. BUILD UI (UNCHANGED LOGIC)
 st.subheader("Edit Roster")
 
 config = {
@@ -67,24 +67,24 @@ df_display = df.copy()
 for i, day in enumerate(DAYS):
 
     if shift_mode:
-        # REMOVE time columns if exist
+        # remove time columns if exist
         start_col = f"{day}: Start"
         end_col = f"{day}: Finish"
 
         if start_col in df_display.columns:
             df_display.drop(columns=[start_col, end_col], inplace=True)
 
-        # ensure shift column exists
         if day not in df_display.columns:
             df_display[day] = ""
 
+        # ✅ UPDATED HEADER FORMAT
         config[day] = st.column_config.SelectboxColumn(
-            f"{day}\n({day_dates[i]})",
+            f"({day_dates[i]})",
             options=SHIFT_OPTIONS
         )
 
     else:
-        # REMOVE shift column if exists
+        # remove shift column if exists
         if day in df_display.columns:
             df_display.drop(columns=[day], inplace=True)
 
@@ -96,13 +96,14 @@ for i, day in enumerate(DAYS):
         if end_col not in df_display.columns:
             df_display[end_col] = ""
 
+        # ✅ UPDATED HEADER FORMAT
         config[start_col] = st.column_config.SelectboxColumn(
-            f"{day}\nStart",
+            f"({day_dates[i]}) Start",
             options=TIME_OPTIONS
         )
 
         config[end_col] = st.column_config.SelectboxColumn(
-            f"{day}\nEnd",
+            f"({day_dates[i]}) End",
             options=TIME_OPTIONS
         )
 
@@ -113,7 +114,7 @@ edited_df = st.data_editor(
     use_container_width=True
 )
 
-# 6. SAVE
+# 6. SAVE LOGIC (UNCHANGED)
 if st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
