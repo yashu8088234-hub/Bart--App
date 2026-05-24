@@ -169,7 +169,7 @@ else:
         custom_css=custom_css,
 
         # ✅ ~10 rows visible height
-        height=10 * 42 + 90,
+        height=7 * 42 + 90,
 
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
