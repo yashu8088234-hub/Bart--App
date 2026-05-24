@@ -73,12 +73,8 @@ def get_filtered_data():
 
     df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
-    # ensure required columns exist
-    required_cols = ["Branch", "Date", "Name", "Role"] + DAYS
-
-    for col in required_cols:
-        if col not in df.columns:
-            df[col] = ""
+    if df.empty:
+        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
 
     return df[df["Branch"] == st.session_state.selected_branch]
 
@@ -86,7 +82,7 @@ def get_filtered_data():
 df = get_filtered_data()
 
 # =========================================
-# 5. SHIFT CONFIG
+# 5. SHIFT CONFIG (same for edit)
 # =========================================
 
 config = {
@@ -103,11 +99,12 @@ for day in DAYS:
     )
 
 # =========================================
-# 6. EDIT MODE (EMPTY ENTRY FORM)
+# 6. EDIT MODE (🔥 FIXED — EMPTY DF ONLY)
 # =========================================
 
 if edit_mode:
 
+    # ✅ KEEP ORIGINAL STRUCTURE BUT EMPTY
     df_display = pd.DataFrame(
         columns=["Name", "Role"] + DAYS
     )
@@ -120,7 +117,7 @@ if edit_mode:
     )
 
 # =========================================
-# 7. VIEW MODE (AGGRID FROM SHEET)
+# 7. VIEW MODE (FROM SHEET)
 # =========================================
 
 else:
