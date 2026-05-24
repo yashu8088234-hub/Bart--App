@@ -245,14 +245,14 @@ else:
             "field": "Name",
             "pinned": "left",
             "editable": False,
-            "width": 180
+            "width": 140
         },
 
         {
             "headerName": "Role",
             "field": "Role",
             "editable": False,
-            "width": 180
+            "width": 150
         }
     ]
 
@@ -267,7 +267,7 @@ else:
 
             "editable": False,
 
-            "width": 170
+            "width": 115
         })
 
     # =====================================
@@ -283,9 +283,11 @@ else:
             "sortable": False
         },
 
-        "headerHeight": 45,
+        # SMALLER HEADER
+        "headerHeight": 36,
 
-        "rowHeight": 42,
+        # SMALLER ROWS
+        "rowHeight": 32,
 
         "animateRows": True
     }
@@ -296,15 +298,25 @@ else:
 
     custom_css = {
 
+        # HEADER STYLE
         ".ag-header-cell-label": {
             "justify-content": "center",
-            "font-weight": "bold",
-            "font-size": "14px"
+            "font-weight": "600",
+            "font-size": "12px"
         },
 
+        # CELL STYLE
         ".ag-cell": {
             "display": "flex",
-            "align-items": "center"
+            "align-items": "center",
+            "font-size": "12px",
+            "padding-left": "6px",
+            "padding-right": "6px"
+        },
+
+        # CLEAN BORDER
+        ".ag-root-wrapper": {
+            "border-radius": "10px"
         }
     }
 
@@ -316,7 +328,7 @@ else:
         df_display,
         gridOptions=grid_options,
         custom_css=custom_css,
-        height=650,
+        height=420,
         fit_columns_on_grid_load=False,
         allow_unsafe_jscode=True,
         editable=False,
