@@ -298,7 +298,7 @@ csv = edited_df.to_csv(index=False).encode("utf-8")
 st.download_button(
     label="⬇ Download Weekly Schedule",
     data=csv,
-    file_name=f"{branch_info['BranchCode']}_{week_string}_schedule.csv",
+    file_name=f"{branch_info['BranchCode']}_weekly_schedule_{from_date}.csv",
     mime="text/csv",
     use_container_width=True
 )
