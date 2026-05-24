@@ -44,15 +44,23 @@ st.subheader("Edit Roster")
 config = {"Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)}
 
 # Configure Columns dynamically
-if shift_mode:
-    for i, day in enumerate(DAYS):
-        config[day] = st.column_config.SelectboxColumn(f"{day}\n({day_dates[i]})", options=SHIFT_OPTIONS)
-else:
-    for i, day in enumerate(DAYS):
-        # We simulate the merge by naming headers clearly
-        config[f"{day}: Start"] = st.column_config.SelectboxColumn(f"{day}\nStart", options=TIME_OPTIONS)
-        config[f"{day}: Finish"] = st.column_config.SelectboxColumn(f"{day}\nEnd", options=TIME_OPTIONS)
-
+for i, day in enumerate(DAYS):
+    if shift_mode:
+        # ONLY ONE CELL PER DAY
+        config[day] = st.column_config.SelectboxColumn(
+            f"{day}\n({day_dates[i]})",
+            options=SHIFT_OPTIONS
+        )
+    else:
+        # TIME MODE (Start + End)
+        config[f"{day}: Start"] = st.column_config.SelectboxColumn(
+            f"{day}\nStart",
+            options=TIME_OPTIONS
+        )
+        config[f"{day}: Finish"] = st.column_config.SelectboxColumn(
+            f"{day}\nEnd",
+            options=TIME_OPTIONS
+        )
 edited_df = st.data_editor(df, column_config=config, num_rows="dynamic", use_container_width=True)
 
 # 6. SAVE LOGIC (Safe Update)
