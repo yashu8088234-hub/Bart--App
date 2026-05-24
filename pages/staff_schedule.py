@@ -4,23 +4,27 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # ---------------- PAGE SETUP ----------------
-st.set_page_config(layout="wide", page_title="BART Advanced Roster")
+st.set_page_config(layout="wide", page_title="BART Staff Schedule")
 
+# Authentication Check
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("Please login from the main portal first.")
+    if st.button("Go to Login"):
+        st.switch_page("app.py")
     st.stop()
 
+# ---------------- GOOGLE SHEETS SETUP ----------------
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.session_state.branch_info["SheetID"])
 
-# ---------------- CONFIGURATION ----------------
+# ---------------- CONFIGURATION & HEADERS ----------------
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 ROLE_OPTIONS = ["Staff", "Supervisor", "Acting Supervisor", "Team Leader", "Acting Team Leader"]
 
-# Create Time Dropdown Options (1-12, AM/PM)
+# Generate time slots 1-12 AM/PM
 times = []
 for h in range(1, 13):
     times.append(f"{h}:00 AM")
@@ -40,6 +44,7 @@ def get_or_create_sheet():
         if len(data) < 1:
             ws.append_row(HEADERS)
             return pd.DataFrame(columns=HEADERS)
+        # Convert list to DataFrame
         return pd.DataFrame(data[1:], columns=data[0])
     except gspread.exceptions.WorksheetNotFound:
         ws = sheet.add_worksheet(title="StaffSchedule", rows="100", cols=len(HEADERS))
@@ -49,42 +54,54 @@ def get_or_create_sheet():
 if "df_schedule" not in st.session_state:
     st.session_state.df_schedule = get_or_create_sheet()
 
-# ---------------- UI ----------------
+# ---------------- UI LAYOUT ----------------
 st.title(f"🏢 Weekly Schedule: {st.session_state.selected_branch}")
 
-# Column config dictionary for the Data Editor
+# Date Selectors
+col1, col2 = st.columns(2)
+start_date = col1.date_input("Schedule Start Date")
+end_date = col2.date_input("Schedule End Date")
+
+st.markdown("---")
+st.subheader("Edit Staff Roster")
+st.markdown("Use the dropdowns to select shifts and roles. Names are converted to UPPERCASE upon saving.")
+
+# Build Data Editor Configuration
 column_config = {
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, required=True),
 }
-# Add time dropdowns to all 14 time columns
 for day in DAYS:
     column_config[f"{day}: Start"] = st.column_config.SelectboxColumn("Start", options=times)
     column_config[f"{day}: Finish"] = st.column_config.SelectboxColumn("Finish", options=times)
 
+# Display Editor
 edited_df = st.data_editor(
     st.session_state.df_schedule,
     column_config=column_config,
     num_rows="dynamic",
-    use_container_width=True
+    use_container_width=True,
+    key="main_editor"
 )
 
 # ---------------- SAVE OPERATIONS ----------------
-if st.button("💾 Save Schedule", type="primary"):
-    # Name Uppercase Conversion Logic
+if st.button("💾 Save Schedule to Database", type="primary"):
+    # Enforce Uppercase on Names
     if "Name" in edited_df.columns:
         edited_df["Name"] = edited_df["Name"].astype(str).str.upper()
     
-    with st.spinner("Saving..."):
+    with st.spinner("Updating Google Sheet..."):
         try:
             ws = sheet.worksheet("StaffSchedule")
             ws.clear()
+            # Combine headers and data for writing
             data_to_write = [HEADERS] + edited_df.fillna("").values.tolist()
             ws.update(data_to_write)
-            st.success("✅ Saved and Names converted to Uppercase!")
+            
+            st.success("✅ Schedule saved successfully! Names updated to Uppercase.")
             st.session_state.df_schedule = edited_df
-            st.rerun()
         except Exception as e:
-            st.error(f"❌ Error: {e}")
+            st.error(f"❌ Error saving data: {e}")
 
-if st.button("⬅ Back"):
+st.markdown("---")
+if st.button("⬅ Back to Dashboard"):
     st.switch_page("app.py")
