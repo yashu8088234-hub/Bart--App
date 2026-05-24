@@ -367,6 +367,9 @@ edited_df = st.data_editor(
 # =========================================================
 # SAVE BUTTON
 # =========================================================
+# =========================================================
+# SAVE BUTTON
+# =========================================================
 
 st.divider()
 
@@ -395,13 +398,23 @@ with save_col1:
                 required_columns
             ] + edited_df.values.tolist()
 
+            # CLEAR OLD DATA
             ws.clear()
 
+            # SAVE NEW DATA
             ws.update(final_data)
 
+            # CLEAR CACHE
             st.cache_data.clear()
 
-            st.success("✅ Weekly schedule saved successfully.")
+            # CLEAR DATAFRAME AFTER SAVE
+            empty_df = pd.DataFrame(columns=required_columns)
+
+            ws.clear()
+
+            ws.append_row(required_columns)
+
+            st.success("✅ Weekly schedule submitted successfully.")
 
             time.sleep(1)
 
@@ -410,7 +423,6 @@ with save_col1:
         except Exception as e:
 
             st.error(f"Error saving schedule: {e}")
-
 # =========================================================
 # DOWNLOAD CSV
 # =========================================================
@@ -461,42 +473,6 @@ st.dataframe(
     hide_index=True
 )
 
-# =========================================================
-# UNDERSTAFF ALERTS
-# =========================================================
-
-st.divider()
-
-st.subheader("🚨 Understaff Alerts")
-
-alerts = []
-
-for day in day_columns:
-
-    morning = len(df[df[day] == "M"])
-
-    evening = len(df[df[day] == "E"])
-
-    if morning < 2:
-
-        alerts.append(
-            f"{day}: Low MORNING staffing ({morning})"
-        )
-
-    if evening < 2:
-
-        alerts.append(
-            f"{day}: Low EVENING staffing ({evening})"
-        )
-
-if alerts:
-
-    for alert in alerts:
-        st.warning(alert)
-
-else:
-
-    st.success("✅ Staffing levels look healthy.")
 
 # =========================================================
 # INTERNAL NOTES
