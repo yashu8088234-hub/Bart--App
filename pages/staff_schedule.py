@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from st_aggrid import AgGrid
 
@@ -52,22 +52,16 @@ ROLE_OPTIONS = [
 ]
 
 SHIFT_OPTIONS = [
-    "Morning shift","Mid shift","Evening shift","Night shift"
+    "Morning shift",
+    "Mid shift",
+    "Evening shift",
+    "Night shift",
+    "OFF",
+    "Custom Time"
 ]
 
 # =========================================
-# 3. WEEK DATE GENERATION (IMPORTANT)
-# =========================================
-
-today = datetime.now()
-
-day_dates = [
-    (today + timedelta(days=i)).strftime("%A %d %B")
-    for i in range(7)
-]
-
-# =========================================
-# 4. UI
+# 3. UI
 # =========================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
@@ -75,7 +69,7 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 5. LOAD DATA (VIEW ONLY)
+# 4. LOAD DATA
 # =========================================
 
 def get_filtered_data():
@@ -93,24 +87,37 @@ def get_filtered_data():
 df = get_filtered_data()
 
 # =========================================
-# 6. CONFIG (SHIFT DROPDOWNS)
+# 5. EXISTING NAMES (AUTOCOMPLETE)
+# =========================================
+
+existing_names = df[
+    df["Branch"] == st.session_state.selected_branch
+]["Name"].dropna().unique().tolist()
+
+# =========================================
+# 6. CONFIG
 # =========================================
 
 config = {
+    "Name": st.column_config.SelectboxColumn(
+        "Name",
+        options=existing_names,
+        help="Select or type employee name"
+    ),
     "Role": st.column_config.SelectboxColumn(
         "Role",
         options=ROLE_OPTIONS
     )
 }
 
-for i, day in enumerate(DAYS):
+for day in DAYS:
     config[day] = st.column_config.SelectboxColumn(
-        day_dates[i],
+        day,
         options=SHIFT_OPTIONS
     )
 
 # =========================================
-# 7. EDIT MODE (EMPTY INPUT ONLY)
+# 7. EDIT MODE (EMPTY INPUT TABLE)
 # =========================================
 
 if edit_mode:
@@ -125,6 +132,31 @@ if edit_mode:
         num_rows="dynamic",
         use_container_width=True
     )
+
+    # =========================================
+    # CUSTOM TIME PICKER LOGIC
+    # =========================================
+
+    for i, row in edited_df.iterrows():
+        for day in DAYS:
+
+            if row[day] == "Custom Time":
+
+                st.markdown(f"### ⏰ {row['Name']} - {day}")
+
+                start = st.time_input(
+                    f"Start Time ({row['Name']} - {day})",
+                    key=f"{i}_{day}_start"
+                )
+
+                end = st.time_input(
+                    f"End Time ({row['Name']} - {day})",
+                    key=f"{i}_{day}_end"
+                )
+
+                edited_df.at[i, day] = (
+                    f"{start.strftime('%I:%M %p')} - {end.strftime('%I:%M %p')}"
+                )
 
 # =========================================
 # 8. VIEW MODE (AGGRID)
@@ -143,9 +175,9 @@ else:
         {"headerName": "Date", "field": "Date", "width": 180},
     ]
 
-    for i, day in enumerate(DAYS):
+    for day in DAYS:
         column_defs.append({
-            "headerName": day_dates[i],
+            "headerName": day,
             "field": day,
             "width": 140
         })
@@ -185,7 +217,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 9. SAVE (AUTO DATE LABEL)
+# 9. SAVE TO SHEET
 # =========================================
 
 if edit_mode:
@@ -203,9 +235,7 @@ if edit_mode:
         new_data = edited_df.copy()
 
         new_data["Branch"] = st.session_state.selected_branch
-
-        # IMPORTANT: store today label
-        new_data["Date"] = today.strftime("%A %d %B")
+        new_data["Date"] = datetime.now().strftime("%A %d %B")
 
         if "Name" in new_data.columns:
             new_data["Name"] = new_data["Name"].astype(str).str.upper()
