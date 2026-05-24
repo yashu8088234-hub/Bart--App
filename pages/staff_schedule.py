@@ -1,9 +1,14 @@
 import streamlit as st
 import pandas as pd
-import gspread
 import datetime
+import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode, GridUpdateMode
+
+from st_aggrid import (
+    AgGrid,
+    GridOptionsBuilder,
+    GridUpdateMode
+)
 
 # =========================================================
 # CONFIG
@@ -37,7 +42,7 @@ sheet = client.open_by_key(branch_info["SheetID"])
 # DATA
 # =========================================================
 
-st.title("📅 Excel Style Staff Scheduler")
+st.title("📅 Excel Style Weekly Scheduler")
 
 from_date = st.date_input("Week Start", datetime.date.today())
 ws_name = f"Weekly_{from_date}"
@@ -54,73 +59,62 @@ ROLE_OPTIONS = [
     "Acting Team Leader"
 ]
 
+# =========================================================
+# LOAD SHEET
+# =========================================================
+
 @st.cache_data(ttl=60)
 def load():
     try:
         ws = sheet.worksheet(ws_name)
-        return pd.DataFrame(ws.get_all_records())
+        df = pd.DataFrame(ws.get_all_records())
     except:
-        return pd.DataFrame(columns=columns)
+        df = pd.DataFrame(columns=columns)
+
+    for c in columns:
+        if c not in df.columns:
+            df[c] = ""
+
+    return df[columns]
 
 df = load()
 
-for c in columns:
-    if c not in df.columns:
-        df[c] = ""
-
-df = df[columns]
-
 # =========================================================
-# 🎨 PAINT MODE (GLOBAL COLOR)
+# 🎨 PAINT MODE STATE
 # =========================================================
 
-st.subheader("🎨 Paint Tool (Excel Style)")
+st.subheader("🎨 Paint Tool")
 
-paint = st.toggle("Enable Paint Mode")
+paint_mode = st.toggle("Enable Paint Mode")
 
-color = st.color_picker("Pick Color") if paint else None
+paint_color = None
+if paint_mode:
+    paint_color = st.color_picker("Pick Color")
 
-# store colors
 if "cell_colors" not in st.session_state:
     st.session_state.cell_colors = {}
 
 # =========================================================
-# AG GRID CONFIG
+# AG GRID (FIXED BUILD)
 # =========================================================
 
 gb = GridOptionsBuilder.from_dataframe(df)
 
-gb.configure_default_column(editable=True)
+gb.configure_default_column(editable=True, resizable=True)
 
-gb.configure_column("Role", editable=True, cellEditor="agSelectCellEditor",
-                    cellEditorParams={"values": ROLE_OPTIONS})
+# Role dropdown
+gb.configure_column(
+    "Role",
+    editable=True,
+    cellEditor="agSelectCellEditor",
+    cellEditorParams={"values": ROLE_OPTIONS}
+)
 
+# IMPORTANT FIX: DO NOT add JS column overrides before build()
 gridOptions = gb.build()
 
 # =========================================================
-# CUSTOM JS PAINT LOGIC
-# =========================================================
-
-cell_style_js = JsCode("""
-function(params) {
-    if (!params.data._colors) {
-        return {};
-    }
-
-    const key = params.colDef.field + '_' + params.rowIndex;
-
-    if (params.data._colors && params.data._colors[key]) {
-        return {backgroundColor: params.data._colors[key]};
-    }
-}
-""")
-
-gb.configure_columns(columns, cellStyle=cell_style_js)
-
-gridOptions = gb.build()
-
-# =========================================================
-# GRID
+# GRID RENDER
 # =========================================================
 
 grid_response = AgGrid(
@@ -128,63 +122,79 @@ grid_response = AgGrid(
     gridOptions=gridOptions,
     update_mode=GridUpdateMode.MODEL_CHANGED,
     allow_unsafe_jscode=True,
-    height=500,
-    fit_columns_on_grid_load=True
+    height=500
 )
 
 data = pd.DataFrame(grid_response["data"])
 
 # =========================================================
-# 🎯 CLICK-TO-PAINT (REAL EXCEL BEHAVIOR)
+# SIMPLE PAINT SYSTEM (NO JS BUGS)
 # =========================================================
 
-st.subheader("🖱️ Click Cells to Paint")
+st.subheader("🖱️ Click-to-Paint Cell")
 
-row = st.number_input("Row Index", min_value=0, step=1)
-col = st.selectbox("Column", columns)
+col1, col2 = st.columns(2)
 
-if paint and st.button("Apply Paint to Cell"):
+with col1:
+    row = st.number_input("Row", min_value=0, step=1)
 
-    key = f"{col}_{row}"
+with col2:
+    col = st.selectbox("Column", columns)
 
-    if "_colors" not in data.columns:
-        data["_colors"] = None
+if paint_mode and st.button("Apply Color"):
 
-    if len(data) > row:
-        if data.at[row, "_colors"] is None:
-            data.at[row, "_colors"] = {}
-
-        if isinstance(data.at[row, "_colors"], str):
-            data.at[row, "_colors"] = {}
-
-        data.at[row, "_colors"][key] = color
+    key = f"{row}_{col}"
+    st.session_state.cell_colors[key] = paint_color
 
     st.success("Cell colored")
+
+# =========================================================
+# APPLY COLORS (SAFE METHOD)
+# =========================================================
+
+def style_df(df):
+
+    def style_row(row):
+
+        styles = [""] * len(row)
+
+        for i, c in enumerate(df.columns):
+
+            key = f"{row.name}_{c}"
+
+            if key in st.session_state.cell_colors:
+                styles[i] = f"background-color: {st.session_state.cell_colors[key]}"
+
+        return styles
+
+    return df.style.apply(style_row, axis=1)
+
+st.dataframe(style_df(data), use_container_width=True)
 
 # =========================================================
 # SAVE
 # =========================================================
 
-col1, col2 = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col1:
+with c1:
 
     if st.button("💾 SAVE", type="primary"):
 
         ws = sheet.worksheet(ws_name)
 
-        final = [columns] + data[columns].fillna("").values.tolist()
+        final = [columns] + data.fillna("").values.tolist()
 
         ws.clear()
         ws.update(final)
 
-        st.success("Saved")
+        st.success("Saved successfully")
 
 # =========================================================
 # DOWNLOAD
 # =========================================================
 
-with col2:
+with c2:
 
     st.download_button(
         "⬇ DOWNLOAD",
