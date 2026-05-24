@@ -64,7 +64,7 @@ start_date = st.date_input("Week Start Date")
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 4. LOAD DATA (ONLY FOR VIEW MODE)
+# 4. LOAD DATA (VIEW MODE ONLY)
 # =========================================
 
 def get_filtered_data():
@@ -73,8 +73,12 @@ def get_filtered_data():
 
     df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
-    if df.empty:
-        df = pd.DataFrame(columns=["Branch", "Name", "Role"])
+    # ensure required columns exist
+    required_cols = ["Branch", "Date", "Name", "Role"] + DAYS
+
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = ""
 
     return df[df["Branch"] == st.session_state.selected_branch]
 
@@ -82,7 +86,7 @@ def get_filtered_data():
 df = get_filtered_data()
 
 # =========================================
-# 5. BUILD UI
+# 5. SHIFT CONFIG
 # =========================================
 
 config = {
@@ -92,26 +96,18 @@ config = {
     )
 }
 
-# =========================================
-# SHIFT PREP
-# =========================================
-
 for day in DAYS:
-
-    if edit_mode:
-        # ✅ CREATE BLANK DATAFRAME ONLY
-        config[day] = st.column_config.SelectboxColumn(
-            day,
-            options=SHIFT_OPTIONS
-        )
+    config[day] = st.column_config.SelectboxColumn(
+        day,
+        options=SHIFT_OPTIONS
+    )
 
 # =========================================
-# EDIT MODE (BLANK INPUT TABLE)
+# 6. EDIT MODE (EMPTY ENTRY FORM)
 # =========================================
 
 if edit_mode:
 
-    # 🚀 IMPORTANT: EMPTY DATAFRAME
     df_display = pd.DataFrame(
         columns=["Name", "Role"] + DAYS
     )
@@ -124,19 +120,20 @@ if edit_mode:
     )
 
 # =========================================
-# VIEW MODE (FROM GOOGLE SHEET)
+# 7. VIEW MODE (AGGRID FROM SHEET)
 # =========================================
 
 else:
 
     df_display = df.copy()
 
-    ordered_cols = ["Name", "Role"] + DAYS
+    ordered_cols = ["Name", "Role", "Date"] + DAYS
     df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
 
     column_defs = [
         {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
-        {"headerName": "Role", "field": "Role", "width": 150}
+        {"headerName": "Role", "field": "Role", "width": 150},
+        {"headerName": "Date", "field": "Date", "width": 150},
     ]
 
     for day in DAYS:
@@ -181,7 +178,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 6. SAVE (ONLY EDIT MODE)
+# 8. SAVE (ONLY EDIT MODE)
 # =========================================
 
 if edit_mode:
@@ -197,7 +194,9 @@ if edit_mode:
         ]
 
         new_data = edited_df.copy()
+
         new_data["Branch"] = st.session_state.selected_branch
+        new_data["Date"] = str(start_date)
 
         if "Name" in new_data.columns:
             new_data["Name"] = new_data["Name"].astype(str).str.upper()
@@ -212,12 +211,10 @@ if edit_mode:
         )
 
         st.success("✅ Saved Successfully!")
-
-        # ✅ CLEAR UI DATA ONLY (NOT GOOGLE SHEET)
         st.rerun()
 
 # =========================================
-# 7. BACK
+# 9. BACK
 # =========================================
 
 if st.button("⬅ Back"):
