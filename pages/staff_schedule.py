@@ -3,6 +3,8 @@ import pandas as pd
 import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime, timedelta
+
 from st_aggrid import AgGrid
 
 st.set_page_config(
@@ -54,17 +56,26 @@ SHIFT_OPTIONS = [
 ]
 
 # =========================================
-# 3. UI
+# 3. WEEK DATE GENERATION (IMPORTANT)
+# =========================================
+
+today = datetime.now()
+
+day_dates = [
+    (today + timedelta(days=i)).strftime("%A %d %B")
+    for i in range(7)
+]
+
+# =========================================
+# 4. UI
 # =========================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
-start_date = st.date_input("Week Start Date")
-
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 4. LOAD DATA (VIEW MODE ONLY)
+# 5. LOAD DATA (VIEW ONLY)
 # =========================================
 
 def get_filtered_data():
@@ -82,7 +93,7 @@ def get_filtered_data():
 df = get_filtered_data()
 
 # =========================================
-# 5. SHIFT CONFIG (same for edit)
+# 6. CONFIG (SHIFT DROPDOWNS)
 # =========================================
 
 config = {
@@ -92,19 +103,18 @@ config = {
     )
 }
 
-for day in DAYS:
+for i, day in enumerate(DAYS):
     config[day] = st.column_config.SelectboxColumn(
-        day,
+        day_dates[i],
         options=SHIFT_OPTIONS
     )
 
 # =========================================
-# 6. EDIT MODE (🔥 FIXED — EMPTY DF ONLY)
+# 7. EDIT MODE (EMPTY INPUT ONLY)
 # =========================================
 
 if edit_mode:
 
-    # ✅ KEEP ORIGINAL STRUCTURE BUT EMPTY
     df_display = pd.DataFrame(
         columns=["Name", "Role"] + DAYS
     )
@@ -117,7 +127,7 @@ if edit_mode:
     )
 
 # =========================================
-# 7. VIEW MODE (FROM SHEET)
+# 8. VIEW MODE (AGGRID)
 # =========================================
 
 else:
@@ -130,12 +140,12 @@ else:
     column_defs = [
         {"headerName": "Name", "field": "Name", "pinned": "left", "width": 180},
         {"headerName": "Role", "field": "Role", "width": 150},
-        {"headerName": "Date", "field": "Date", "width": 150},
+        {"headerName": "Date", "field": "Date", "width": 180},
     ]
 
-    for day in DAYS:
+    for i, day in enumerate(DAYS):
         column_defs.append({
-            "headerName": day,
+            "headerName": day_dates[i],
             "field": day,
             "width": 140
         })
@@ -175,7 +185,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 8. SAVE (ONLY EDIT MODE)
+# 9. SAVE (AUTO DATE LABEL)
 # =========================================
 
 if edit_mode:
@@ -193,7 +203,9 @@ if edit_mode:
         new_data = edited_df.copy()
 
         new_data["Branch"] = st.session_state.selected_branch
-        new_data["Date"] = str(start_date)
+
+        # IMPORTANT: store today label
+        new_data["Date"] = today.strftime("%A %d %B")
 
         if "Name" in new_data.columns:
             new_data["Name"] = new_data["Name"].astype(str).str.upper()
@@ -211,7 +223,7 @@ if edit_mode:
         st.rerun()
 
 # =========================================
-# 9. BACK
+# 10. BACK
 # =========================================
 
 if st.button("⬅ Back"):
