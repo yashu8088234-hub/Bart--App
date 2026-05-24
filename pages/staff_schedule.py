@@ -69,7 +69,7 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
-# 4. LOAD DATA
+# 4. LOAD DATA (VIEW ONLY)
 # =========================================
 
 def get_filtered_data():
@@ -87,7 +87,7 @@ def get_filtered_data():
 df = get_filtered_data()
 
 # =========================================
-# 5. EXISTING NAMES (AUTOCOMPLETE)
+# 5. NAME AUTOCOMPLETE
 # =========================================
 
 existing_names = df[
@@ -102,7 +102,7 @@ config = {
     "Name": st.column_config.SelectboxColumn(
         "Name",
         options=existing_names,
-        help="Select or type employee name"
+        help="Select employee"
     ),
     "Role": st.column_config.SelectboxColumn(
         "Role",
@@ -133,9 +133,9 @@ if edit_mode:
         use_container_width=True
     )
 
-    # =========================================
-    # CUSTOM TIME PICKER LOGIC
-    # =========================================
+    # =====================================
+    # CUSTOM TIME PICKER (12-HR SIMPLE)
+    # =====================================
 
     for i, row in edited_df.iterrows():
         for day in DAYS:
@@ -144,19 +144,56 @@ if edit_mode:
 
                 st.markdown(f"### ⏰ {row['Name']} - {day}")
 
-                start = st.time_input(
-                    f"Start Time ({row['Name']} - {day})",
-                    key=f"{i}_{day}_start"
-                )
+                col1, col2, col3 = st.columns(3)
 
-                end = st.time_input(
-                    f"End Time ({row['Name']} - {day})",
-                    key=f"{i}_{day}_end"
-                )
+                with col1:
+                    sh = st.selectbox(
+                        "Start Hour",
+                        [str(h) for h in range(1, 13)],
+                        key=f"{i}_{day}_sh"
+                    )
 
-                edited_df.at[i, day] = (
-                    f"{start.strftime('%I:%M %p')} - {end.strftime('%I:%M %p')}"
-                )
+                with col2:
+                    sm = st.selectbox(
+                        "Min",
+                        ["00", "30"],
+                        key=f"{i}_{day}_sm"
+                    )
+
+                with col3:
+                    sap = st.selectbox(
+                        "AM/PM",
+                        ["AM", "PM"],
+                        key=f"{i}_{day}_sap"
+                    )
+
+                col4, col5, col6 = st.columns(3)
+
+                with col4:
+                    eh = st.selectbox(
+                        "End Hour",
+                        [str(h) for h in range(1, 13)],
+                        key=f"{i}_{day}_eh"
+                    )
+
+                with col5:
+                    em = st.selectbox(
+                        "Min",
+                        ["00", "30"],
+                        key=f"{i}_{day}_em"
+                    )
+
+                with col6:
+                    eap = st.selectbox(
+                        "AM/PM",
+                        ["AM", "PM"],
+                        key=f"{i}_{day}_eap"
+                    )
+
+                start_time = f"{sh}:{sm} {sap}"
+                end_time = f"{eh}:{em} {eap}"
+
+                edited_df.at[i, day] = f"{start_time} - {end_time}"
 
 # =========================================
 # 8. VIEW MODE (AGGRID)
@@ -194,19 +231,9 @@ else:
         "domLayout": "normal"
     }
 
-    custom_css = {
-        ".ag-cell": {
-            "display": "flex",
-            "justify-content": "flex-start",
-            "align-items": "center",
-            "text-align": "left"
-        }
-    }
-
     grid_response = AgGrid(
         df_display,
         gridOptions=grid_options,
-        custom_css=custom_css,
         height=8 * 42 + 90,
         fit_columns_on_grid_load=True,
         allow_unsafe_jscode=True,
@@ -217,7 +244,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 9. SAVE TO SHEET
+# 9. SAVE
 # =========================================
 
 if edit_mode:
