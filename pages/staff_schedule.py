@@ -2,84 +2,78 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import timedelta
 
-# ---------------- CONFIG ----------------
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
-MASTER_SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 
-# Authentication
+# 1. AUTH & CONNECTION
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("Please login first.")
-    if st.button("Go to Login"): st.switch_page("app.py")
     st.stop()
 
-# Connection
 creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
-client = gspread.authorize(creds)
-master_sheet = client.open_by_key(MASTER_SHEET_ID)
+master_sheet = gspread.authorize(creds).open_by_key("1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0")
 
-# ---------------- SETTINGS ----------------
+# 2. CONFIG
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 ROLE_OPTIONS = ["Staff", "Supervisor", "Acting Supervisor", "Team Leader", "Acting Team Leader"]
-TIME_OPTIONS = [f"{h}:00 AM" for h in range(1, 13)] + [f"{h}:00 PM" for h in range(1, 13)] + ["OFF"]
 SHIFT_OPTIONS = ["Morning shift", "Mid shift", "Evening shift", "Night shift"]
+TIME_OPTIONS = [f"{h}:00 AM" for h in range(1, 13)] + [f"{h}:00 PM" for h in range(1, 13)] + ["OFF"]
 
-# ---------------- UI & TOGGLE ----------------
-st.title(f"🏢 Weekly Schedule: {st.session_state.selected_branch}")
+# 3. UI: TOGGLE & DATE
+st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 start_date = st.date_input("Week Start Date")
-shift_mode = st.toggle("Enable Shift-wise Mode (Disable for Hourly Mode)")
+shift_mode = st.toggle("Enable Shift-wise Mode")
 
-# Define Headers based on mode
+# Calculate dynamic headers with dates
+day_dates = [(start_date + timedelta(days=i)).strftime("%a %d/%m") for i in range(7)]
+
+# 4. LOAD & FILTER DATA
+def get_filtered_data():
+    ws = master_sheet.worksheet("StaffSchedule")
+    all_data = ws.get_all_records()
+    df = pd.DataFrame(all_data) if all_data else pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+    # Filter for current branch only
+    return df[df['Branch'] == st.session_state.selected_branch]
+
+df = get_filtered_data()
+
+# 5. DATA EDITOR (Multi-Index Simulation)
+st.subheader("Edit Roster")
+config = {"Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)}
+
+# Configure Columns dynamically
 if shift_mode:
-    HEADERS = ["Branch", "Date", "Name", "Role"] + DAYS
+    for i, day in enumerate(DAYS):
+        config[day] = st.column_config.SelectboxColumn(f"{day}\n({day_dates[i]})", options=SHIFT_OPTIONS)
 else:
-    HEADERS = ["Branch", "Date", "Name", "Role"]
-    for day in DAYS:
-        HEADERS.append(f"{day}: Start")
-        HEADERS.append(f"{day}: Finish")
+    for i, day in enumerate(DAYS):
+        # We simulate the merge by naming headers clearly
+        config[f"{day}: Start"] = st.column_config.SelectboxColumn(f"{day}\nStart", options=TIME_OPTIONS)
+        config[f"{day}: Finish"] = st.column_config.SelectboxColumn(f"{day}\nEnd", options=TIME_OPTIONS)
 
-# ---------------- DATA HANDLING ----------------
-def get_data():
-    try:
-        ws = master_sheet.worksheet("StaffSchedule")
-        data = ws.get_all_values()
-        return pd.DataFrame(data[1:], columns=data[0]) if len(data) > 0 else pd.DataFrame(columns=HEADERS)
-    except:
-        return pd.DataFrame(columns=HEADERS)
+edited_df = st.data_editor(df, column_config=config, num_rows="dynamic", use_container_width=True)
 
-df = get_data()
-
-# ---------------- EDITOR CONFIG ----------------
-column_config = {"Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)}
-
-if shift_mode:
-    for day in DAYS:
-        column_config[day] = st.column_config.SelectboxColumn(day, options=SHIFT_OPTIONS)
-else:
-    for day in DAYS:
-        column_config[f"{day}: Start"] = st.column_config.SelectboxColumn("Start", options=TIME_OPTIONS)
-        column_config[f"{day}: Finish"] = st.column_config.SelectboxColumn("Finish", options=TIME_OPTIONS)
-
-edited_df = st.data_editor(df, column_config=column_config, num_rows="dynamic", use_container_width=True)
-
-# ---------------- SAVE ----------------
+# 6. SAVE LOGIC (Safe Update)
 if st.button("💾 Save to Master Sheet", type="primary"):
-    save_df = edited_df.copy()
-    save_df["Branch"] = st.session_state.selected_branch
-    save_df["Date"] = str(start_date)
-    save_df["Name"] = save_df["Name"].astype(str).str.upper()
+    ws = master_sheet.worksheet("StaffSchedule")
+    full_data = pd.DataFrame(ws.get_all_records())
     
-    # Reindex to match current headers
-    save_df = save_df.reindex(columns=HEADERS)
+    # Clean current branch data out of master
+    remaining_data = full_data[full_data['Branch'] != st.session_state.selected_branch]
     
-    try:
-        ws = master_sheet.worksheet("StaffSchedule")
-        ws.clear()
-        ws.update(range_name='A1', values=[HEADERS] + save_df.fillna("").values.tolist())
-        st.success("✅ Saved Successfully!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Error: {e}")
+    # Process updated data
+    new_data = edited_df.copy()
+    new_data["Branch"] = st.session_state.selected_branch
+    new_data["Date"] = str(start_date)
+    new_data["Name"] = new_data["Name"].astype(str).str.upper()
+    
+    # Merge and Write
+    final_df = pd.concat([remaining_data, new_data], ignore_index=True)
+    ws.clear()
+    ws.update([final_df.columns.values.tolist()] + final_df.fillna("").values.tolist())
+    st.success("✅ Saved Successfully!")
+    st.rerun()
 
 if st.button("⬅ Back"): st.switch_page("app.py")
