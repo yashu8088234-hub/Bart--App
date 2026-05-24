@@ -72,12 +72,10 @@ SHIFT_OPTIONS = [
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
-# still kept for future use (as you requested)
-start_date = st.date_input("Week Start Date")
+start_date = st.date_input("Week Start Date")  # kept for future use
 
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-# only display labels (not used in logic yet)
 day_dates = [
     (start_date + timedelta(days=i)).strftime("%a %d/%m")
     for i in range(7)
@@ -117,14 +115,13 @@ config = {
 df_display = df.copy()
 
 # =========================================
-# SHIFT PREPARATION (NO START/END LOGIC)
+# SHIFT PREPARATION (SHIFT ONLY)
 # =========================================
 
 for i, day in enumerate(DAYS):
 
     if shift_mode:
 
-        # ensure day column exists
         if day not in df_display.columns:
             df_display[day] = ""
 
@@ -135,7 +132,6 @@ for i, day in enumerate(DAYS):
 
     else:
 
-        # just ensure column exists
         if day not in df_display.columns:
             df_display[day] = ""
 
@@ -153,7 +149,7 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (VIEW ONLY GRID)
+# NORMAL MODE (VIEW ONLY - LEFT ALIGNED GRID)
 # =========================================
 
 else:
@@ -193,7 +189,8 @@ else:
         "columnDefs": column_defs,
         "defaultColDef": {
             "resizable": True,
-            "sortable": False
+            "sortable": False,
+            "cellStyle": {"textAlign": "left"}
         },
         "headerHeight": 45,
         "rowHeight": 42,
@@ -202,17 +199,21 @@ else:
 
     custom_css = {
         ".ag-header-group-cell-label": {
-            "justify-content": "center",
+            "justify-content": "flex-start",
             "font-weight": "bold",
-            "font-size": "15px"
+            "font-size": "15px",
+            "text-align": "left"
         },
         ".ag-header-cell-label": {
-            "justify-content": "center",
-            "font-size": "13px"
+            "justify-content": "flex-start",
+            "font-size": "13px",
+            "text-align": "left"
         },
         ".ag-cell": {
             "display": "flex",
-            "align-items": "center"
+            "justify-content": "flex-start",
+            "align-items": "center",
+            "text-align": "left"
         }
     }
 
