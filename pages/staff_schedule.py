@@ -3,8 +3,6 @@ import pandas as pd
 import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import timedelta
-
 from st_aggrid import AgGrid
 
 st.set_page_config(
@@ -63,7 +61,8 @@ SHIFT_OPTIONS = [
     "Morning shift",
     "Mid shift",
     "Evening shift",
-    "Night shift"
+    "Night shift",
+    "Day off "
 ]
 
 # =========================================
@@ -72,17 +71,13 @@ SHIFT_OPTIONS = [
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 
-start_date = st.date_input("Week Start Date")  # kept for future use
+# kept ONLY for future use (not connected to data)
+start_date = st.date_input("Week Start Date")
 
 shift_mode = st.toggle("Enable Shift-wise Mode")
 
-day_dates = [
-    (start_date + timedelta(days=i)).strftime("%a %d/%m")
-    for i in range(7)
-]
-
 # =========================================
-# 4. LOAD DATA
+# 4. LOAD DATA (NO DATE USAGE)
 # =========================================
 
 def get_filtered_data():
@@ -92,7 +87,7 @@ def get_filtered_data():
     df = pd.DataFrame(all_data) if all_data else pd.DataFrame()
 
     if df.empty:
-        df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"])
+        df = pd.DataFrame(columns=["Branch", "Name", "Role"])
 
     return df[df["Branch"] == st.session_state.selected_branch]
 
@@ -115,10 +110,10 @@ config = {
 df_display = df.copy()
 
 # =========================================
-# SHIFT PREPARATION (SHIFT ONLY)
+# SHIFT PREPARATION
 # =========================================
 
-for i, day in enumerate(DAYS):
+for day in DAYS:
 
     if shift_mode:
 
@@ -126,7 +121,7 @@ for i, day in enumerate(DAYS):
             df_display[day] = ""
 
         config[day] = st.column_config.SelectboxColumn(
-            f"({day_dates[i]})",
+            day,
             options=SHIFT_OPTIONS
         )
 
@@ -149,7 +144,7 @@ if shift_mode:
     )
 
 # =========================================
-# NORMAL MODE (VIEW ONLY - LEFT ALIGNED GRID)
+# NORMAL MODE (VIEW ONLY)
 # =========================================
 
 else:
@@ -168,21 +163,21 @@ else:
             "headerName": "Name",
             "field": "Name",
             "pinned": "left",
-            "width": 130
+            "width": 180
         },
         {
             "headerName": "Role",
             "field": "Role",
-            "width": 130
+            "width": 180
         }
     ]
 
-    for i, day in enumerate(DAYS):
+    for day in DAYS:
 
         column_defs.append({
-            "headerName": day_dates[i],
+            "headerName": day,
             "field": day,
-            "width": 130
+            "width": 150
         })
 
     grid_options = {
@@ -201,13 +196,11 @@ else:
         ".ag-header-group-cell-label": {
             "justify-content": "flex-start",
             "font-weight": "bold",
-            "font-size": "15px",
-            "text-align": "left"
+            "font-size": "15px"
         },
         ".ag-header-cell-label": {
             "justify-content": "flex-start",
-            "font-size": "13px",
-            "text-align": "left"
+            "font-size": "13px"
         },
         ".ag-cell": {
             "display": "flex",
@@ -231,7 +224,7 @@ else:
     edited_df = pd.DataFrame(grid_response["data"])
 
 # =========================================
-# 6. SAVE LOGIC (UNCHANGED)
+# 6. SAVE LOGIC (NO DATE STORED)
 # =========================================
 
 if st.button("💾 Save to Master Sheet", type="primary"):
@@ -247,7 +240,6 @@ if st.button("💾 Save to Master Sheet", type="primary"):
     new_data = edited_df.copy()
 
     new_data["Branch"] = st.session_state.selected_branch
-    new_data["Date"] = str(start_date)
 
     if "Name" in new_data.columns:
         new_data["Name"] = new_data["Name"].astype(str).str.upper()
