@@ -8,7 +8,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 # CONFIG
 # =========================================================
 
-st.set_page_config(layout="wide", page_title="Weekly Schedule")
+st.set_page_config(layout="wide", page_title="Weekly Scheduler")
 
 if "branch_info" not in st.session_state:
     st.warning("Session expired")
@@ -36,30 +36,37 @@ sheet = client.open_by_key(branch_info["SheetID"])
 # WEEK
 # =========================================================
 
-st.title("📅 Weekly Staff Schedule")
+st.title("📅 Weekly Staff Scheduler")
 
-from_date = st.date_input("Week Start Date", datetime.date.today())
+from_date = st.date_input("Week Start", datetime.date.today())
 
 worksheet_name = f"Weekly_{from_date}"
 
 days = ["Saturday","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday"]
 
-columns = ["StaffID","EmployeeName","Role",*days,"Notes"]
+columns = ["EmployeeName","Role",*days,"Notes"]
+
+ROLE_OPTIONS = [
+    "Staff",
+    "Supervisor",
+    "Acting Supervisor",
+    "Team Leader",
+    "Acting Team Leader"
+]
 
 # =========================================================
-# LOAD (ONLY ONCE)
+# LOAD DATA
 # =========================================================
 
 @st.cache_data(ttl=60)
-def load_data():
+def load():
     try:
         ws = sheet.worksheet(worksheet_name)
-        data = ws.get_all_records()
-        return pd.DataFrame(data)
+        return pd.DataFrame(ws.get_all_records())
     except:
         return pd.DataFrame(columns=columns)
 
-df = load_data()
+df = load()
 
 for c in columns:
     if c not in df.columns:
@@ -68,25 +75,78 @@ for c in columns:
 df = df[columns]
 
 # =========================================================
-# SINGLE EXCEL EDITOR
+# EXCEL EDITOR
 # =========================================================
 
-st.subheader("📊 Weekly Schedule (Excel View)")
+st.subheader("📝 Weekly Schedule")
 
 edited_df = st.data_editor(
     df,
     use_container_width=True,
     num_rows="dynamic",
-    hide_index=True
+    hide_index=True,
+    column_config={
+        "Role": st.column_config.SelectboxColumn(
+            "Role",
+            options=ROLE_OPTIONS
+        )
+    }
 )
 
 # =========================================================
-# SAVE BUTTON
+# 🎨 PAINT MODE (MINIMAL ICON STYLE)
 # =========================================================
 
-col1, col2 = st.columns([1,5])
+col1, col2 = st.columns([1,6])
 
 with col1:
+    paint_mode = st.toggle("🎨")
+
+if "cell_colors" not in st.session_state:
+    st.session_state.cell_colors = {}
+
+if paint_mode:
+
+    with col2:
+        color = st.color_picker("Pick", label_visibility="collapsed")
+
+    row = st.number_input("Row", min_value=0, step=1)
+    col = st.selectbox("Column", columns)
+
+    if st.button("Apply"):
+        st.session_state.cell_colors[f"{row}_{col}"] = color
+        st.success("Applied")
+
+# =========================================================
+# STYLE FUNCTION
+# =========================================================
+
+def style_df(df):
+
+    def highlight(row):
+
+        styles = [""] * len(row)
+
+        for i, col in enumerate(df.columns):
+
+            key = f"{row.name}_{col}"
+
+            if key in st.session_state.cell_colors:
+                styles[i] = f"background-color: {st.session_state.cell_colors[key]}"
+
+        return styles
+
+    return df.style.apply(highlight, axis=1)
+
+st.dataframe(style_df(edited_df), use_container_width=True)
+
+# =========================================================
+# SAVE
+# =========================================================
+
+colA, colB = st.columns(2)
+
+with colA:
 
     if st.button("💾 SAVE", type="primary"):
 
@@ -104,10 +164,10 @@ with col1:
         st.rerun()
 
 # =========================================================
-# DOWNLOAD BUTTON
+# DOWNLOAD
 # =========================================================
 
-with col2:
+with colB:
 
     csv = edited_df.to_csv(index=False).encode("utf-8")
 
@@ -117,31 +177,3 @@ with col2:
         file_name=f"{branch_info['BranchCode']}_weekly_{from_date}.csv",
         mime="text/csv"
     )
-
-# =========================================================
-# COLORED TABLE VIEW (VISUAL ONLY)
-# =========================================================
-
-st.divider()
-st.subheader("🎨 Visual Weekly View")
-
-def color_rows(row):
-    if "OFF" in row.values:
-        return ["background-color: #ffe5e5"] * len(row)
-    elif "Morning" in row.values:
-        return ["background-color: #e6f7ff"] * len(row)
-    elif "Evening" in row.values:
-        return ["background-color: #fff7e6"] * len(row)
-    else:
-        return [""] * len(row)
-
-styled = edited_df.style.apply(color_rows, axis=1)
-
-st.dataframe(styled, use_container_width=True)
-
-# =========================================================
-# BACK
-# =========================================================
-
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
