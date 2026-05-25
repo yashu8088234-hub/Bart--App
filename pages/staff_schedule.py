@@ -232,7 +232,7 @@ if edit_mode:
         "Name": st.column_config.SelectboxColumn(
             "Name", 
             options=df["Name"].dropna().unique().tolist() if not df.empty else [],
-            width=120,  # Made extra compact to save maximum screen space
+            width=90,  # Made extra compact to save maximum screen space
             required=True
         ),
         "Role": st.column_config.SelectboxColumn(
