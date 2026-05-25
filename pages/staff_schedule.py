@@ -141,18 +141,19 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-    # 💡 FIX: Pull all existing entries for this branch so they are permanently visible in the editor.
-    # This ensures no names disappear, and their current schedules are loaded right away.
-    if not df.empty:
-        df_display = df[["Name", "Role"] + [d for d in DAYS if d in df.columns]].copy()
+    # 💡 FIX: Fetch ONLY the unique names for this branch and leave schedules completely blank
+    if branch_names:
+        df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+        df_display["Name"] = branch_names  # Roster is fixed with all your branch names
+        # Everything else ("Role", Sunday, Monday, etc.) automatically starts as None/NaN
     else:
-        # Fallback template if it's a completely new branch with no names yet
+        # Fallback template if no names exist at all
         df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     edited_df = st.data_editor(
         df_display,
-        column_config=config,   # Dropdown configurations loaded here
-        num_rows="dynamic",     # Allows adding new rows if needed, but keeps existing ones intact
+        column_config=config,   # Keeps your custom name and shift dropdown configs
+        num_rows="dynamic",     # Allows adding new rows if needed
         use_container_width=True,
         key="editor"
     )
