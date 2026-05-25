@@ -28,14 +28,14 @@ h1 { margin-bottom: 0px !important; }
 }
 
 .registered {
-    font-size: 16px;              /* MEDIUM size */
+    font-size: 26spx;              /* MEDIUM size */
     font-weight: 700;
 
     color: #3B82F6 !important;    /* BLUE color */
 
     position: relative;
-    top: 18px;                   /* moves to top-right */
-    left: 4px;
+    top: -48px;                   /* moves to top-right */
+    left: 8px;
 
     display: inline-block;
     opacity: 1;
