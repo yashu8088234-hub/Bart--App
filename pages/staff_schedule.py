@@ -91,22 +91,26 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
 df = load_data()
-df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
-existing_names = df["Name"].dropna().unique().tolist()
+# 1. FILTER NAMES: Extract names belonging ONLY to this specific branch from the master data
+names_for_this_branch = df[df["Branch"] == st.session_state.selected_branch]["Name"]
+existing_names = names_for_this_branch.dropna().unique().tolist()
+
+# 2. Filter the display dataframe for the view mode
+df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
 config = {
-    "Name": st.column_config.SelectboxColumn("Name", options=existing_names),
+    # The dropdown will now ONLY show staff assigned to this specific branch
+    "Name": st.column_config.SelectboxColumn("Name", options=existing_names, required=True),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
-
 # =========================================
 # DIALOG MODAL FOR CUSTOM TIME
 # =========================================
