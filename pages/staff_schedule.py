@@ -213,6 +213,16 @@ if edit_mode:
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
 
+
+
+# =========================
+# WEEK LABELS (RESTORED FIX)
+# =========================
+day_labels = {}
+
+for idx, day_name in enumerate(DAYS):
+    day_date = week_start + timedelta(days=idx)
+    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b %Y')})"
 # =========================
 # VIEW MODE
 # =========================
@@ -225,7 +235,7 @@ else:
     ]
 
     for d in DAYS:
-        column_defs.append({"headerName":d,"field":d})
+        column_defs.append({"headerName":day_labels[d],"field":d})
 
     AgGrid(df_display, gridOptions={
         "columnDefs": column_defs,
