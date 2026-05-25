@@ -200,7 +200,7 @@ st.markdown("<p class='animate-text delay-4' style='text-align: center; font-siz
 # =========================================================
 if "show_hr_password" not in st.session_state: st.session_state.show_hr_password = False
 
-grid_left, grid_center, grid_right = st.columns(3, gap="large")
+grid_left,grid_right,grid_center  = st.columns(3, gap="large")
 
 with grid_left:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">Staff Control """, unsafe_allow_html=True)
