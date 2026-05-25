@@ -299,7 +299,7 @@ else:
 
     # VIEW MODE WIDTH CONFIG (NAME COMPACTED)
     column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left", "width": 120}, # Matches editor compact view
+        {"headerName":"Name","field":"Name","pinned":"left", "width": 90}, # Matches editor compact view
         {"headerName":"Role","field":"Role", "width": 140}
     ]
     for d in DAYS:
