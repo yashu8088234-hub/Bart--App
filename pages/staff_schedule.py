@@ -93,29 +93,35 @@ def load_data():
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-# 1. Load the raw data first
+# 1. Load the raw data from Google Sheets
 all_data_df = load_data()
 
-# 2. Extract ONLY names that match the selected branch
-branch_names = []
+# 2. Filter the main display dataframe for this branch
 if not all_data_df.empty and "Branch" in all_data_df.columns:
-    # Filter rows matching the branch, drop duplicates/NaNs, and sort alphabetically
-    branch_df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch]
-    branch_names = sorted(branch_df["Name"].dropna().astype(str).unique().tolist())
+    df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
+else:
+    df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
 
-# Fallback: If no staff exist for this branch yet, pull all names so the dropdown isn't broken
+# 3. Get ALL names from the entire column matching this branch (Case-Insensitive Fix!)
+branch_names = []
+if not all_data_df.empty and "Name" in all_data_df.columns:
+    # Filter by branch safely
+    branch_mask = all_data_df["Branch"].astype(str).str.strip() == str(st.session_state.selected_branch).strip()
+    filtered_names = all_data_df[branch_mask]["Name"].dropna().astype(str).str.strip()
+    
+    # Keep names exactly as they are in the sheet (lowercase/mixed) but remove duplicates
+    branch_names = sorted(filtered_names.unique().tolist())
+
+# Fallback just in case the branch list is empty
 if not branch_names and not all_data_df.empty and "Name" in all_data_df.columns:
     branch_names = sorted(all_data_df["Name"].dropna().astype(str).unique().tolist())
-
-# 3. Now filter the main display dataframe for View Mode
-df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
-# The dropdown config now uses your branch-specific names list!
 config = {
+    # This now contains the entire filtered column list regardless of casing!
     "Name": st.column_config.SelectboxColumn("Name", options=branch_names, required=True),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
