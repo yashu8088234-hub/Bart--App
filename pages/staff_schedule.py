@@ -111,6 +111,8 @@ st.caption(
     f"Week End: {week_end.strftime('%d %b %Y')}"
 )
 
+edit_mode = st.toggle("Edit Mode Only")
+
 # =========================================
 # LOAD DATA
 # =========================================
