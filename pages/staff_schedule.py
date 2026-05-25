@@ -265,30 +265,61 @@ else:
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
-    full = st.session_state.cached_df.copy()
+    
+    # 1. Grab a fresh deep copy of the entire spreadsheet cache
+    full_df = st.session_state.cached_df.copy()
 
-    remaining = full[
-        full["Branch"] != st.session_state.selected_branch
-    ]
-
+    # 2. Prepare your newly edited data
     new_data = edited_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
     new_data["Date"] = datetime.now().strftime("%A %d %B")
 
     if "Name" in new_data.columns:
-        new_data["Name"] = new_data["Name"].astype(str).str.upper()
+        # Clean up text casing to prevent duplicates
+        new_data["Name"] = new_data["Name"].astype(str).str.strip().str.upper()
+    
+    if "Name" in full_df.columns:
+        full_df["Name"] = full_df["Name"].astype(str).str.strip().str.upper()
 
-    final = pd.concat([remaining, new_data], ignore_index=True)
+    # 3. MERGE FIX: Instead of wiping the branch, we update matching names or append new ones
+    # We set 'Name' as the index temporary to align and overwrite existing rows cleanly
+    full_df.set_index(["Branch", "Name"], inplace=False)
+    
+    # To keep it simple and robust without index headaches, we loop or filter:
+    # Separate the data that belongs to OTHER branches (must never be touched)
+    other_branches_df = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
+    
+    # Grab the original data for THIS branch
+    current_branch_original_df = full_df[full_df["Branch"] == st.session_state.selected_branch].copy()
 
+    # Update or append rows based on employee Name
+    for _, row in new_data.iterrows():
+        emp_name = row["Name"]
+        # Check if this employee already exists in the original branch pool
+        match_mask = current_branch_original_df["Name"] == emp_name
+        
+        if match_mask.any():
+            # Overwrite only the edited schedule columns for this specific person
+            for col in ["Role", "Date"] + DAYS:
+                if col in row:
+                    current_branch_original_df.loc[match_mask, col] = row[col]
+        else:
+            # If it's a completely new employee row added in the editor, append them
+            current_branch_original_df = pd.concat([current_branch_original_df, pd.DataFrame([row])], ignore_index=True)
+
+    # 4. Combine untouched branches back with our carefully preserved & updated branch data
+    final = pd.concat([other_branches_df, current_branch_original_df], ignore_index=True)
+
+    # 5. Push to Google Sheets safely
     ws.clear()
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
+    # 6. Refresh the local state cache so changes display immediately
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
 
-    st.success("✅ Saved Successfully!")
+    st.success("✅ Saved and merged successfully without losing missing names!")
     st.rerun()
-
 # =========================================
 # BACK BUTTON
 # =========================================
