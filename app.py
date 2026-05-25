@@ -166,11 +166,30 @@ st.markdown("""
 # ANIMATED HEADER & UI
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
+
+# Updated Header with the custom tilted blue oval element near the ® sign
 st.markdown("""
 <h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'>
-    <span class='bart-logo'>B A R T</span><span class="registered">®</span>
+    <span class='bart-logo'>B A R T</span><!--
+ --><span style="position: relative; display: inline-block;">
+        <!-- The Tilted Blue Oval -->
+        <span style="
+            position: absolute;
+            width: 45px;
+            height: 25px;
+            background-color: #3B82F6;
+            border-radius: 50%;
+            transform: rotate(30deg);
+            top: -30px;
+            left: 10px;
+            z-index: 1;
+        "></span>
+        <!-- The Registered Symbol (kept on top) -->
+        <span class="registered" style="position: relative; z-index: 2; margin-left: 0px;">®</span>
+    </span>
 </h1>
 """, unsafe_allow_html=True)
+
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #F75D59 0%, #F75D59 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
 st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
