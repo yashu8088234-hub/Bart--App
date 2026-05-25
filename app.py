@@ -26,14 +26,14 @@ h1 { margin-bottom: 0px !important; }
 
 
 .registered {
-    font-size: 12px;          /* medium size */
+    font-size: 12px;
     font-weight: 700;
-    color: #111111 !important;           /* same as BART text (fixes blue issue) */
-    opacity: 0.75;            /* softer look */
+    color: #F75D59 !important;   /* FORCE COLOR (your brand red) */
+    opacity: 0.85;
     vertical-align: super;
     position: relative;
-    top: -10px;               /* tighter to logo */
-    left: 3px;                /* closer spacing */
+    top: -10px;
+    left: 3px;
 }
 
 .block-container { 
