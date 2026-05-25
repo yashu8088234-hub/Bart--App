@@ -141,17 +141,22 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-    # Instead of an entirely empty dataframe, we map the correct columns 
-    # but ensure the Name column configuration has access to our dropdown options
-    df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    # 💡 FIX: Pull all existing entries for this branch so they are permanently visible in the editor.
+    # This ensures no names disappear, and their current schedules are loaded right away.
+    if not df.empty:
+        df_display = df[["Name", "Role"] + [d for d in DAYS if d in df.columns]].copy()
+    else:
+        # Fallback template if it's a completely new branch with no names yet
+        df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     edited_df = st.data_editor(
         df_display,
-        column_config=config,   # This now contains your master list of names!
-        num_rows="dynamic",
+        column_config=config,   # Dropdown configurations loaded here
+        num_rows="dynamic",     # Allows adding new rows if needed, but keeps existing ones intact
         use_container_width=True,
         key="editor"
     )
+
     # =========================================
     # CUSTOM TIME UI
     # =========================================
@@ -191,7 +196,7 @@ if edit_mode:
                     st.rerun()
 
     # =========================================
-    # APPLY AFTER RERUN (IMPORTANT FIX)
+    # APPLY AFTER RERUN
     # =========================================
 
     if st.session_state.pending_update:
@@ -213,7 +218,6 @@ if edit_mode:
 
         st.success("✅ Custom time applied successfully!")
         st.rerun()
-
 # =========================================
 # VIEW MODE
 # =========================================
