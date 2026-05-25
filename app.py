@@ -1,226 +1,198 @@
 import streamlit as st
-import time
 
-# =========================================================
-# SYSTEM CONFIG
-# =========================================================
 st.set_page_config(
     page_title="BART Portal",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# =========================================================
-# CSS
-# =========================================================
-st.markdown("""<style>
+# =========================
+# GLOBAL STYLE
+# =========================
+st.markdown("""
+<style>
 
-/* ================= HIDE UI ================= */
-[data-testid="stSidebar"] {
-    display: none;
+/* REMOVE STREAMLIT DEFAULT MARGINS */
+.block-container {
+    padding-top: 2rem !important;
+    max-width: 1050px !important;
+    margin: auto;
 }
 
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] {
-    background: transparent !important;
-}
-
-#MainMenu, footer, header {
-    visibility: hidden;
+.stApp {
+    background: #F8FAFC;
 }
 
 /* ================= BACKGROUND ================= */
-.background-layer {
+.bg {
     position: fixed;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    z-index: -9999;
-    overflow: hidden;
-    background-color: #F8FAFC;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(circle at top, #ffffff, #f1f5f9);
 }
 
-/* ================= ORBIT ================= */
-.orbit {
+/* soft ring */
+.bg::before {
+    content: "";
     position: absolute;
-    border: 1px solid rgba(0,0,0,0.15);
+    width: 900px;
+    height: 900px;
     border-radius: 50%;
-    animation: spin linear infinite;
-    left: 50%;
+    border: 1px solid rgba(0,0,0,0.05);
     top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
 }
 
-.o1 { width: 200px; height: 200px; animation-duration: 20s; }
-.o2 { width: 350px; height: 350px; animation-duration: 30s; }
-.o3 { width: 500px; height: 500px; animation-duration: 40s; }
-.o4 { width: 650px; height: 650px; animation-duration: 50s; }
-.o5 { width: 800px; height: 800px; animation-duration: 65s; }
-.o6 { width: 950px; height: 950px; animation-duration: 85s; }
-.o7 { width: 1100px; height: 1100px; animation-duration: 110s; }
-
-@keyframes spin {
-    from { transform: translate(-50%, -50%) rotate(0deg); }
-    to { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* ================= BART LOGO ================= */
-@keyframes bartGlow {
-    0%, 100% {
-        filter: drop-shadow(0 0 10px rgba(247, 93, 89, 0.3));
-        transform: scale(1);
-    }
-    50% {
-        filter: drop-shadow(0 0 30px rgba(247, 93, 89, 0.7));
-        transform: scale(1.04);
-    }
-}
-
-.bart-wrap {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    margin-top: 20px;
-}
-
-.bart-logo {
-    font-size: 120px;
-    font-weight: 900;
-    letter-spacing: -8px;
-
-    background: linear-gradient(180deg, #ff8a86, #F75D59, #d93b37);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-
-    animation: bartGlow 2.5s infinite ease-in-out;
-    position: relative;
-}
-
-/* REGISTERED SYMBOL */
-.bart-logo::after {
-    content: "®";
-    position: absolute;
-    top: 10px;
-    right: -30px;
-
-    font-size: 24px;
-    color: #7C4DFF;
-
-    text-shadow:
-        0 0 10px rgba(124,77,255,0.8),
-        0 0 20px rgba(124,77,255,0.5);
-}
-
-/* PURPLE LEAF */
-.bart-leaf {
-    width: 28px;
-    height: 45px;
-    margin-left: 8px;
-
-    background: linear-gradient(180deg, #8B5CF6, #7C4DFF);
-    border-radius: 70% 30% 70% 30%;
-
-    transform: rotate(45deg) translateY(25px);
-
-    box-shadow: 0 0 20px rgba(124,77,255,0.5);
-
-    animation: floatLeaf 3s infinite ease-in-out;
-}
-
-@keyframes floatLeaf {
-    0%, 100% { transform: rotate(45deg) translateY(25px); }
-    50% { transform: rotate(45deg) translateY(18px); }
-}
-
-/* ================= TEXT ================= */
-.title {
+/* ================= HERO ================= */
+.hero {
     text-align: center;
-    font-size: 60px;
-    font-weight: 800;
     margin-top: 10px;
 }
 
-.sub {
-    text-align: center;
-    font-size: 18px;
+/* LOGO */
+.logo {
+    font-size: 110px;
+    font-weight: 900;
+    letter-spacing: -6px;
+    position: relative;
+    display: inline-block;
+
+    background: linear-gradient(180deg, #ff6f6b, #F75D59);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* REGISTERED SYMBOL (fixed small glow, not blinking) */
+.logo::after {
+    content: "®";
+    position: absolute;
+    top: 18px;
+    right: -28px;
+    font-size: 22px;
+    color: #6C5CE7;
+    text-shadow: 0 0 6px rgba(108,92,231,0.3);
+}
+
+/* SMALL STATIC PURPLE DOT (like image accent) */
+.logo::before {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #6C5CE7;
+    border-radius: 50%;
+    bottom: 20px;
+    right: -16px;
+    box-shadow: 0 0 8px rgba(108,92,231,0.35);
+}
+
+/* ================= TITLE ================= */
+.title {
+    font-size: 54px;
+    font-weight: 800;
+    margin-top: 8px;
+    color: #111;
+}
+
+.title span {
+    color: #F75D59;
+}
+
+/* ================= SUB TEXT ================= */
+.subtext {
+    max-width: 620px;
+    margin: auto;
+    margin-top: 12px;
+    font-size: 15px;
+    line-height: 1.6;
     color: #64748B;
 }
 
+/* ================= CARDS ================= */
+.cards {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    margin-top: 42px;
+}
+
+/* CARD STYLE */
+.card {
+    flex: 1;
+    background: white;
+    border-radius: 18px;
+    padding: 28px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    text-align: center;
+}
+
+/* CARD TITLE */
+.card h3 {
+    margin-bottom: 10px;
+}
+
+/* CARD TEXT */
+.card p {
+    color: #64748B;
+    font-size: 14px;
+}
+
 /* ================= BUTTON ================= */
-div.stButton > button {
-    height: 54px !important;
-    border-radius: 50px !important;
-
+button[kind="primary"] {
     background: #F75D59 !important;
-    color: white !important;
-
-    font-weight: 900 !important;
-    letter-spacing: 2px !important;
-
+    border-radius: 50px !important;
+    height: 52px !important;
+    font-weight: 800 !important;
+    letter-spacing: 1px !important;
     border: none !important;
-
-    transition: 0.3s ease;
 }
 
-div.stButton > button:hover {
-    transform: scale(1.05);
-    background: #e64540 !important;
-    box-shadow: 0 10px 25px rgba(247,93,89,0.35);
+button[kind="primary"]:hover {
+    background: #e64a45 !important;
 }
 
-</style>""", unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 
-# =========================================================
-# STATE
-# =========================================================
-st.session_state.authenticated = True
+# ================= BACKGROUND =================
+st.markdown('<div class="bg"></div>', unsafe_allow_html=True)
 
-# =========================================================
-# BACKGROUND
-# =========================================================
+# ================= HERO =================
 st.markdown("""
-<div class="background-layer">
-    <div class="orbit o1"></div>
-    <div class="orbit o2"></div>
-    <div class="orbit o3"></div>
-    <div class="orbit o4"></div>
-    <div class="orbit o5"></div>
-    <div class="orbit o6"></div>
-    <div class="orbit o7"></div>
+<div class="hero">
+    <div class="logo">BART</div>
+
+    <div class="title">
+        Operations management <span>just got easier.</span>
+    </div>
+
+    <div class="subtext">
+        Welcome to the central command unit for BART. Seamlessly organize branch metrics,
+        manage shift requirements, and deploy localized branch parameters.
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# =========================================================
-# HEADER
-# =========================================================
-
-st.markdown("""
-<div class="bart-wrap">
-    <div class="bart-logo">BART</div>
-    <div class="bart-leaf"></div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<h1 class="title">Operations management</h1>
-<h1 class="title" style="color:#F75D59; margin-top:-20px;">just got easier.</h1>
-<p class="sub">
-Welcome to the central command unit for BART. Manage branches, logs and operations seamlessly.
-</p>
-""", unsafe_allow_html=True)
-
-# =========================================================
-# CARDS
-# =========================================================
+# ================= CARDS =================
 col1, col2 = st.columns(2, gap="large")
 
 with col1:
-    st.markdown("### Staff Control")
-    st.write("Daily logs, stock checks, and reports.")
-    if st.button("ACCESS STAFF CONTROL →"):
-        st.switch_page("pages/staff_dashboard.py")
+    st.markdown("""
+    <div class="card">
+        <h3>Staff Control</h3>
+        <p>Log daily updates, run checks and manage operations.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.button("ACCESS STAFF CONTROL →")
 
 with col2:
-    st.markdown("### HQ Administration")
-    st.write("Secure configs and system management.")
-    if st.button("UNLOCK ADMIN PANEL →"):
-        st.switch_page("pages/management_dashboard.py")
+    st.markdown("""
+    <div class="card">
+        <h3>HQ Administration</h3>
+        <p>Secure logs, configs and global system settings.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.button("UNLOCK ADMIN PANEL →")
