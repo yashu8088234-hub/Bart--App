@@ -94,6 +94,37 @@ def load_data():
     return st.session_state.cached_df
 
 
+
+
+# =========================================
+# WEEK HEADER
+# =========================================
+
+today = datetime.today()
+
+week_start = today - pd.Timedelta(days=today.weekday())
+week_end = week_start + pd.Timedelta(days=6)
+
+st.markdown(f"""
+<div style="
+    background:#111827;
+    padding:14px 20px;
+    border-radius:14px;
+    margin-bottom:15px;
+    border:1px solid #374151;
+">
+    <h3 style="margin:0;color:white;">
+        📅 Week Schedule:
+        <span style="color:#60A5FA;">
+            {week_start.strftime('%d %b %Y')}
+        </span>
+        →
+        <span style="color:#60A5FA;">
+            {week_end.strftime('%d %b %Y')}
+        </span>
+    </h3>
+</div>
+""", unsafe_allow_html=True)
 # =========================================
 # UI
 # =========================================
