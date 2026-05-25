@@ -28,16 +28,17 @@ h1 { margin-bottom: 0px !important; }
 }
 
 .registered {
-    font-size: 14px;
-    font-weight: 800;
-    color: #F75D59 !important;   /* FORCE BRAND COLOR */
-    opacity: 0.9;
+    font-size: 16px;              /* MEDIUM size */
+    font-weight: 700;
+
+    color: #3B82F6 !important;    /* BLUE color */
 
     position: relative;
-    top: -55px;   /* pushes to top-right of BART */
-    left: 2px;
+    top: -18px;                   /* moves to top-right */
+    left: 4px;
 
     display: inline-block;
+    opacity: 1;
 }
 
 .block-container { 
