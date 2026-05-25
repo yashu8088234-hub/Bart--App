@@ -141,19 +141,27 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-    # 💡 FIX: Fetch ONLY the unique names for this branch and leave schedules completely blank
-    if branch_names:
+    # 💡 FIX: Fetch unique combinations of BOTH Name and Role for this branch
+    if not df.empty:
+        # Extract unique Name + Role pairs and drop any empty rows
+        roster_df = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates()
+        
+        # Format the strings to maintain neatness
+        roster_df["Name"] = roster_df["Name"].astype(str).str.strip()
+        roster_df["Role"] = roster_df["Role"].astype(str).str.strip()
+        
+        # Reconstruct the empty week columns side-by-side with your fixed positions
         df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
-        df_display["Name"] = branch_names  # Roster is fixed with all your branch names
-        # Everything else ("Role", Sunday, Monday, etc.) automatically starts as None/NaN
+        df_display["Name"] = roster_df["Name"].values
+        df_display["Role"] = roster_df["Role"].values
     else:
-        # Fallback template if no names exist at all
+        # Fallback template if no data exists at all yet
         df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     edited_df = st.data_editor(
         df_display,
-        column_config=config,   # Keeps your custom name and shift dropdown configs
-        num_rows="dynamic",     # Allows adding new rows if needed
+        column_config=config,   
+        num_rows="dynamic",     
         use_container_width=True,
         key="editor"
     )
@@ -271,7 +279,7 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     ws = master_sheet.worksheet("StaffSchedule")
     
-    # 1. Grab a fresh deep copy of the entire spreadsheet cache
+    # 1. Grab a fresh deep copy of the spreadsheet cache
     full_df = st.session_state.cached_df.copy()
 
     # 2. Prepare your newly edited data
@@ -280,50 +288,52 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     new_data["Date"] = datetime.now().strftime("%A %d %B")
 
     if "Name" in new_data.columns:
-        # Clean up text casing to prevent duplicates
         new_data["Name"] = new_data["Name"].astype(str).str.strip().str.upper()
+    if "Role" in new_data.columns:
+        new_data["Role"] = new_data["Role"].astype(str).str.strip()
     
     if "Name" in full_df.columns:
         full_df["Name"] = full_df["Name"].astype(str).str.strip().str.upper()
+    if "Role" in full_df.columns:
+        full_df["Role"] = full_df["Role"].astype(str).str.strip()
 
-    # 3. MERGE FIX: Instead of wiping the branch, we update matching names or append new ones
-    # We set 'Name' as the index temporary to align and overwrite existing rows cleanly
-    full_df.set_index(["Branch", "Name"], inplace=False)
-    
-    # To keep it simple and robust without index headaches, we loop or filter:
-    # Separate the data that belongs to OTHER branches (must never be touched)
+    # 3. Pull untouched branches and isolate current branch positions
     other_branches_df = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
-    
-    # Grab the original data for THIS branch
     current_branch_original_df = full_df[full_df["Branch"] == st.session_state.selected_branch].copy()
 
-    # Update or append rows based on employee Name
+    # 4. Merge changes cell-by-cell without modifying underlying structures
     for _, row in new_data.iterrows():
         emp_name = row["Name"]
-        # Check if this employee already exists in the original branch pool
-        match_mask = current_branch_original_df["Name"] == emp_name
+        emp_role = row["Role"]
+        
+        # Match using BOTH fixed identifiers
+        match_mask = (current_branch_original_df["Name"] == emp_name) & (current_branch_original_df["Role"] == emp_role)
         
         if match_mask.any():
-            # Overwrite only the edited schedule columns for this specific person
-            for col in ["Role", "Date"] + DAYS:
+            # Overwrite only the edited day schedules
+            for col in DAYS:
                 if col in row:
                     current_branch_original_df.loc[match_mask, col] = row[col]
         else:
-            # If it's a completely new employee row added in the editor, append them
+            # Append as a fresh dynamic row if completely unique configuration
             current_branch_original_df = pd.concat([current_branch_original_df, pd.DataFrame([row])], ignore_index=True)
 
-    # 4. Combine untouched branches back with our carefully preserved & updated branch data
+    # Recombine database pools
     final = pd.concat([other_branches_df, current_branch_original_df], ignore_index=True)
 
-    # 5. Push to Google Sheets safely
+    # 5. Push up to cloud
     ws.clear()
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
-    # 6. Refresh the local state cache so changes display immediately
+    # 6. Clear local runtime memory to force columns 3+ to wipe out entirely in the UI
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
+    
+    # 💡 RESET WIDGET STATE: Wipes the internal Streamlit data editor memory for a pristine clean
+    if "editor" in st.session_state:
+        del st.session_state["editor"]
 
-    st.success("✅ Saved and merged successfully without losing missing names!")
+    st.success("✅ Saved and merged successfully! Input schedules cleared.")
     st.rerun()
 # =========================================
 # BACK BUTTON
