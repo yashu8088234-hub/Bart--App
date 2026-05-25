@@ -179,8 +179,8 @@ st.markdown("""
             height: 22px;
             background-color: #3B82F6;
             border-radius: 50%;
-            transform: rotate(30deg);
-            top: -42px;
+            transform: rotate(-30deg);
+            top: -2px;
             left: 12px;
             z-index: 1;
         "></span>
