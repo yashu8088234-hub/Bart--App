@@ -25,6 +25,17 @@ h1 { margin-bottom: 0px !important; }
 
 
 
+.registered {
+    font-size: 16px;
+    font-weight: 800;
+    vertical-align: super;
+    position: relative;
+    top: -18px;   /* pushes it to top-right of BART */
+    left: 6px;    /* spacing from text */
+    color: #111111;
+    opacity: 0.9;
+}
+
 .block-container { 
     max-width: 1000px !important; 
     padding-top: 1rem !important; 
@@ -150,7 +161,12 @@ st.markdown("""
 # ANIMATED HEADER & UI
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
-st.markdown("""<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'><span class='bart-logo'>B A R T</span></h1>""", unsafe_allow_html=True)
+st.markdown("""
+<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px; position: relative;'>
+    <span class='bart-logo'>B A R T</span>
+    <span class="registered-mark">®</span>
+</h1>
+""", unsafe_allow_html=True)
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #F75D59 0%, #F75D59 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
 st.markdown("<p class='animate-text delay-4' style='text-align: center; font-size: 16px; color: #64748B; max-width: 520px; margin: 20px auto 40px auto;'>Welcome to the central command unit for BART. Seamlessly organize branch metrics, manage shift requirements, and deploy localized branch parameters.</p>", unsafe_allow_html=True)
 
