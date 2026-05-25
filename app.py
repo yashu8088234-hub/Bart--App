@@ -23,7 +23,9 @@ st.markdown("""<style>
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stMainBlockContainer"] { background: transparent !important; }
 h1 { margin-bottom: 0px !important; }
 
-
+.bart-logo + sup.registered {
+    color: #F75D59 !important;
+}
 
 .registered {
     font-size: 12px;
