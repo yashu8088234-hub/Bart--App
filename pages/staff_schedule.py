@@ -46,7 +46,6 @@ ROLE_OPTIONS = [
     "Team Leader","Acting Team Leader"
 ]
 
-# Kept ONLY custom time configuration options
 SHIFT_OPTIONS = [
     "", 
     "➕ Custom Time"
@@ -56,7 +55,7 @@ SHIFT_OPTIONS = [
 # CACHE
 # =========================================
 
-CACHE_TTL = 60
+CACHE_TTL = 600
 
 if "cached_df" not in st.session_state:
     st.session_state.cached_df = None
@@ -110,19 +109,16 @@ def custom_time_modal(row_idx, day_name, current_name):
     if st.button("Apply Time", type="primary", use_container_width=True):
         formatted_value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
         
-        # Directly update the editor widget state session engine to bypass caching bugs
-        if "editor_widget" in st.session_state:
-            if "edited_rows" not in st.session_state["editor_widget"]:
-                st.session_state["editor_widget"]["edited_rows"] = {}
-            if row_idx not in st.session_state["editor_widget"]["edited_rows"]:
-                st.session_state["editor_widget"]["edited_rows"][row_idx] = {}
-                
+        # Inject custom time directly into the master data state cache
+        if "editor_base_df" in st.session_state:
             if apply_all:
                 for day in DAYS:
-                    st.session_state["editor_widget"]["edited_rows"][row_idx][day] = formatted_value
+                    st.session_state.editor_base_df.loc[row_idx, day] = formatted_value
             else:
-                st.session_state["editor_widget"]["edited_rows"][row_idx][day_name] = formatted_value
-                
+                st.session_state.editor_base_df.loc[row_idx, day_name] = formatted_value
+        
+        # Bump key generation token to force clean redraw matching new value structures
+        st.session_state.editor_version += 1
         st.rerun()
 
 
@@ -133,17 +129,16 @@ def custom_time_modal(row_idx, day_name, current_name):
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-# Fetch fresh copy of master schedule 
+# Fetch fresh data baseline
 master_df = load_data()
 
-# DYNAMIC NAME FINDER: Scans complete column matching current active branch context
+# Extract names historical scope context records for this target branch selection
 if not master_df.empty and "Branch" in master_df.columns:
     branch_mask = master_df["Branch"].astype(str).str.strip() == str(st.session_state.selected_branch).strip()
     existing_names = master_df[branch_mask]["Name"].dropna().unique().tolist()
 else:
     existing_names = []
 
-# Filter static dataset for view-mode framework
 df = master_df[master_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
@@ -163,24 +158,30 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-    # Build or hold draft tracking dataframe parameters
+    # Initialize version rendering trackers and baseline drafts
+    if "editor_version" not in st.session_state:
+        st.session_state.editor_version = 0
+
     if "editor_base_df" not in st.session_state:
         if not df.empty:
             st.session_state.editor_base_df = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
         else:
             st.session_state.editor_base_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    # Render data editor (Hiding index column 0, 1, 2 layout completely)
+    # Render data editor using a clean decoupled layout keying system
     edited_df = st.data_editor(
         st.session_state.editor_base_df,
         column_config=config,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
-        key="editor_widget"
+        key=f"editor_widget_v_{st.session_state.editor_version}"
     )
 
-    # Monitor interactive data flow triggers for "➕ Custom Time" selection
+    # Re-sync cell inputs seamlessly back into master operational data memory frames
+    st.session_state.editor_base_df = edited_df
+
+    # Intercept selections for modal execution
     trigger_modal = False
     target_row = None
     target_day = None
@@ -189,9 +190,8 @@ if edit_mode:
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "➕ Custom Time":
-                # Instantly reset field cell assignment strings to clear running loop triggers
-                if "editor_widget" in st.session_state and i in st.session_state["editor_widget"]["edited_rows"]:
-                    st.session_state["editor_widget"]["edited_rows"][i][d] = ""
+                # Clear cell selection state token so modal triggers exactly once
+                st.session_state.editor_base_df.loc[i, d] = ""
                 
                 trigger_modal = True
                 target_row = i
@@ -207,6 +207,8 @@ if edit_mode:
     if st.button("🔄 Reset Editor Window"):
         if "editor_base_df" in st.session_state:
             del st.session_state.editor_base_df
+        if "editor_version" in st.session_state:
+            del st.session_state.editor_version
         st.rerun()
 
 # =========================================
@@ -280,7 +282,6 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
     
-    # Destruct current base cache definitions to force fresh pull updates
     if "editor_base_df" in st.session_state:
         del st.session_state.editor_base_df
 
