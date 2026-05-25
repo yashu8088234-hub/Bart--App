@@ -28,7 +28,7 @@ h1 { margin-bottom: 0px !important; }
 .registered {
     font-size: 12px;          /* medium size */
     font-weight: 700;
-    color: #111111;           /* same as BART text (fixes blue issue) */
+    color: #111111 !important;           /* same as BART text (fixes blue issue) */
     opacity: 0.75;            /* softer look */
     vertical-align: super;
     position: relative;
