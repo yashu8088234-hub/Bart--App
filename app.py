@@ -257,7 +257,7 @@ if st.session_state.show_hr_password:
                     st.rerun()
             with action_col1:
                 if st.form_submit_button("Verify & Open HR", use_container_width=True):
-                    if hr_password_input == st.secrets["MANAGER_PASSWORD"]:
+                    if hr_password_input == st.secrets["HR_PASSWORD"]:
                         st.session_state.show_hr_password = False
                         st.switch_page("pages/hr_dashboard.py")
                     else:
