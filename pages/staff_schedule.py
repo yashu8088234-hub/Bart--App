@@ -173,11 +173,18 @@ if edit_mode:
         "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
     }
 
+    # FIX: Map the dynamic day_labels to the SelectboxColumn header labels
     for d in DAYS:
-        config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
+        existing_shifts = df_display[d].dropna().unique().tolist()
+        dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
+        
+        # Using day_labels[d] here forces the editor to show the date in the header
+        config[d] = st.column_config.SelectboxColumn(
+            label=day_labels[d], 
+            options=dynamic_options
+        )
 
     edited_df = st.data_editor(df_display, column_config=config, num_rows="dynamic", key="editor")
-
     # =========================
     # CUSTOM TIME UI
     # =========================
