@@ -122,6 +122,16 @@ st.caption(
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================================
+# GENERATE DYNAMIC DAY LABELS
+# =========================================
+# This calculates the exact calendar date matching each day of the current week
+day_labels = {}
+for idx, day_name in enumerate(DAYS):
+    day_date = week_start + timedelta(days=idx)
+    # Formats as: "Sunday (24 May)" -> Change format string inside strftime if preferred
+    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b')})"
+
+# =========================================
 # LOAD DATA
 # =========================================
 
@@ -182,9 +192,10 @@ config = {
     ),
 }
 
+# Use the dynamic mapped labels for column presentation here
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(
-        d,
+        day_labels[d],  # Dynamic header visually displayed to user
         options=SHIFT_OPTIONS
     )
 
@@ -240,7 +251,7 @@ if edit_mode:
 
             if row.get(d) == "➕ Custom Time":
 
-                st.info(f"⏰ Custom Time for {row.get('Name')} - {d}")
+                st.info(f"⏰ Custom Time for {row.get('Name')} - {day_labels[d]}")
 
                 col1, col2 = st.columns(2)
 
@@ -334,6 +345,7 @@ else:
         [c for c in ordered_cols if c in df_display.columns]
     ]
 
+    # Synchronizing View Mode (AgGrid) headers as well
     column_defs = [
         {
             "headerName": "Name",
@@ -358,7 +370,7 @@ else:
     for d in DAYS:
 
         column_defs.append({
-            "headerName": d,
+            "headerName": day_labels[d], # Synchronized AgGrid visual header
             "field": d,
             "width": 140
         })
