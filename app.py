@@ -207,7 +207,7 @@ st.markdown("""
             background-color: #8B5CF6;
             border-radius: 50%;
             transform: rotate(-30deg);
-            top: 70px;
+            top: 66px;
             left: -8px;
             z-index: 1;
         "></span>
