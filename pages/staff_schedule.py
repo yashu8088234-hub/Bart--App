@@ -76,7 +76,7 @@ def load_data():
         df = pd.DataFrame(data) if data else pd.DataFrame()
 
         if df.empty:
-            df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+            df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
 
         st.session_state.cached_df = df
         st.session_state.last_fetch = now
@@ -136,7 +136,7 @@ if not all_data_df.empty and "Branch" in all_data_df.columns:
         all_data_df["Branch"] == st.session_state.selected_branch
     ].copy()
 else:
-    df = pd.DataFrame(columns=["Branch", "Date", "Name", "Role"] + DAYS)
+    df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
 
 # =========================================
 # NAME LIST
@@ -332,7 +332,7 @@ else:
 
     df_display = df.copy()
 
-    ordered_cols = ["Name", "Role", "Date"] + DAYS
+    ordered_cols = ["Name", "Role"] + DAYS
 
     df_display = df_display[
         [c for c in ordered_cols if c in df_display.columns]
@@ -350,12 +350,6 @@ else:
             "headerName": "Role",
             "field": "Role",
             "width": 150
-        },
-
-        {
-            "headerName": "Date",
-            "field": "Date",
-            "width": 180
         },
     ]
 
@@ -403,7 +397,7 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     new_data["Branch"] = st.session_state.selected_branch
 
-    new_data["Date"] = week_start.strftime("%d-%m-%Y")
+    # REMOVED: Date recording logic cut off from here
 
     if "Name" in new_data.columns:
         new_data["Name"] = (
@@ -478,6 +472,10 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         [other_branches_df, current_branch_original_df],
         ignore_index=True
     )
+
+    # Clean any accidental remaining Date columns from the data matrix
+    if "Date" in final.columns:
+        final = final.drop(columns=["Date"])
 
     ws.clear()
 
