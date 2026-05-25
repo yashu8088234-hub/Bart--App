@@ -93,17 +93,25 @@ def load_data():
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-df = load_data()
-df = df[df["Branch"] == st.session_state.selected_branch].copy()
+# 1. Load the raw data first
+all_data_df = load_data()
 
-existing_names = df["Name"].dropna().unique().tolist()
+# 2. Extract ALL unique names from the master sheet before filtering by branch
+# (If you only want names belonging to THIS branch, use: all_data_df[all_data_df["Branch"] == st.session_state.selected_branch]["Name"])
+global_names = []
+if not all_data_df.empty and "Name" in all_data_df.columns:
+    global_names = sorted(all_data_df["Name"].dropna().astype(str).unique().tolist())
+
+# 3. Now filter the display dataframe for View Mode
+df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
+# We use global_names here so the dropdown is ALWAYS populated, even if the editor is blank!
 config = {
-    "Name": st.column_config.SelectboxColumn("Name", options=existing_names),
+    "Name": st.column_config.SelectboxColumn("Name", options=global_names, required=True),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
@@ -115,21 +123,17 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-
+    # Instead of an entirely empty dataframe, we map the correct columns 
+    # but ensure the Name column configuration has access to our dropdown options
     df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     edited_df = st.data_editor(
         df_display,
-        column_config=config,
+        column_config=config,   # This now contains your master list of names!
         num_rows="dynamic",
         use_container_width=True,
         key="editor"
     )
-
-    # init state
-    if "pending_update" not in st.session_state:
-        st.session_state.pending_update = None
-
     # =========================================
     # CUSTOM TIME UI
     # =========================================
