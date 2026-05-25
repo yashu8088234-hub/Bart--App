@@ -31,7 +31,7 @@ h1 { margin-bottom: 0px !important; }
     font-size: 26px;              /* MEDIUM size */
     font-weight: 900;
 
-    color: #3B82F6 !important;    /* BLUE color */
+    color: #8B5CF6 !important;    /* BLUE color */
 
     position: relative;
     top: -40px;                   /* moves to top-right */
