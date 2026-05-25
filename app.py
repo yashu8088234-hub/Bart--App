@@ -49,7 +49,7 @@ h1 { margin-bottom: 0px !important; }
     font-weight: 900;
     color: #8B5CF6 !important;    
     position: relative;
-    top: -40px;                   
+    top: -32px;                   
     left: 8px;
     display: inline-block;
     opacity: 1;
@@ -207,7 +207,7 @@ st.markdown("""
             background-color: #8B5CF6;
             border-radius: 50%;
             transform: rotate(-30deg);
-            top: 62px;
+            top: 70px;
             left: -8px;
             z-index: 1;
         "></span>
