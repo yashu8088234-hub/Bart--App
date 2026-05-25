@@ -316,46 +316,28 @@ else:
 # =========================
 if edit_mode and st.button("💾 Save to Master Sheet"):
     ws = master_sheet.worksheet("StaffSchedule")
-    
-    # 1. Get the current headers from the sheet to match dates
-    headers = ws.row_values(1) # Assumes headers are in row 1
-    
-    # 2. Get your edited data
+    full_df = st.session_state.cached_df.copy()
+
     new_data = edited_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
+    
     if "Over-Time" in new_data.columns:
         new_data = new_data.drop(columns=["Over-Time"])
 
-    # 3. Process each row to ensure it maps to the correct column header
-    # We iterate through the current sheet data or construct a payload
-    # For a robust approach, we update row-by-row or by range:
-    
-    # Helper to find column index by header name
-    def get_col_index(header_name):
-        try:
-            return headers.index(header_name) + 1
-        except ValueError:
-            return None
+    others = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
 
-    # Update logic:
-    for i, row in new_data.iterrows():
-        # Find the row in the sheet that matches Name and Branch
-        # (This assumes Names are unique within a branch)
-        cell = ws.find(row["Name"]) 
-        if cell:
-            row_idx = cell.row
-            for day in DAYS:
-                col_idx = get_col_index(day)
-                if col_idx:
-                    # Update specific cell: (row, col, value)
-                    ws.update_cell(row_idx, col_idx, row[day])
-    
-    # Refresh cache
-    st.session_state.cached_df = None # Force re-fetch next load
+    final = pd.concat([others, new_data], ignore_index=True)
+    storage_cols = ["Branch", "Name", "Role"] + DAYS
+    final = final[storage_cols]
+
+    ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+
+    st.session_state.cached_df = final 
+    st.session_state.last_fetch = time.time()
     st.session_state.shift_buffer = {}
     st.session_state.deleted_staff = set() 
 
-    st.success("✅ Saved successfully! Date-aligned updates complete.")
+    st.success("✅ Saved successfully! Row updates synchronized.")
     st.rerun()
 
 # =========================
