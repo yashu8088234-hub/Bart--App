@@ -136,6 +136,15 @@ all_data_df = load_data()
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() \
     if not all_data_df.empty else pd.DataFrame(columns=["Branch","Name","Role"] + DAYS)
 
+
+# =========================
+# WEEK LABELS (RESTORED FIX)
+# =========================
+day_labels = {}
+
+for idx, day_name in enumerate(DAYS):
+    day_date = week_start + timedelta(days=idx)
+    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b %Y')})"
 # =========================
 # PREP DISPLAY
 # =========================
@@ -215,14 +224,7 @@ if edit_mode:
 
 
 
-# =========================
-# WEEK LABELS (RESTORED FIX)
-# =========================
-day_labels = {}
 
-for idx, day_name in enumerate(DAYS):
-    day_date = week_start + timedelta(days=idx)
-    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b %Y')})"
 # =========================
 # VIEW MODE
 # =========================
