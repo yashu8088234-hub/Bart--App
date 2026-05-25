@@ -180,7 +180,7 @@ st.markdown("""
             position: absolute;
             width: 26px;
             height: 16px;
-            background-color: #3B82F6;
+            background-color: #8B5CF6;
             border-radius: 50%;
             transform: rotate(-30deg);
             top: 62px;
