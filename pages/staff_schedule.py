@@ -59,7 +59,7 @@ SHIFT_OPTIONS = [
 # CACHE
 # =========================================
 
-CACHE_TTL = 60
+CACHE_TTL = 600
 
 if "cached_df" not in st.session_state:
     st.session_state.cached_df = None
