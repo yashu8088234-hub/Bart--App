@@ -49,7 +49,7 @@ h1 { margin-bottom: 0px !important; }
     font-weight: 900;
     color: #8B5CF6 !important;    
     position: relative;
-    top: -40px;                   
+    top: -47px;                   
     left: 8px;
     display: inline-block;
     opacity: 1;
