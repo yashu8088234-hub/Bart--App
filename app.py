@@ -28,7 +28,7 @@ h1 { margin-bottom: 0px !important; }
 }
 
 .registered {
-    font-size: 26spx;              /* MEDIUM size */
+    font-size: 26px;              /* MEDIUM size */
     font-weight: 700;
 
     color: #3B82F6 !important;    /* BLUE color */
