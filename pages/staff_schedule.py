@@ -47,7 +47,11 @@ ROLE_OPTIONS = [
 ]
 
 SHIFT_OPTIONS = [
-    "", 
+    "Morning shift",
+    "Mid shift",
+    "Evening shift",
+    "Night shift",
+    "OFF",
     "➕ Custom Time"
 ]
 
@@ -83,70 +87,23 @@ def load_data():
 
 
 # =========================================
-# DIALOG MODAL FOR CUSTOM TIME
-# =========================================
-
-@st.dialog("⏰ Set Custom Time")
-def custom_time_modal(row_idx, day_name, current_name):
-    st.write(f"Setting hours for **{current_name if current_name else f'Row {row_idx}'}** on **{day_name}**")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Start Time")
-        sh = st.selectbox("Hour", list(range(1, 13)), index=8, key="start_hour")
-        sm = st.selectbox("Minute", ["00", "15", "30", "45"], key="start_min")
-        sap = st.selectbox("AM/PM", ["AM", "PM"], index=0, key="start_ap")
-        
-    with col2:
-        st.subheader("End Time")
-        eh = st.selectbox("Hour", list(range(1, 13)), index=4, key="end_hour")
-        em = st.selectbox("Minute", ["00", "15", "30", "45"], key="end_min")
-        eap = st.selectbox("AM/PM", ["AM", "PM"], index=1, key="end_ap")
-        
-    apply_all = st.checkbox("Apply this time to all days for this row", key="apply_all_days")
-    
-    if st.button("Apply Time", type="primary", use_container_width=True):
-        formatted_value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
-        
-        # Inject custom time directly into the master data state cache
-        if "editor_base_df" in st.session_state:
-            if apply_all:
-                for day in DAYS:
-                    st.session_state.editor_base_df.loc[row_idx, day] = formatted_value
-            else:
-                st.session_state.editor_base_df.loc[row_idx, day_name] = formatted_value
-        
-        # Bump key generation token to force clean redraw matching new value structures
-        st.session_state.editor_version += 1
-        st.rerun()
-
-
-# =========================================
 # UI
 # =========================================
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-# Fetch fresh data baseline
-master_df = load_data()
+df = load_data()
+df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
-# Extract names historical scope context records for this target branch selection
-if not master_df.empty and "Branch" in master_df.columns:
-    branch_mask = master_df["Branch"].astype(str).str.strip() == str(st.session_state.selected_branch).strip()
-    existing_names = master_df[branch_mask]["Name"].dropna().unique().tolist()
-else:
-    existing_names = []
-
-df = master_df[master_df["Branch"] == st.session_state.selected_branch].copy()
+existing_names = df["Name"].dropna().unique().tolist()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
 config = {
-    "Name": st.column_config.SelectboxColumn("Name", options=existing_names, required=True),
+    "Name": st.column_config.SelectboxColumn("Name", options=existing_names),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
@@ -158,57 +115,81 @@ for d in DAYS:
 # =========================================
 
 if edit_mode:
-    # Initialize version rendering trackers and baseline drafts
-    if "editor_version" not in st.session_state:
-        st.session_state.editor_version = 0
 
-    if "editor_base_df" not in st.session_state:
-        if not df.empty:
-            st.session_state.editor_base_df = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
-        else:
-            st.session_state.editor_base_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    # Render data editor using a clean decoupled layout keying system
     edited_df = st.data_editor(
-        st.session_state.editor_base_df,
+        df_display,
         column_config=config,
         num_rows="dynamic",
         use_container_width=True,
-        hide_index=True,
-        key=f"editor_widget_v_{st.session_state.editor_version}"
+        key="editor"
     )
 
-    # Re-sync cell inputs seamlessly back into master operational data memory frames
-    st.session_state.editor_base_df = edited_df
+    # init state
+    if "pending_update" not in st.session_state:
+        st.session_state.pending_update = None
 
-    # Intercept selections for modal execution
-    trigger_modal = False
-    target_row = None
-    target_day = None
-    target_name = None
+    # =========================================
+    # CUSTOM TIME UI
+    # =========================================
 
     for i, row in edited_df.iterrows():
         for d in DAYS:
-            if row.get(d) == "➕ Custom Time":
-                # Clear cell selection state token so modal triggers exactly once
-                st.session_state.editor_base_df.loc[i, d] = ""
-                
-                trigger_modal = True
-                target_row = i
-                target_day = d
-                target_name = row.get("Name")
-                break
-        if trigger_modal:
-            break
 
-    if trigger_modal:
-        custom_time_modal(target_row, target_day, target_name)
-        
-    if st.button("🔄 Reset Editor Window"):
-        if "editor_base_df" in st.session_state:
-            del st.session_state.editor_base_df
-        if "editor_version" in st.session_state:
-            del st.session_state.editor_version
+            if row.get(d) == "➕ Custom Time":
+
+                st.info(f"⏰ Custom Time for {row.get('Name')} - {d}")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("### Start Time")
+                    sh = st.selectbox("Hour", list(range(1, 13)), key=f"sh_{i}_{d}")
+                    sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{i}_{d}")
+
+                with col2:
+                    st.markdown("### End Time")
+                    eh = st.selectbox("Hour", list(range(1, 13)), key=f"eh_{i}_{d}")
+                    eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{i}_{d}")
+
+                apply_all = st.checkbox("Apply to all days", key=f"all_{i}_{d}")
+
+                if st.button("Apply", key=f"apply_{i}_{d}"):
+
+                    value = f"{sh} {sap} - {eh} {eap}"
+
+                    st.session_state.pending_update = {
+                        "row": i,
+                        "day": d,
+                        "value": value,
+                        "apply_all": apply_all
+                    }
+
+                    st.rerun()
+
+    # =========================================
+    # APPLY AFTER RERUN (IMPORTANT FIX)
+    # =========================================
+
+    if st.session_state.pending_update:
+
+        upd = st.session_state.pending_update
+
+        i = upd["row"]
+        d = upd["day"]
+        value = upd["value"]
+        apply_all = upd["apply_all"]
+
+        if apply_all:
+            for day in DAYS:
+                edited_df.loc[i, day] = value
+        else:
+            edited_df.loc[i, d] = value
+
+        st.session_state.pending_update = None
+
+        st.success("✅ Custom time applied successfully!")
         st.rerun()
 
 # =========================================
@@ -216,6 +197,7 @@ if edit_mode:
 # =========================================
 
 else:
+
     df_display = df.copy()
 
     ordered_cols = ["Name", "Role", "Date"] + DAYS
@@ -281,9 +263,6 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
-    
-    if "editor_base_df" in st.session_state:
-        del st.session_state.editor_base_df
 
     st.success("✅ Saved Successfully!")
     st.rerun()
@@ -293,4 +272,4 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 # =========================================
 
 if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+    st.switch_page("app.py")
