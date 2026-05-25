@@ -226,35 +226,34 @@ if edit_mode:
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
     # =========================
-    # OPTIMIZED BALANCED COLUMN WIDTHS (EDIT MODE)
+    # EDIT MODE WIDTH CONFIG (NAME COMPACTED)
     # =========================
     config = {
         "Name": st.column_config.SelectboxColumn(
             "Name", 
             options=df["Name"].dropna().unique().tolist() if not df.empty else [],
-            width=160,  # Adjusted down from 180
+            width=120,  # Made extra compact to save maximum screen space
             required=True
         ),
         "Role": st.column_config.SelectboxColumn(
             "Role", 
             options=ROLE_OPTIONS,
-            width=140   # Adjusted down from 150
+            width=140
         ),
         "Over-Time": st.column_config.TextColumn(
             "Over-Time", 
             disabled=True,
-            width=90    # Adjusted down from 110
+            width=90
         )
     }
 
-    # Map optimized compact layouts to day headers
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
         config[d] = st.column_config.SelectboxColumn(
             label=day_labels[d], 
             options=dynamic_options,
-            width=135  # Adjusted down from 160 (Fits dropdown arrows and text cleanly)
+            width=135
         )
 
     col_order = ["Name", "Role"] + DAYS + ["Over-Time"]
@@ -298,9 +297,9 @@ else:
     else:
         df_display["Over-Time"] = []
 
-    # OPTIMIZED BALANCED COLUMN WIDTHS (VIEW MODE)
+    # VIEW MODE WIDTH CONFIG (NAME COMPACTED)
     column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left", "width": 160},
+        {"headerName":"Name","field":"Name","pinned":"left", "width": 120}, # Matches editor compact view
         {"headerName":"Role","field":"Role", "width": 140}
     ]
     for d in DAYS:
