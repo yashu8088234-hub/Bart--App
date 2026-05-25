@@ -34,7 +34,7 @@ h1 { margin-bottom: 0px !important; }
     color: #3B82F6 !important;    /* BLUE color */
 
     position: relative;
-    top: -18px;                   /* moves to top-right */
+    top: 18px;                   /* moves to top-right */
     left: 4px;
 
     display: inline-block;
