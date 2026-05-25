@@ -24,7 +24,7 @@ st.markdown("""<style>
 h1 { margin-bottom: 0px !important; }
 
 .bart-logo + sup.registered {
-    color: #F75D59 !important;
+    color: #8B5CF6 !important;
 }
 
 .registered {
