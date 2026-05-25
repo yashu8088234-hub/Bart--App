@@ -96,28 +96,32 @@ edit_mode = st.toggle("Edit Mode Only")
 # 1. Load the raw data first
 all_data_df = load_data()
 
-# 2. Extract ALL unique names from the master sheet before filtering by branch
-# (If you only want names belonging to THIS branch, use: all_data_df[all_data_df["Branch"] == st.session_state.selected_branch]["Name"])
-global_names = []
-if not all_data_df.empty and "Name" in all_data_df.columns:
-    global_names = sorted(all_data_df["Name"].dropna().astype(str).unique().tolist())
+# 2. Extract ONLY names that match the selected branch
+branch_names = []
+if not all_data_df.empty and "Branch" in all_data_df.columns:
+    # Filter rows matching the branch, drop duplicates/NaNs, and sort alphabetically
+    branch_df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch]
+    branch_names = sorted(branch_df["Name"].dropna().astype(str).unique().tolist())
 
-# 3. Now filter the display dataframe for View Mode
+# Fallback: If no staff exist for this branch yet, pull all names so the dropdown isn't broken
+if not branch_names and not all_data_df.empty and "Name" in all_data_df.columns:
+    branch_names = sorted(all_data_df["Name"].dropna().astype(str).unique().tolist())
+
+# 3. Now filter the main display dataframe for View Mode
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
-# We use global_names here so the dropdown is ALWAYS populated, even if the editor is blank!
+# The dropdown config now uses your branch-specific names list!
 config = {
-    "Name": st.column_config.SelectboxColumn("Name", options=global_names, required=True),
+    "Name": st.column_config.SelectboxColumn("Name", options=branch_names, required=True),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
-
 # =========================================
 # EDIT MODE
 # =========================================
