@@ -94,7 +94,7 @@ div.stButton > button {
     height: 54px !important; 
     border-radius: 50px !important; 
     border: none !important; 
-    background: #20C997 !important; 
+    background: #F75D59 !important; 
     color: #FFFFFF !important; 
     font-weight: 900 !important; 
     text-transform: uppercase !important; 
@@ -102,13 +102,18 @@ div.stButton > button {
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
 }
-div.stButton > button::before { display: none !important; }
+
+div.stButton > button::before { 
+    display: none !important; 
+}
+
 div.stButton > button:hover {
     transform: scale(1.05) translateY(-2px);
-    background: #19a37a !important; 
-    box-shadow: 0 10px 20px rgba(32, 201, 151, 0.3) !important;
+    background: #e14c48 !important; 
+    box-shadow: 0 10px 20px rgba(247, 93, 89, 0.35) !important;
     letter-spacing: 4px !important;
 }
+
 div.stButton > button:active {
     transform: scale(0.98) translateY(0);
 }
