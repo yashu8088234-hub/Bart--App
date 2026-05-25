@@ -195,14 +195,27 @@ st.markdown("<p class='animate-text delay-4' style='text-align: center; font-siz
 # =========================================================
 # CARDS
 # =========================================================
-grid_left, grid_right = st.columns(2, gap="large")
+if "show_hr_password" not in st.session_state: st.session_state.show_hr_password = False
+
+grid_left, grid_center, grid_right = st.columns(3, gap="large")
+
 with grid_left:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">Staff Control """, unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Log daily updates, run item balance checkers, and communicate data parameters.</p>", unsafe_allow_html=True)
     if st.button("Access Staff Control →", use_container_width=True, key="staff_btn"): st.switch_page("pages/staff_dashboard.py")
     st.markdown('</div></div>', unsafe_allow_html=True)
+
+with grid_center:
+    st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HR Management</div>""", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Manage employee records, oversee payroll systems, and coordinate staff onboarding files.</p>", unsafe_allow_html=True)
+    if st.button("Unlock HR Portal →", use_container_width=True, key="hr_btn"):
+        st.session_state.show_hr_password = True
+        st.session_state.show_mgmt_password = False  # Close the other form if open
+        st.rerun()
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
 with grid_right:
-    st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HQ Administration""", unsafe_allow_html=True)
+    st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HQ Administration</div>""", unsafe_allow_html=True)
     st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Analyze operational logs, secure administrative configurations, and edit global secrets.</p>", unsafe_allow_html=True)
     if is_mgmt_locked():
         remaining = int(st.session_state.mgmt_lock_until - time.time())
@@ -210,12 +223,44 @@ with grid_right:
     else:
         if st.button("Unlock Admin Panel →", use_container_width=True, key="mgmt_btn"):
             st.session_state.show_mgmt_password = True
+            st.session_state.show_hr_password = False  # Close the other form if open
             st.rerun()
     st.markdown('</div></div>', unsafe_allow_html=True)
 
+
 # =========================================================
-# PASSWORD VERIFICATION SHEET
+# PASSWORD VERIFICATION SHEETS
 # =========================================================
+
+# 1. HR SECURITY VERIFICATION
+if st.session_state.show_hr_password:
+    st.write("---")
+    st.markdown('<div id="security_form_hr"></div>', unsafe_allow_html=True)
+    st.components.v1.html("""<script>setTimeout(function() {var el = window.parent.document.getElementById('security_form_hr'); if (el) { el.scrollIntoView({behavior: 'smooth', block: 'start'}); }}, 100);</script>""", height=0)
+    
+    sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
+    with sheet_center:
+        with st.form("hr_pass_form", clear_on_submit=True):
+            st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>HR Security Verification</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into HR environments.</p>", unsafe_allow_html=True)
+            
+            hr_password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter HR System Password", key="hr_pwd_field")
+            
+            st.write("##")
+            action_col1, action_col2 = st.columns(2, gap="medium")
+            with action_col2:
+                if st.form_submit_button("Abort HR Login", use_container_width=True):
+                    st.session_state.show_hr_password = False
+                    st.rerun()
+            with action_col1:
+                if st.form_submit_button("Verify & Open HR", use_container_width=True):
+                    if hr_password_input == st.secrets["MANAGER_PASSWORD"]:
+                        st.session_state.show_hr_password = False
+                        st.switch_page("pages/hr_dashboard.py")
+                    else:
+                        st.error("Access Refused: Invalid token signature.")
+
+# 2. HQ ADMINISTRATION SECURITY VERIFICATION
 if st.session_state.show_mgmt_password:
     st.write("---")
     st.markdown('<div id="security_form"></div>', unsafe_allow_html=True)
@@ -227,7 +272,7 @@ if st.session_state.show_mgmt_password:
             st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
             st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into critical system files.</p>", unsafe_allow_html=True)
             
-            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password")
+            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password", key="mgmt_pwd_field")
             
             st.write("##")
             action_col1, action_col2 = st.columns(2, gap="medium")
