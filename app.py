@@ -210,7 +210,7 @@ with grid_left:
 
 with grid_center:
     st.markdown("""<div class="card-glow"><div class="card-content" style="text-align: center; font-family: 'Times New Roman', Times, serif; color: #1E293B; font-size: 20px; font-weight: 700;">HR Management</div>""", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Manage employee records, oversee payroll systems, and coordinate staff onboarding files.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748B; margin-bottom: 25px;'>Manage employee records, oversee Schedule systems, and coordinate staff onboarding files.</p>", unsafe_allow_html=True)
     if st.button("Unlock HR Portal →", use_container_width=True, key="hr_btn"):
         st.session_state.show_hr_password = True
         st.session_state.show_mgmt_password = False  # Close the other form if open
@@ -272,10 +272,10 @@ if st.session_state.show_mgmt_password:
     sheet_left, sheet_center, sheet_right = st.columns([1, 5, 1])
     with sheet_center:
         with st.form("pass_form", clear_on_submit=True):
-            st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Security Verification</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #1E293B; font-weight: 700; font-size: 20px; margin-bottom: 5px;'>Administration Security Verification</h3>", unsafe_allow_html=True)
             st.markdown("<p style='text-align: center; color: #64748B; font-size: 13px; margin-bottom: 20px;'>Input administrative access credentials to proceed into critical system files.</p>", unsafe_allow_html=True)
             
-            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter System Password", key="mgmt_pwd_field")
+            password_input = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Enter Administration  Password", key="mgmt_pwd_field")
             
             st.write("##")
             action_col1, action_col2 = st.columns(2, gap="medium")
