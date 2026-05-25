@@ -56,10 +56,6 @@ if "cached_df" not in st.session_state:
 if "shift_buffer" not in st.session_state:
     st.session_state.shift_buffer = {}
 
-# TRACK LAST SEEN WEEK TO PREVENT BUFFER BLEEDING
-if "previous_week" not in st.session_state:
-    st.session_state.previous_week = None
-
 # =========================
 # DATA LOAD
 # =========================
@@ -127,14 +123,8 @@ selected_date = st.date_input("📅 Select Any Date In Week", value=datetime.tod
 
 days_from_sunday = (selected_date.weekday() + 1) % 7
 week_start = selected_date - timedelta(days=days_from_sunday)
-week_start_str = week_start.strftime('%d %b %Y')
 
-st.caption(f"Week: {week_start_str}")
-
-# CRITICAL FIX: If user switches weeks, clear out un-saved custom shift inputs
-if st.session_state.previous_week != week_start_str:
-    st.session_state.shift_buffer = {}
-    st.session_state.previous_week = week_start_str
+st.caption(f"Week: {week_start.strftime('%d %b %Y')}")
 
 edit_mode = st.toggle("Edit Mode Only")
 
@@ -155,18 +145,20 @@ day_labels = {}
 for idx, day_name in enumerate(DAYS):
     day_date = week_start + timedelta(days=idx)
     day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b %Y')})"
-
 # =========================
 # PREP DISPLAY
 # =========================
 if edit_mode:
-    # CRITICAL FIX: Base your edit window directly on the existing week data instead of creating a blank df
-    if not df.empty:
-        df_display = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
-    else:
-        df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    # APPLY BUFFER TO DISPLAY (Overrides existing values with your ongoing dropdown changes)
+    roster_df = df[["Name","Role"]].dropna().drop_duplicates() if not df.empty else pd.DataFrame(columns=["Name","Role"])
+
+    df_display = pd.DataFrame(columns=["Name","Role"] + DAYS)
+
+    if not roster_df.empty:
+        df_display["Name"] = roster_df["Name"].values
+        df_display["Role"] = roster_df["Role"].values
+
+    # APPLY BUFFER TO DISPLAY
     for i, row in df_display.iterrows():
         for d in DAYS:
             key = f"{i}_{d}"
@@ -181,11 +173,8 @@ if edit_mode:
         "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
     }
 
-    # Gather unique shifts already in the sheet so they can pass into the Editor's allowed Dropdown configurations
     for d in DAYS:
-        existing_shifts = df_display[d].dropna().unique().tolist()
-        dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
-        config[d] = st.column_config.SelectboxColumn(d, options=dynamic_options)
+        config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
 
     edited_df = st.data_editor(df_display, column_config=config, num_rows="dynamic", key="editor")
 
@@ -232,6 +221,9 @@ if edit_mode:
 
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
+
+
+
 
 # =========================
 # VIEW MODE
@@ -280,9 +272,11 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
 
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
-    # RESET BUFFER & RE-CACHE DATA AFTER SUCCESSFUL RECORDING
+    # RESET ONLY UI (NOT SHEET)
     st.session_state.shift_buffer = {}
-    st.session_state.cached_df = None 
+
+    for d in DAYS:
+        df_display[d] = ""
 
     st.success("✅ Saved successfully!")
     st.rerun()
