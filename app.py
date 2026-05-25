@@ -28,14 +28,16 @@ h1 { margin-bottom: 0px !important; }
 }
 
 .registered {
-    font-size: 12px;
-    font-weight: 700;
-    color: #F75D59 !important;   /* FORCE COLOR (your brand red) */
-    opacity: 0.85;
-    vertical-align: super;
+    font-size: 14px;
+    font-weight: 800;
+    color: #F75D59 !important;   /* FORCE BRAND COLOR */
+    opacity: 0.9;
+
     position: relative;
-    top: -10px;
-    left: 3px;
+    top: -55px;   /* pushes to top-right of BART */
+    left: 2px;
+
+    display: inline-block;
 }
 
 .block-container { 
@@ -164,9 +166,8 @@ st.markdown("""
 # =========================================================
 st.markdown("<div class='animate-text delay-1' style='text-align: center;'><span style='background: rgba(59, 33, 230, 0.08); color: #3B21E6; padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 700; letter-spacing: 1px;'>INTERNAL STAFF NETWORK</span></div>", unsafe_allow_html=True)
 st.markdown("""
-<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px; position: relative;'>
-    <span class='bart-logo'>B A R T</span>
-    <span class="registered-mark">®</span>
+<h1 class='animate-text delay-2' style='text-align: center; font-size: 88px; font-weight: 800; color: #111; margin-top: 5px; margin-bottom: -15px; letter-spacing: -2.5px;'>
+    <span class='bart-logo'>B A R T</span><span class="registered">®</span>
 </h1>
 """, unsafe_allow_html=True)
 st.markdown("<h1 class='animate-text delay-3' style='text-align: center; font-size: 58px; font-weight: 800; color: #111111; margin-top: 15px; margin-bottom: 0;'>Operations management <br><span style='background: linear-gradient(90deg, #F75D59 0%, #F75D59 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>just got easier.</span></h1>", unsafe_allow_html=True)
