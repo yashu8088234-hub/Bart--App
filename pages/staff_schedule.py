@@ -226,40 +226,39 @@ if edit_mode:
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
     # =========================
-    # FIXED WIDTH EDITOR CONFIG (Stops squeezing completely)
+    # OPTIMIZED BALANCED COLUMN WIDTHS (EDIT MODE)
     # =========================
     config = {
         "Name": st.column_config.SelectboxColumn(
             "Name", 
             options=df["Name"].dropna().unique().tolist() if not df.empty else [],
-            width=180,  # Lock width in absolute pixels
+            width=160,  # Adjusted down from 180
             required=True
         ),
         "Role": st.column_config.SelectboxColumn(
             "Role", 
             options=ROLE_OPTIONS,
-            width=150   # Lock width in absolute pixels
+            width=140   # Adjusted down from 150
         ),
         "Over-Time": st.column_config.TextColumn(
             "Over-Time", 
             disabled=True,
-            width=110   # Lock width in absolute pixels
+            width=90    # Adjusted down from 110
         )
     }
 
-    # Map uniform pixel layouts to day headers so they stay un-congested
+    # Map optimized compact layouts to day headers
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
         config[d] = st.column_config.SelectboxColumn(
             label=day_labels[d], 
             options=dynamic_options,
-            width=160  # Guarantees space for text strings without clipping drop-downs
+            width=135  # Adjusted down from 160 (Fits dropdown arrows and text cleanly)
         )
 
     col_order = ["Name", "Role"] + DAYS + ["Over-Time"]
     
-    # Passing use_container_width=True with fixed pixel configurations activates the clean horizontal viewport wrapper
     edited_df = st.data_editor(
         df_display[col_order], 
         column_config=config, 
@@ -299,13 +298,14 @@ else:
     else:
         df_display["Over-Time"] = []
 
+    # OPTIMIZED BALANCED COLUMN WIDTHS (VIEW MODE)
     column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left", "width": 180},
-        {"headerName":"Role","field":"Role", "width": 150}
+        {"headerName":"Name","field":"Name","pinned":"left", "width": 160},
+        {"headerName":"Role","field":"Role", "width": 140}
     ]
     for d in DAYS:
-        column_defs.append({"headerName":day_labels[d],"field":d, "width": 160})
-    column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 110})
+        column_defs.append({"headerName":day_labels[d],"field":d, "width": 135})
+    column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 90})
 
     AgGrid(df_display, gridOptions={
         "columnDefs": column_defs,
