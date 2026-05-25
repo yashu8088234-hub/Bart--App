@@ -226,40 +226,40 @@ if edit_mode:
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
     # =========================
-    # EDITOR CONFIG (SPACING & WIDTH OPTIMIZATIONS)
+    # FIXED WIDTH EDITOR CONFIG (Stops squeezing completely)
     # =========================
     config = {
         "Name": st.column_config.SelectboxColumn(
             "Name", 
             options=df["Name"].dropna().unique().tolist() if not df.empty else [],
-            width="medium",
+            width=180,  # Lock width in absolute pixels
             required=True
         ),
         "Role": st.column_config.SelectboxColumn(
             "Role", 
             options=ROLE_OPTIONS,
-            width="medium"
+            width=150   # Lock width in absolute pixels
         ),
         "Over-Time": st.column_config.TextColumn(
             "Over-Time", 
             disabled=True,
-            width="small"
+            width=110   # Lock width in absolute pixels
         )
     }
 
-    # Set structural sizing to day headers to prevent text congestion wrapping
+    # Map uniform pixel layouts to day headers so they stay un-congested
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
         config[d] = st.column_config.SelectboxColumn(
             label=day_labels[d], 
             options=dynamic_options,
-            width="medium"  # Allocates enough padding for inputs like "9 AM - 6 PM (OT 1h)"
+            width=160  # Guarantees space for text strings without clipping drop-downs
         )
 
     col_order = ["Name", "Role"] + DAYS + ["Over-Time"]
     
-    # use_container_width stretches the grid across the entire page layout seamlessly
+    # Passing use_container_width=True with fixed pixel configurations activates the clean horizontal viewport wrapper
     edited_df = st.data_editor(
         df_display[col_order], 
         column_config=config, 
@@ -301,11 +301,11 @@ else:
 
     column_defs = [
         {"headerName":"Name","field":"Name","pinned":"left", "width": 180},
-        {"headerName":"Role","field":"Role", "width": 160}
+        {"headerName":"Role","field":"Role", "width": 150}
     ]
     for d in DAYS:
-        column_defs.append({"headerName":day_labels[d],"field":d, "width": 150})
-    column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 120})
+        column_defs.append({"headerName":day_labels[d],"field":d, "width": 160})
+    column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 110})
 
     AgGrid(df_display, gridOptions={
         "columnDefs": column_defs,
@@ -334,4 +334,15 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
     st.session_state.cached_df = final 
-    st.session_
+    st.session_state.last_fetch = time.time()
+    st.session_state.shift_buffer = {}
+    st.session_state.deleted_staff = set() 
+
+    st.success("✅ Saved successfully! Row updates synchronized.")
+    st.rerun()
+
+# =========================
+# BACK
+# =========================
+if st.button("⬅ Back"):
+    st.switch_page("app.py")
