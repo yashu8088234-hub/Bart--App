@@ -152,11 +152,15 @@ def custom_time_modal(row_idx, day_name, current_name):
 # =========================================
 
 if edit_mode:
-    # Initialize component tracking states
-    if "editor_df" not in st.session_state or st.button("🔄 Reset Editor Window"):
-        st.session_state.editor_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    # 1. Initialize the dataframe state if it doesn't exist
+    if "editor_df" not in st.session_state:
+        # Load existing data from master to edit, or start empty if none exists
+        if not df.empty:
+            st.session_state.editor_df = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
+        else:
+            st.session_state.editor_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    # Process back-channel submissions coming from our Dialog Modal
+    # 2. Process incoming times from the Dialog Modal BEFORE rendering the table
     if "modal_submission" in st.session_state and st.session_state.modal_submission is not None:
         submission = st.session_state.modal_submission
         idx = submission["row"]
@@ -168,11 +172,10 @@ if edit_mode:
         else:
             st.session_state.editor_df.loc[idx, submission["day"]] = val
             
-        # Clear submission to avoid endless loops
+        # Clean up submission token
         st.session_state.modal_submission = None
-        st.toast("⚡ Custom time applied to draft!", icon="✅")
 
-    # Render dynamic table
+    # 3. Render the data editor using the persistent state
     edited_df = st.data_editor(
         st.session_state.editor_df,
         column_config=config,
@@ -181,17 +184,28 @@ if edit_mode:
         key="main_schedule_editor"
     )
     
-    # Sync visual changes smoothly into session state storage
-    st.session_state.editor_df = edited_df
-
-    # Intercept placeholder selections to trigger Dialog Popup
+    # 4. Watch for changes inside the table
+    cell_changed = False
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "➕ Custom Time":
-                # Temporarily revert cell placeholder so it doesn't trigger repeatedly
+                # Instantly overwrite the "➕ Custom Time" text in the state to avoid loops
                 st.session_state.editor_df.loc[i, d] = ""
+                # Launch the modal
                 custom_time_modal(i, d, row.get("Name"))
+                cell_changed = True
+                break
+        if cell_changed:
+            break
 
+    # Save any text updates (like Names/Roles) back into the state
+    if not cell_changed:
+        st.session_state.editor_df = edited_df
+        
+    if st.button("🔄 Reset Editor Window"):
+        if "editor_df" in st.session_state:
+            del st.session_state.editor_df
+        st.rerun()
 # =========================================
 # VIEW MODE
 # =========================================
