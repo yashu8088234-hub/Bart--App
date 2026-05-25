@@ -42,8 +42,7 @@ master_sheet = client.open_by_key(
 DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
 ROLE_OPTIONS = [
-    "Staff","Supervisor","Acting Supervisor",
-    "Team Leader","Acting Team Leader"
+    "Team-Member","Acting_Team_Leader","Team_Leader","Acting_Supervisor","Supervisor","Branch_Manager"
 ]
 
 # REMOVED STANDARD SHIFTS - KEEPING ONLY CUSTOM TIME
