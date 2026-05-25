@@ -138,10 +138,10 @@ def custom_time_dialog(row_idx, row_name, day_name):
     
     col1, col2 = st.columns(2)
     with col1:
-        sh = st.selectbox("Start Hour", list(range(1, 13)), index=8) # Default 9
+        sh = st.selectbox("Start Hour", list(range(1, 13)), index=8)
         sap = st.selectbox("AM/PM", ["AM", "PM"], key="sap_modal")
     with col2:
-        eh = st.selectbox("End Hour", list(range(1, 13)), index=5) # Default 6
+        eh = st.selectbox("End Hour", list(range(1, 13)), index=5)
         eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal", index=1)
 
     apply_all = st.checkbox("Apply to all working days this week")
@@ -226,21 +226,47 @@ if edit_mode:
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
     # =========================
-    # EDITOR CONFIG
+    # EDITOR CONFIG (SPACING & WIDTH OPTIMIZATIONS)
     # =========================
     config = {
-        "Name": st.column_config.SelectboxColumn("Name", options=df["Name"].dropna().unique().tolist() if not df.empty else []),
-        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
-        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True)
+        "Name": st.column_config.SelectboxColumn(
+            "Name", 
+            options=df["Name"].dropna().unique().tolist() if not df.empty else [],
+            width="medium",
+            required=True
+        ),
+        "Role": st.column_config.SelectboxColumn(
+            "Role", 
+            options=ROLE_OPTIONS,
+            width="medium"
+        ),
+        "Over-Time": st.column_config.TextColumn(
+            "Over-Time", 
+            disabled=True,
+            width="small"
+        )
     }
 
+    # Set structural sizing to day headers to prevent text congestion wrapping
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
-        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=dynamic_options)
+        config[d] = st.column_config.SelectboxColumn(
+            label=day_labels[d], 
+            options=dynamic_options,
+            width="medium"  # Allocates enough padding for inputs like "9 AM - 6 PM (OT 1h)"
+        )
 
     col_order = ["Name", "Role"] + DAYS + ["Over-Time"]
-    edited_df = st.data_editor(df_display[col_order], column_config=config, num_rows="dynamic", key="editor")
+    
+    # use_container_width stretches the grid across the entire page layout seamlessly
+    edited_df = st.data_editor(
+        df_display[col_order], 
+        column_config=config, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        key="editor"
+    )
 
     # TRACK IN-SESSION DELETIONS FROM DATA EDITOR
     current_editor_names = set(edited_df["Name"].dropna().tolist())
@@ -253,17 +279,15 @@ if edit_mode:
     # =========================
     for i, row in edited_df.iterrows():
         for d in DAYS:
-            # Handle standard Day Off selection immediately
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
                 st.rerun()
                 
-            # Trigger clean Dialog Modal popup instead of expanded page logic
             if row.get(d) == "➕ Custom Time":
                 custom_time_dialog(row_idx=i, row_name=row['Name'], day_name=d)
 
 # =========================
-# VIEW MODE (USES LOCAL MEMORY)
+# VIEW MODE
 # =========================
 else:
     df_display = df.copy()
@@ -276,12 +300,12 @@ else:
         df_display["Over-Time"] = []
 
     column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left"},
-        {"headerName":"Role","field":"Role"}
+        {"headerName":"Name","field":"Name","pinned":"left", "width": 180},
+        {"headerName":"Role","field":"Role", "width": 160}
     ]
     for d in DAYS:
-        column_defs.append({"headerName":day_labels[d],"field":d})
-    column_defs.append({"headerName":"Over-Time","field":"Over-Time"})
+        column_defs.append({"headerName":day_labels[d],"field":d, "width": 150})
+    column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 120})
 
     AgGrid(df_display, gridOptions={
         "columnDefs": column_defs,
@@ -310,15 +334,4 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
     st.session_state.cached_df = final 
-    st.session_state.last_fetch = time.time()
-    st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set() 
-
-    st.success("✅ Saved successfully! Row updates synchronized.")
-    st.rerun()
-
-# =========================
-# BACK
-# =========================
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
+    st.session_
