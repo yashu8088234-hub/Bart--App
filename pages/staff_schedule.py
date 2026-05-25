@@ -46,7 +46,7 @@ ROLE_OPTIONS = [
     "Acting_Supervisor","Supervisor","Branch_Manager"
 ]
 
-CACHE_TTL = 60  # Protects API from hits within 60 seconds
+CACHE_TTL = 60 
 
 # =========================
 # SESSION STATE INITIALIZATION
@@ -69,7 +69,6 @@ if "deleted_staff" not in st.session_state:
 # =========================
 def load_data():
     now = time.time()
-    # ONLY fetch if cache is empty OR TTL has expired. Otherwise, return memory data.
     if st.session_state.cached_df is None or (now - st.session_state.last_fetch > CACHE_TTL):
         try:
             ws = master_sheet.worksheet("StaffSchedule")
@@ -131,6 +130,40 @@ def calculate_row_ot(row):
 
 
 # =========================
+# MODAL DIALOG FOR CUSTOM TIME
+# =========================
+@st.dialog("⏰ Set Custom Time")
+def custom_time_dialog(row_idx, row_name, day_name):
+    st.write(f"Configure shift for **{row_name}** on **{day_name}**")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        sh = st.selectbox("Start Hour", list(range(1, 13)), index=8) # Default 9
+        sap = st.selectbox("AM/PM", ["AM", "PM"], key="sap_modal")
+    with col2:
+        eh = st.selectbox("End Hour", list(range(1, 13)), index=5) # Default 6
+        eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal", index=1)
+
+    apply_all = st.checkbox("Apply to all working days this week")
+
+    if st.button("Apply Shift", use_container_width=True):
+        start = f"{sh} {sap}"
+        end = f"{eh} {eap}"
+        value, hrs = format_shift(start, end)
+
+        if value is None:
+            st.error("❌ Minimum 9 hours required")
+        else:
+            if apply_all:
+                for day in DAYS:
+                    st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
+            else:
+                st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
+            
+            st.rerun()
+
+
+# =========================
 # UI HEADER
 # =========================
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
@@ -143,10 +176,9 @@ week_start_str = week_start.strftime('%d %b %Y')
 
 st.caption(f"Week: {week_start_str}")
 
-# Clean temporary buffers when transitioning across calendar weeks
 if st.session_state.previous_week != week_start_str:
     st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set()  # Reset local deletion log for new context
+    st.session_state.deleted_staff = set()
     st.session_state.previous_week = week_start_str
 
 edit_mode = st.toggle("Edit Mode Only")
@@ -173,10 +205,8 @@ for idx, day_name in enumerate(DAYS):
 # =========================
 if edit_mode:
     if not df.empty:
-        # Step 1: Extract master roster layout
         df_display = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)
         
-        # Step 2: Apply the local deletion memory block so deleted employees stay hidden!
         if st.session_state.deleted_staff:
             df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
             
@@ -213,53 +243,29 @@ if edit_mode:
     edited_df = st.data_editor(df_display[col_order], column_config=config, num_rows="dynamic", key="editor")
 
     # TRACK IN-SESSION DELETIONS FROM DATA EDITOR
-    # If a row was dropped inside the interactive grid widget, save it to session state memory
     current_editor_names = set(edited_df["Name"].dropna().tolist())
     for original_name in df_display["Name"].tolist():
         if original_name not in current_editor_names:
             st.session_state.deleted_staff.add(original_name)
 
     # =========================
-    # CUSTOM TIME UI
+    # INTERCEPT SELECTBOX ACTIONS
     # =========================
     for i, row in edited_df.iterrows():
         for d in DAYS:
-            if row.get(d) == "➕ Custom Time":
-                st.info(f"⏰ {row['Name']} - {d}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    sh = st.selectbox("Start Hour", list(range(1,13)), key=f"sh_{i}_{d}")
-                    sap = st.selectbox("AM/PM", ["AM","PM"], key=f"sap_{i}_{d}")
-                with col2:
-                    eh = st.selectbox("End Hour", list(range(1,13)), key=f"eh_{i}_{d}")
-                    eap = st.selectbox("AM/PM", ["AM","PM"], key=f"eap_{i}_{d}")
-
-                apply_all = st.checkbox("Apply to all days", key=f"all_{i}_{d}")
-
-                if st.button("Apply", key=f"apply_{i}_{d}"):
-                    start = f"{sh} {sap}"
-                    end = f"{eh} {eap}"
-                    value, hrs = format_shift(start, end)
-
-                    if value is None:
-                        st.error("❌ Minimum 9 hours required")
-                        st.stop()
-
-                    if apply_all:
-                        for day in DAYS:
-                            st.session_state.shift_buffer[f"{i}_{day}"] = value
-                    else:
-                        st.session_state.shift_buffer[f"{i}_{d}"] = value
-                    st.rerun()
-
+            # Handle standard Day Off selection immediately
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
+                st.rerun()
+                
+            # Trigger clean Dialog Modal popup instead of expanded page logic
+            if row.get(d) == "➕ Custom Time":
+                custom_time_dialog(row_idx=i, row_name=row['Name'], day_name=d)
 
 # =========================
 # VIEW MODE (USES LOCAL MEMORY)
 # =========================
 else:
-    # Filter view mode based on cached data and remove memory-deleted staff
     df_display = df.copy()
     if st.session_state.deleted_staff and not df_display.empty:
         df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
@@ -283,12 +289,10 @@ else:
     }, height=500)
 
 # =========================
-# SAVE (COMMIT ALL CHANGELOGS TO CLOUD)
+# SAVE (COMMIT TO CLOUD)
 # =========================
 if edit_mode and st.button("💾 Save to Master Sheet"):
     ws = master_sheet.worksheet("StaffSchedule")
-    
-    # Process modifications using the local cache structure
     full_df = st.session_state.cached_df.copy()
 
     new_data = edited_df.copy()
@@ -297,24 +301,20 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
     if "Over-Time" in new_data.columns:
         new_data = new_data.drop(columns=["Over-Time"])
 
-    # Pull rows belonging to entirely different branches
     others = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
 
-    # Merge non-modified branch data with the newly pruned layout
     final = pd.concat([others, new_data], ignore_index=True)
     storage_cols = ["Branch", "Name", "Role"] + DAYS
     final = final[storage_cols]
 
-    # Write mutation data up to Google Sheets
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
-    # SYNC INTERNAL APP STATE MEMORY AFTER GOOGLE VERIFICATION
-    st.session_state.cached_df = final  # Directly pass mutations down to cache instead of refetching
+    st.session_state.cached_df = final 
     st.session_state.last_fetch = time.time()
     st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set()  # Permanent drop complete, flush the log
+    st.session_state.deleted_staff = set() 
 
-    st.success("✅ Saved successfully! Cloud storage synchronized cleanly without API loop drops.")
+    st.success("✅ Saved successfully! Row updates synchronized.")
     st.rerun()
 
 # =========================
