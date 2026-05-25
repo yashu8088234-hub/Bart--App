@@ -145,12 +145,8 @@ else:
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
-branch_info = None
-
-if st.session_state.selected_branch != "-- Select Branch --":
-    branch_info = next(
-        b for b in branch_data
-        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
+#  PASTE THIS INSTEAD:
+branch_info = branch_map.get(st.session_state.selected_branch, None)
     )
 
 # ---------------- PASSWORD SYSTEM ----------------
