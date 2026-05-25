@@ -175,7 +175,7 @@ st.markdown("""
         <!-- Medium Blue Oval shifted to the upper-right background -->
         <span style="
             position: absolute;
-            width: 28px;
+            width: 38px;
             height: 22px;
             background-color: #3B82F6;
             border-radius: 50%;
