@@ -103,15 +103,66 @@ scope = [
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ---------------- LOAD BRANCHES ----------------
-@st.cache_data(ttl=None)
-def load_branches():
+# ---------------- LOAD BRANCHES & PASSWORDS (CONSOLIDATED & CACHED) ----------------
+@st.cache_data(ttl=300)  # Keeps data cached for 5 minutes for instant lookups
+def load_master_branch_data():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
-    return sheet.get_all_records()
+    records = sheet.get_all_records()
+    
+    # Pre-map a password dictionary on the initial read to avoid later API hits
+    passwords = {"admin": load_admin()["admin"]}
+    for row in records:
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        passwords[key] = row.get("Password", "")
+        
+    return records, passwords
 
-branch_data = load_branches()
+# Fetch data securely and instantly from memory
+branch_data, passwords = load_master_branch_data()
 branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
 branch_options = ["-- Select Branch --"] + branches
+
+def save_passwords(branch_key, new_password):
+    sheet = client.open("MASTERBRANCHSHEET").sheet1
+    records = sheet.get_all_records()
+
+    for idx, row in enumerate(records, start=2):
+        key = f"{row['BranchCode']} - {row['BranchName']}"
+        if key == branch_key:
+            col_index = list(row.keys()).index("Password") + 1
+            sheet.update_cell(idx, col_index, new_password)
+            # Clear cache so the new password takes effect immediately
+            load_master_branch_data.clear()
+            return
+
+# ---------------- PIN FIRST 3 COLUMNS ----------------
+st.markdown("""
+<style>
+div[data-testid="stDataFrame"] thead th:nth-child(1),
+div[data-testid="stDataFrame"] tbody td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 3;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(2),
+div[data-testid="stDataFrame"] tbody td:nth-child(2) {
+    position: sticky;
+    left: 150px;
+    background: white;
+    z-index: 2;
+}
+
+div[data-testid="stDataFrame"] thead th:nth-child(3),
+div[data-testid="stDataFrame"] tbody td:nth-child(3) {
+    position: sticky;
+    left: 300px;
+    background: white;
+    z-index: 2;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
@@ -147,63 +198,8 @@ if st.session_state.selected_branch != "-- Select Branch --":
         if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
 
-# ---------------- PASSWORD SYSTEM ----------------
-def load_passwords():
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    passwords = {"admin": load_admin()["admin"]}
-
-    for row in records:
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        passwords[key] = row.get("Password", "")
-
-    return passwords
-
-def save_passwords(branch_key, new_password):
-    sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-
-    for idx, row in enumerate(records, start=2):
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        if key == branch_key:
-            col_index = list(row.keys()).index("Password") + 1
-            sheet.update_cell(idx, col_index, new_password)
-            return
-
-# ---------------- PIN FIRST 3 COLUMNS ----------------
-st.markdown("""
-<style>
-div[data-testid="stDataFrame"] thead th:nth-child(1),
-div[data-testid="stDataFrame"] tbody td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    background: white;
-    z-index: 3;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(2),
-div[data-testid="stDataFrame"] tbody td:nth-child(2) {
-    position: sticky;
-    left: 150px;
-    background: white;
-    z-index: 2;
-}
-
-div[data-testid="stDataFrame"] thead th:nth-child(3),
-div[data-testid="stDataFrame"] tbody td:nth-child(3) {
-    position: sticky;
-    left: 300px;
-    background: white;
-    z-index: 2;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- MAIN ----------------
 if st.session_state.selected_branch != "-- Select Branch --":
-
-    passwords = load_passwords()
 
     if not st.session_state.authenticated:
 
@@ -215,19 +211,20 @@ if st.session_state.selected_branch != "-- Select Branch --":
 
         with col1:
             if st.button("Login"):
-                if passwords.get(st.session_state.selected_branch, "") == password:
+                with st.spinner("Verifying credentials..."):
+                    # Compares password instantly against cached memory dict
+                    if passwords.get(st.session_state.selected_branch, "") == password:
+                        st.session_state.authenticated = True
+                        st.session_state.auth_branch = st.session_state.selected_branch
+                        st.session_state.last_activity = time.time()
 
-                    st.session_state.authenticated = True
-                    st.session_state.auth_branch = st.session_state.selected_branch
-                    st.session_state.last_activity = time.time()
+                        st.session_state.sheet_id = branch_info["SheetID"]
+                        st.session_state.tab_name = "Stocks"
+                        st.session_state.branch_info = branch_info
 
-                    st.session_state.sheet_id = branch_info["SheetID"]
-                    st.session_state.tab_name = "Stocks"
-                    st.session_state.branch_info = branch_info
-
-                    st.rerun()
-                else:
-                    st.error("Incorrect password")
+                        st.rerun()
+                    else:
+                        st.error("Incorrect password")
 
         with col2:
             if st.button("Reset Password"):
@@ -263,10 +260,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             refresh_activity()
             st.switch_page("pages/staff_schedule.py")
 
-
-
-        
-
         if col3.button("🔍 Stock View"):
             refresh_activity()
 
@@ -284,7 +277,6 @@ if st.session_state.selected_branch != "-- Select Branch --":
             current_section = None
 
             for row in data:
-
                 row_text = " ".join(row).strip().lower()
 
                 if "daily item" in row_text:
