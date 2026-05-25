@@ -104,21 +104,15 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # ---------------- LOAD BRANCHES ----------------
-# Change your load_passwords function to look like this
-@st.cache_data(ttl=300)  # Caches the data in memory for 5 minutes
-def fetch_passwords_from_sheets():
+@st.cache_data(ttl=None)
+def load_branches():
     sheet = client.open("MASTERBRANCHSHEET").sheet1
-    records = sheet.get_all_records()
-    
-    passwords = {"admin": load_admin()["admin"]}
-    for row in records:
-        key = f"{row['BranchCode']} - {row['BranchName']}"
-        passwords[key] = row.get("Password", "")
-    return passwords
+    return sheet.get_all_records()
 
-def load_passwords():
-    # Retrieve from cache instead of hitting Google API on every click
-    return fetch_passwords_from_sheets()
+branch_data = load_branches()
+branches = [f"{b['BranchCode']} - {b['BranchName']}" for b in branch_data]
+branch_options = ["-- Select Branch --"] + branches
+
 # ---------------- BRANCH SELECT ----------------
 st.subheader("Select Branch")
 
@@ -145,8 +139,12 @@ else:
         st.rerun()
 
 # ---------------- BRANCH INFO ----------------
-#  PASTE THIS INSTEAD:
-branch_info = branch_map.get(st.session_state.selected_branch, None)
+branch_info = None
+
+if st.session_state.selected_branch != "-- Select Branch --":
+    branch_info = next(
+        b for b in branch_data
+        if f"{b['BranchCode']} - {b['BranchName']}" == st.session_state.selected_branch
     )
 
 # ---------------- PASSWORD SYSTEM ----------------
