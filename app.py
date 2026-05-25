@@ -41,10 +41,13 @@ h1 { margin-bottom: 0px !important; }
     opacity: 1;
 }
 
+/* CHANGE THIS LINE IN YOUR CODE: */
 .block-container { 
-    max-width: 1000px !important; 
+    max-width: 100% !important; /* Changed from 1000px to 100% */
     padding-top: 1rem !important; 
     padding-bottom: 1rem !important;
+    padding-left: 5rem !important;  /* Optional: Adds a clean cushion on the far left */
+    padding-right: 5rem !important; /* Optional: Adds a clean cushion on the far right */
 }
 
 
