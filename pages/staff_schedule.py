@@ -46,12 +46,8 @@ ROLE_OPTIONS = [
     "Team Leader","Acting Team Leader"
 ]
 
+# REMOVED STANDARD SHIFTS - KEEPING ONLY CUSTOM TIME
 SHIFT_OPTIONS = [
-    "Morning shift",
-    "Mid shift",
-    "Evening shift",
-    "Night shift",
-    "OFF",
     "➕ Custom Time"
 ]
 
@@ -124,11 +120,10 @@ edit_mode = st.toggle("Edit Mode Only")
 # =========================================
 # GENERATE DYNAMIC DAY LABELS
 # =========================================
-# This calculates the exact calendar date matching each day of the current week
+
 day_labels = {}
 for idx, day_name in enumerate(DAYS):
     day_date = week_start + timedelta(days=idx)
-    # Formats as: "Sunday (24 May)" -> Change format string inside strftime if preferred
     day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b')})"
 
 # =========================================
@@ -192,10 +187,9 @@ config = {
     ),
 }
 
-# Use the dynamic mapped labels for column presentation here
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(
-        day_labels[d],  # Dynamic header visually displayed to user
+        day_labels[d],
         options=SHIFT_OPTIONS
     )
 
@@ -345,7 +339,6 @@ else:
         [c for c in ordered_cols if c in df_display.columns]
     ]
 
-    # Synchronizing View Mode (AgGrid) headers as well
     column_defs = [
         {
             "headerName": "Name",
@@ -370,7 +363,7 @@ else:
     for d in DAYS:
 
         column_defs.append({
-            "headerName": day_labels[d], # Synchronized AgGrid visual header
+            "headerName": day_labels[d],
             "field": d,
             "width": 140
         })
@@ -410,10 +403,6 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
     new_data = edited_df.copy()
 
     new_data["Branch"] = st.session_state.selected_branch
-
-    # =========================================
-    # SAVE WEEK START DATE
-    # =========================================
 
     new_data["Date"] = week_start.strftime("%d-%m-%Y")
 
