@@ -130,7 +130,7 @@ week_start_str = week_start.strftime('%d %b %Y')
 
 st.caption(f"Week: {week_start_str}")
 
-# Reset transient shift buffers if week changes
+# Clear un-saved inputs if the user switches weeks
 if st.session_state.previous_week != week_start_str:
     st.session_state.shift_buffer = {}
     st.session_state.previous_week = week_start_str
@@ -147,25 +147,27 @@ df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy
 
 
 # =========================
-# WEEK LABELS (YEAR REMOVED FOR SPACE)
+# WEEK LABELS
 # =========================
 day_labels = {}
 
 for idx, day_name in enumerate(DAYS):
     day_date = week_start + timedelta(days=idx)
-    # Formats to "Day (DD MMM)" -> e.g. Monday (26 May)
     day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b')})"
 
 # =========================
 # PREP DISPLAY
 # =========================
 if edit_mode:
+    # Only pull the roster names/roles to prevent old historical shifts from autofilling incorrectly
     if not df.empty:
-        df_display = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
+        df_display = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)
+        for d in DAYS:
+            df_display[d] = ""  # Force day columns to start completely blank
     else:
         df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    # APPLY BUFFER TO DISPLAY
+    # APPLY BUFFER TO DISPLAY (Only what you actually typed/selected during this session)
     for i, row in df_display.iterrows():
         for d in DAYS:
             key = f"{i}_{d}"
@@ -180,7 +182,6 @@ if edit_mode:
         "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
     }
 
-    # Pass short dates directly into data editor headers
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
@@ -256,7 +257,7 @@ else:
     }, height=500)
 
 # =========================
-# SAVE (NO SHEET CLEAR)
+# SAVE
 # =========================
 if edit_mode and st.button("💾 Save to Master Sheet"):
 
@@ -283,10 +284,15 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
 
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
+    # CLEAR SHIFT BUFFER ONLY
     st.session_state.shift_buffer = {}
     st.session_state.cached_df = None 
 
-    st.success("✅ Saved successfully!")
+    # CLEAR EXCEL STYLE GRID COLUMNS (KEEPS NAME AND ROLE ONLY)
+    for d in DAYS:
+        df_display[d] = ""
+
+    st.success("✅ Saved successfully and shifts cleared!")
     st.rerun()
 
 # =========================
