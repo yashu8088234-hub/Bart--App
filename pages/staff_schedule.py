@@ -99,23 +99,17 @@ st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 # WEEK SELECTOR
 # =========================================
 
-col1, col2, col3 = st.columns([1,2,1])
+week_start = st.date_input(
+    "📅 Week Start",
+    value=datetime.today(),
+    key="week_start"
+)
 
-with col2:
+week_end = week_start + timedelta(days=6)
 
-    week_start = st.date_input(
-        "📅 Week Start",
-        value=datetime.today(),
-        key="week_start"
-    )
-
-    week_end = week_start + timedelta(days=6)
-
-    st.caption(
-        f"Week End: {week_end.strftime('%d %b %Y')}"
-    )
-
-edit_mode = st.toggle("Edit Mode Only")
+st.caption(
+    f"Week End: {week_end.strftime('%d %b %Y')}"
+)
 
 # =========================================
 # LOAD DATA
