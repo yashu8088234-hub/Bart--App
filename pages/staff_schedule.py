@@ -46,12 +46,9 @@ ROLE_OPTIONS = [
     "Team Leader","Acting Team Leader"
 ]
 
+# Removed regular shifts; now ONLY allows Custom Time selection
 SHIFT_OPTIONS = [
-    "Morning shift",
-    "Mid shift",
-    "Evening shift",
-    "Night shift",
-    "OFF",
+    "", 
     "➕ Custom Time"
 ]
 
@@ -111,95 +108,92 @@ for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
 
 # =========================================
+# DIALOG MODAL FOR CUSTOM TIME
+# =========================================
+
+@st.dialog("⏰ Set Custom Time")
+def custom_time_modal(row_idx, day_name, current_name):
+    st.write(f"Setting hours for **{current_name if current_name else f'Row {row_idx}'}** on **{day_name}**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Start Time")
+        sh = st.selectbox("Hour", list(range(1, 13)), index=8, key="start_hour")
+        sm = st.selectbox("Minute", ["00", "15", "30", "45"], key="start_min")
+        sap = st.selectbox("AM/PM", ["AM", "PM"], index=0, key="start_ap")
+        
+    with col2:
+        st.subheader("End Time")
+        eh = st.selectbox("Hour", list(range(1, 13)), index=4, key="end_hour")
+        em = st.selectbox("Minute", ["00", "15", "30", "45"], key="end_min")
+        eap = st.selectbox("AM/PM", ["AM", "PM"], index=1, key="end_ap")
+        
+    apply_all = st.checkbox("Apply this time to all days for this row", key="apply_all_days")
+    
+    if st.button("Apply Time", type="primary", use_container_width=True):
+        formatted_value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
+        
+        # Save targeting information to session state to process after rerun
+        st.session_state.modal_submission = {
+            "row": row_idx,
+            "day": day_name,
+            "value": formatted_value,
+            "apply_all": apply_all
+        }
+        st.rerun()
+
+# =========================================
 # EDIT MODE
 # =========================================
 
 if edit_mode:
+    # Initialize component tracking states
+    if "editor_df" not in st.session_state or st.button("🔄 Reset Editor Window"):
+        st.session_state.editor_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
-    df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    # Process back-channel submissions coming from our Dialog Modal
+    if "modal_submission" in st.session_state and st.session_state.modal_submission is not None:
+        submission = st.session_state.modal_submission
+        idx = submission["row"]
+        val = submission["value"]
+        
+        if submission["apply_all"]:
+            for day in DAYS:
+                st.session_state.editor_df.loc[idx, day] = val
+        else:
+            st.session_state.editor_df.loc[idx, submission["day"]] = val
+            
+        # Clear submission to avoid endless loops
+        st.session_state.modal_submission = None
+        st.toast("⚡ Custom time applied to draft!", icon="✅")
 
+    # Render dynamic table
     edited_df = st.data_editor(
-        df_display,
+        st.session_state.editor_df,
         column_config=config,
         num_rows="dynamic",
         use_container_width=True,
-        key="editor"
+        key="main_schedule_editor"
     )
+    
+    # Sync visual changes smoothly into session state storage
+    st.session_state.editor_df = edited_df
 
-    # init state
-    if "pending_update" not in st.session_state:
-        st.session_state.pending_update = None
-
-    # =========================================
-    # CUSTOM TIME UI
-    # =========================================
-
+    # Intercept placeholder selections to trigger Dialog Popup
     for i, row in edited_df.iterrows():
         for d in DAYS:
-
             if row.get(d) == "➕ Custom Time":
-
-                st.info(f"⏰ Custom Time for {row.get('Name')} - {d}")
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown("### Start Time")
-                    sh = st.selectbox("Hour", list(range(1, 13)), key=f"sh_{i}_{d}")
-                    sap = st.selectbox("AM/PM", ["AM", "PM"], key=f"sap_{i}_{d}")
-
-                with col2:
-                    st.markdown("### End Time")
-                    eh = st.selectbox("Hour", list(range(1, 13)), key=f"eh_{i}_{d}")
-                    eap = st.selectbox("AM/PM", ["AM", "PM"], key=f"eap_{i}_{d}")
-
-                apply_all = st.checkbox("Apply to all days", key=f"all_{i}_{d}")
-
-                if st.button("Apply", key=f"apply_{i}_{d}"):
-
-                    value = f"{sh} {sap} - {eh} {eap}"
-
-                    st.session_state.pending_update = {
-                        "row": i,
-                        "day": d,
-                        "value": value,
-                        "apply_all": apply_all
-                    }
-
-                    st.rerun()
-
-    # =========================================
-    # APPLY AFTER RERUN (IMPORTANT FIX)
-    # =========================================
-
-    if st.session_state.pending_update:
-
-        upd = st.session_state.pending_update
-
-        i = upd["row"]
-        d = upd["day"]
-        value = upd["value"]
-        apply_all = upd["apply_all"]
-
-        if apply_all:
-            for day in DAYS:
-                edited_df.loc[i, day] = value
-        else:
-            edited_df.loc[i, d] = value
-
-        st.session_state.pending_update = None
-
-        st.success("✅ Custom time applied successfully!")
-        st.rerun()
+                # Temporarily revert cell placeholder so it doesn't trigger repeatedly
+                st.session_state.editor_df.loc[i, d] = ""
+                custom_time_modal(i, d, row.get("Name"))
 
 # =========================================
 # VIEW MODE
 # =========================================
 
 else:
-
     df_display = df.copy()
-
     ordered_cols = ["Name", "Role", "Date"] + DAYS
     df_display = df_display[[c for c in ordered_cols if c in df_display.columns]]
 
@@ -241,7 +235,6 @@ else:
 # =========================================
 
 if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
-
     ws = master_sheet.worksheet("StaffSchedule")
     full = st.session_state.cached_df.copy()
 
@@ -249,7 +242,7 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         full["Branch"] != st.session_state.selected_branch
     ]
 
-    new_data = edited_df.copy()
+    new_data = st.session_state.editor_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
     new_data["Date"] = datetime.now().strftime("%A %d %B")
 
@@ -263,6 +256,9 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
+
+    # Clear editor cache upon complete sheet write
+    del st.session_state.editor_df
 
     st.success("✅ Saved Successfully!")
     st.rerun()
