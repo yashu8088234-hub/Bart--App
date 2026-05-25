@@ -281,7 +281,7 @@ if st.session_state.show_hr_password:
                 if st.form_submit_button("Verify & Open HR", use_container_width=True):
                     if hr_password_input == st.secrets["HR_PASSWORD"]:
                         st.session_state.show_hr_password = False
-                        st.switch_page("pages/hr_dashboard.py")
+                        st.switch_page("pages/staff_schedule.py")
                     else:
                         st.error("Access Refused: Invalid token signature.")
 
