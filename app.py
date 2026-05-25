@@ -62,9 +62,27 @@ h1 { margin-bottom: 0px !important; }
 @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
 .animate-text { animation: fadeInUp 0.8s ease-out forwards; opacity: 0; }
 .delay-1 { animation-delay: 0.2s; } .delay-2 { animation-delay: 0.4s; } .delay-3 { animation-delay: 0.6s; } .delay-4 { animation-delay: 0.8s; }
-@keyframes breathe-bold { 0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(46, 212, 122, 0.2); } 50% { transform: scale(1.05); text-shadow: 0 0 30px rgba(46, 212, 122, 0.6); } }
-.bart-logo { display: inline-block; animation: breathe-bold 2s ease-in-out infinite; background: linear-gradient(90deg, #2ED47A 0%, #20C997 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: default; font-weight: 900 !important; letter-spacing: -2px; }
-@keyframes rotate { 100% { transform: rotate(360deg); } }
+@keyframes breathe-bold { 
+    0%, 100% { 
+        transform: scale(1); 
+        text-shadow: 0 0 10px rgba(247, 93, 89, 0.25); 
+    } 
+    50% { 
+        transform: scale(1.05); 
+        text-shadow: 0 0 30px rgba(247, 93, 89, 0.65); 
+    } 
+}
+
+.bart-logo { 
+    display: inline-block; 
+    animation: breathe-bold 2s ease-in-out infinite; 
+    background: linear-gradient(90deg, #F75D59 0%, #F75D59 100%); 
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent; 
+    cursor: default; 
+    font-weight: 900 !important; 
+    letter-spacing: -2px; 
+}@keyframes rotate { 100% { transform: rotate(360deg); } }
 
 .card-glow { position: relative; padding: 2px; background: #FFFFFF; border-radius: 22px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
 .card-glow::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(transparent, #2ED47A, transparent 30%); animation: rotate 4s linear infinite; }
