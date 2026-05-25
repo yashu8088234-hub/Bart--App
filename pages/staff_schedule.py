@@ -56,6 +56,9 @@ if "cached_df" not in st.session_state:
 if "shift_buffer" not in st.session_state:
     st.session_state.shift_buffer = {}
 
+if "previous_week" not in st.session_state:
+    st.session_state.previous_week = None
+
 # =========================
 # DATA LOAD
 # =========================
@@ -123,8 +126,14 @@ selected_date = st.date_input("📅 Select Any Date In Week", value=datetime.tod
 
 days_from_sunday = (selected_date.weekday() + 1) % 7
 week_start = selected_date - timedelta(days=days_from_sunday)
+week_start_str = week_start.strftime('%d %b %Y')
 
-st.caption(f"Week: {week_start.strftime('%d %b %Y')}")
+st.caption(f"Week: {week_start_str}")
+
+# Reset transient shift buffers if week changes
+if st.session_state.previous_week != week_start_str:
+    st.session_state.shift_buffer = {}
+    st.session_state.previous_week = week_start_str
 
 edit_mode = st.toggle("Edit Mode Only")
 
@@ -138,25 +147,23 @@ df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy
 
 
 # =========================
-# WEEK LABELS (RESTORED FIX)
+# WEEK LABELS (YEAR REMOVED FOR SPACE)
 # =========================
 day_labels = {}
 
 for idx, day_name in enumerate(DAYS):
     day_date = week_start + timedelta(days=idx)
-    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b %Y')})"
+    # Formats to "Day (DD MMM)" -> e.g. Monday (26 May)
+    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b')})"
+
 # =========================
 # PREP DISPLAY
 # =========================
 if edit_mode:
-
-    roster_df = df[["Name","Role"]].dropna().drop_duplicates() if not df.empty else pd.DataFrame(columns=["Name","Role"])
-
-    df_display = pd.DataFrame(columns=["Name","Role"] + DAYS)
-
-    if not roster_df.empty:
-        df_display["Name"] = roster_df["Name"].values
-        df_display["Role"] = roster_df["Role"].values
+    if not df.empty:
+        df_display = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
+    else:
+        df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
 
     # APPLY BUFFER TO DISPLAY
     for i, row in df_display.iterrows():
@@ -173,18 +180,18 @@ if edit_mode:
         "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS)
     }
 
-    # FIX: Map the dynamic day_labels to the SelectboxColumn header labels
+    # Pass short dates directly into data editor headers
     for d in DAYS:
         existing_shifts = df_display[d].dropna().unique().tolist()
         dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
         
-        # Using day_labels[d] here forces the editor to show the date in the header
         config[d] = st.column_config.SelectboxColumn(
             label=day_labels[d], 
             options=dynamic_options
         )
 
     edited_df = st.data_editor(df_display, column_config=config, num_rows="dynamic", key="editor")
+
     # =========================
     # CUSTOM TIME UI
     # =========================
@@ -228,9 +235,6 @@ if edit_mode:
 
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
-
-
-
 
 # =========================
 # VIEW MODE
@@ -279,11 +283,8 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
 
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
-    # RESET ONLY UI (NOT SHEET)
     st.session_state.shift_buffer = {}
-
-    for d in DAYS:
-        df_display[d] = ""
+    st.session_state.cached_df = None 
 
     st.success("✅ Saved successfully!")
     st.rerun()
