@@ -82,7 +82,6 @@ def load_data():
 
     return st.session_state.cached_df
 
-
 # =========================================
 # UI
 # =========================================
@@ -90,27 +89,76 @@ def load_data():
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 edit_mode = st.toggle("Edit Mode Only")
 
-df = load_data()
+# Fetch fresh copy of master data
+master_df = load_data()
 
-# 1. FILTER NAMES: Extract names belonging ONLY to this specific branch from the master data
-names_for_this_branch = df[df["Branch"] == st.session_state.selected_branch]["Name"]
-existing_names = names_for_this_branch.dropna().unique().tolist()
+# CRITICAL FIX: Extract ALL historical unique names matching this branch
+if not master_df.empty and "Branch" in master_df.columns:
+    branch_mask = master_df["Branch"].astype(str).str.strip() == str(st.session_state.selected_branch).strip()
+    existing_names = master_df[branch_mask]["Name"].dropna().unique().tolist()
+else:
+    existing_names = []
 
-# 2. Filter the display dataframe for the view mode
-df = df[df["Branch"] == st.session_state.selected_branch].copy()
+# Filter view-mode framework
+df = master_df[master_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================================
 # CONFIG FOR EDITOR
 # =========================================
 
 config = {
-    # The dropdown will now ONLY show staff assigned to this specific branch
     "Name": st.column_config.SelectboxColumn("Name", options=existing_names, required=True),
     "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS),
 }
 
 for d in DAYS:
     config[d] = st.column_config.SelectboxColumn(d, options=SHIFT_OPTIONS)
+
+# =========================================
+# EDIT MODE
+# =========================================
+
+if edit_mode:
+    # Build or hold raw draft data baseline
+    if "editor_base_df" not in st.session_state or st.button("🔄 Reset Editor Window"):
+        if not df.empty:
+            st.session_state.editor_base_df = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
+        else:
+            st.session_state.editor_base_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
+
+    # Render data editor, hiding index column (0, 1, 2) completely
+    edited_df = st.data_editor(
+        st.session_state.editor_base_df,
+        column_config=config,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,  # <-- DELETES THE 0, 1, 2 SL NO COLUMN
+        key="editor_widget"
+    )
+
+    # Scan live UI to catch if a user clicked "➕ Custom Time"
+    trigger_modal = False
+    target_row = None
+    target_day = None
+    target_name = None
+
+    for i, row in edited_df.iterrows():
+        for d in DAYS:
+            if row.get(d) == "➕ Custom Time":
+                # Clear placeholder string from state instantly so modal isn't caught in a rendering loop
+                if "editor_widget" in st.session_state and i in st.session_state["editor_widget"]["edited_rows"]:
+                    st.session_state["editor_widget"]["edited_rows"][i][d] = ""
+                
+                trigger_modal = True
+                target_row = i
+                target_day = d
+                target_name = row.get("Name")
+                break
+        if trigger_modal:
+            break
+
+    if trigger_modal:
+        custom_time_modal(target_row, target_day, target_name)
 # =========================================
 # DIALOG MODAL FOR CUSTOM TIME
 # =========================================
@@ -138,74 +186,22 @@ def custom_time_modal(row_idx, day_name, current_name):
     if st.button("Apply Time", type="primary", use_container_width=True):
         formatted_value = f"{sh}:{sm} {sap} - {eh}:{em} {eap}"
         
-        # Save targeting information to session state to process after rerun
-        st.session_state.modal_submission = {
-            "row": row_idx,
-            "day": day_name,
-            "value": formatted_value,
-            "apply_all": apply_all
-        }
+        # Directly push the selection into the editor's widget state cache
+        if "editor_widget" in st.session_state:
+            # Ensure the row dict block exists in edits
+            if "edited_rows" not in st.session_state["editor_widget"]:
+                st.session_state["editor_widget"]["edited_rows"] = {}
+            if row_idx not in st.session_state["editor_widget"]["edited_rows"]:
+                st.session_state["editor_widget"]["edited_rows"][row_idx] = {}
+                
+            if apply_all:
+                for day in DAYS:
+                    st.session_state["editor_widget"]["edited_rows"][row_idx][day] = formatted_value
+            else:
+                st.session_state["editor_widget"]["edited_rows"][row_idx][day_name] = formatted_value
+                
         st.rerun()
 
-# =========================================
-# EDIT MODE
-# =========================================
-
-if edit_mode:
-    # 1. Initialize the dataframe state if it doesn't exist
-    if "editor_df" not in st.session_state:
-        # Load existing data from master to edit, or start empty if none exists
-        if not df.empty:
-            st.session_state.editor_df = df[["Name", "Role"] + DAYS].copy().reset_index(drop=True)
-        else:
-            st.session_state.editor_df = pd.DataFrame(columns=["Name", "Role"] + DAYS)
-
-    # 2. Process incoming times from the Dialog Modal BEFORE rendering the table
-    if "modal_submission" in st.session_state and st.session_state.modal_submission is not None:
-        submission = st.session_state.modal_submission
-        idx = submission["row"]
-        val = submission["value"]
-        
-        if submission["apply_all"]:
-            for day in DAYS:
-                st.session_state.editor_df.loc[idx, day] = val
-        else:
-            st.session_state.editor_df.loc[idx, submission["day"]] = val
-            
-        # Clean up submission token
-        st.session_state.modal_submission = None
-
-    # 3. Render the data editor using the persistent state
-    edited_df = st.data_editor(
-        st.session_state.editor_df,
-        column_config=config,
-        num_rows="dynamic",
-        use_container_width=True,
-        key="main_schedule_editor"
-    )
-    
-    # 4. Watch for changes inside the table
-    cell_changed = False
-    for i, row in edited_df.iterrows():
-        for d in DAYS:
-            if row.get(d) == "➕ Custom Time":
-                # Instantly overwrite the "➕ Custom Time" text in the state to avoid loops
-                st.session_state.editor_df.loc[i, d] = ""
-                # Launch the modal
-                custom_time_modal(i, d, row.get("Name"))
-                cell_changed = True
-                break
-        if cell_changed:
-            break
-
-    # Save any text updates (like Names/Roles) back into the state
-    if not cell_changed:
-        st.session_state.editor_df = edited_df
-        
-    if st.button("🔄 Reset Editor Window"):
-        if "editor_df" in st.session_state:
-            del st.session_state.editor_df
-        st.rerun()
 # =========================================
 # VIEW MODE
 # =========================================
