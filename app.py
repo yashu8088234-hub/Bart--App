@@ -180,8 +180,8 @@ st.markdown("""
             background-color: #3B82F6;
             border-radius: 50%;
             transform: rotate(-30deg);
-            top: 72px;
-            left: -12px;
+            top: 62px;
+            left: -8px;
             z-index: 1;
         "></span>
         <!-- The Registered Symbol (Layered right on top) -->
