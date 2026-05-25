@@ -397,7 +397,7 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
 
     new_data["Branch"] = st.session_state.selected_branch
 
-    # REMOVED: Date recording logic cut off from here
+    # Date recording logic removed
 
     if "Name" in new_data.columns:
         new_data["Name"] = (
@@ -473,7 +473,6 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         ignore_index=True
     )
 
-    # Clean any accidental remaining Date columns from the data matrix
     if "Date" in final.columns:
         final = final.drop(columns=["Date"])
 
@@ -483,6 +482,13 @@ if edit_mode and st.button("💾 Save to Master Sheet", type="primary"):
         [final.columns.tolist()]
         + final.fillna("").values.tolist()
     )
+
+    # =========================================
+    # WIPING DYNAMIC INPUT COLUMNS AFTER SAVE
+    # =========================================
+    # Resets the time values for columns after Name (1st) and Role (2nd)
+    for day in DAYS:
+        final.loc[final["Branch"] == st.session_state.selected_branch, day] = ""
 
     st.session_state.cached_df = final
     st.session_state.last_fetch = time.time()
