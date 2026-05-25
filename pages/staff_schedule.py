@@ -59,11 +59,19 @@ SHIFT_OPTIONS = [
 # CACHE
 # =========================================
 
+# =========================================
+# CACHE & STATE INITIALIZATION
+# =========================================
+
 CACHE_TTL = 60
 
 if "cached_df" not in st.session_state:
     st.session_state.cached_df = None
     st.session_state.last_fetch = 0
+
+# FIX: Initialize pending_update here so it always exists globally!
+if "pending_update" not in st.session_state:
+    st.session_state.pending_update = None
 
 
 def load_data():
