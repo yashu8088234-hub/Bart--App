@@ -3,8 +3,6 @@ import pandas as pd
 import gspread
 import time
 import re
-import io
-import matplotlib.pyplot as plt
 
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
@@ -28,7 +26,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# GOOGLE CLIENT
+# INITIALIZE GOOGLE CLIENT
 # =========================
 if "gspread_client" not in st.session_state:
 
@@ -48,13 +46,17 @@ master_sheet = st.session_state.gspread_client.open_by_key(
     "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 )
 
-history_sheet = master_sheet.worksheet("SubmissionHistory")
-
 # =========================
 # CONFIG
 # =========================
 DAYS = [
-    "Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
 ]
 
 SHIFT_OPTIONS = [
@@ -63,12 +65,16 @@ SHIFT_OPTIONS = [
 ]
 
 ROLE_OPTIONS = [
-    "Team-Member","Acting_Team_Leader","Team_Leader",
-    "Acting_Supervisor","Supervisor","Branch_Manager"
+    "Team-Member",
+    "Acting_Team_Leader",
+    "Team_Leader",
+    "Acting_Supervisor",
+    "Supervisor",
+    "Branch_Manager"
 ]
 
 # =========================
-# LOAD DATA (YOUR ORIGINAL KEPT)
+# LOAD DATA
 # =========================
 def load_data(force_reload=False):
 
@@ -77,7 +83,9 @@ def load_data(force_reload=False):
         try:
 
             ws = master_sheet.worksheet("StaffSchedule")
+
             data = ws.get_all_records()
+
             df = pd.DataFrame(data) if data else pd.DataFrame()
 
             if not df.empty:
@@ -85,7 +93,9 @@ def load_data(force_reload=False):
                 new_cols = {}
 
                 for col in df.columns:
+
                     for day in DAYS:
+
                         if day in col:
                             new_cols[col] = day
                             break
@@ -93,7 +103,14 @@ def load_data(force_reload=False):
                 df = df.rename(columns=new_cols)
 
             if df.empty:
-                df = pd.DataFrame(columns=["Branch","Name","Role"] + DAYS + ["Over-Time"])
+
+                df = pd.DataFrame(
+                    columns=[
+                        "Branch",
+                        "Name",
+                        "Role"
+                    ] + DAYS + ["Over-Time"]
+                )
 
             st.session_state.cached_df = df
 
@@ -103,12 +120,18 @@ def load_data(force_reload=False):
 
             if st.session_state.get("cached_df") is None:
 
-                st.session_state.cached_df = pd.DataFrame(columns=["Branch","Name","Role"] + DAYS + ["Over-Time"])
+                st.session_state.cached_df = pd.DataFrame(
+                    columns=[
+                        "Branch",
+                        "Name",
+                        "Role"
+                    ] + DAYS + ["Over-Time"]
+                )
 
     return st.session_state.cached_df
 
 # =========================
-# SESSION STATE (YOUR SYSTEM)
+# SESSION STATE
 # =========================
 if "shift_buffer" not in st.session_state:
     st.session_state.shift_buffer = {}
@@ -119,148 +142,238 @@ if "previous_week" not in st.session_state:
 if "deleted_staff" not in st.session_state:
     st.session_state.deleted_staff = set()
 
-# ===== NEW ADDITIONS ONLY =====
-if "show_preview" not in st.session_state:
-    st.session_state.show_preview = False
-
-if "preview_df" not in st.session_state:
-    st.session_state.preview_df = None
-
 # =========================
-# LOGIC FUNCTIONS (UNCHANGED)
+# LOGIC FUNCTIONS
 # =========================
 def parse_hour(val):
+
     hour, ap = val.split()
+
     hour = int(hour)
+
     if ap == "PM" and hour != 12:
         hour += 12
+
     if ap == "AM" and hour == 12:
         hour = 0
+
     return hour
 
 def calculate_hours(start, end):
+
     s = parse_hour(start)
     e = parse_hour(end)
+
     if e <= s:
         e += 24
+
     return e - s
 
 def format_shift(start, end):
+
     hrs = calculate_hours(start, end)
+
     if hrs < 9:
         return None, hrs
+
     ot = max(0, hrs - 9)
-    return (f"{start} - {end} (OT {ot}h)" if ot > 0 else f"{start} - {end}", hrs)
+
+    if ot > 0:
+        return (f"{start} - {end} (OT {ot}h)", hrs)
+
+    return (f"{start} - {end}", hrs)
 
 def calculate_row_ot(row):
+
     total_ot = 0
+
     for day in DAYS:
+
         val = str(row.get(day, ""))
-        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
+
+        match = re.search(
+            r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)",
+            val
+        )
+
         if match:
             total_ot += float(match.group(1))
+
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
 # =========================
-# IMAGE GENERATOR (NEW ONLY)
+# CUSTOM TIME DIALOG
 # =========================
-def generate_image(df):
+@st.dialog("⏰ Set Custom Time")
+def custom_time_dialog(row_idx, row_name, day_name):
 
-    fig, ax = plt.subplots(figsize=(18, max(4, len(df)*0.6)))
-    ax.axis("off")
-
-    table = ax.table(
-        cellText=df.values,
-        colLabels=df.columns,
-        loc="center"
+    st.write(
+        f"Configure shift for **{row_name}** on **{day_name}**"
     )
 
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 1.5)
+    col1, col2 = st.columns(2)
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", dpi=300)
-    buf.seek(0)
-    plt.close(fig)
+    with col1:
 
-    return buf
+        sh = st.selectbox(
+            "Start Hour",
+            list(range(1, 13)),
+            index=8
+        )
+
+        sap = st.selectbox(
+            "AM/PM",
+            ["AM", "PM"],
+            key="sap_modal"
+        )
+
+    with col2:
+
+        eh = st.selectbox(
+            "End Hour",
+            list(range(1, 13)),
+            index=5
+        )
+
+        eap = st.selectbox(
+            "AM/PM",
+            ["AM", "PM"],
+            key="eap_modal",
+            index=1
+        )
+
+    apply_all = st.checkbox(
+        "Apply to all working days this week"
+    )
+
+    if st.button(
+        "Apply Shift",
+        use_container_width=True
+    ):
+
+        value, hrs = format_shift(
+            f"{sh} {sap}",
+            f"{eh} {eap}"
+        )
+
+        if value is None:
+
+            st.error("❌ Minimum 9 hours required")
+
+        else:
+
+            if apply_all:
+
+                for day in DAYS:
+
+                    st.session_state.shift_buffer[
+                        f"{row_idx}_{day}"
+                    ] = value
+
+            else:
+
+                st.session_state.shift_buffer[
+                    f"{row_idx}_{day_name}"
+                ] = value
+
+            st.rerun()
 
 # =========================
-# DUPLICATE DIALOG (YOUR ORIGINAL)
+# DUPLICATE SUBMISSION DIALOG
 # =========================
 @st.dialog("🚫 Submission Blocked")
 def duplicate_submission_dialog():
 
     st.error("""
 This week's schedule has already been submitted for this branch.
-Contact Branch Manager for approval before resubmitting.
+
+To prevent accidental overwriting or duplicate submissions,
+please contact the Branch Manager for approval before resubmitting.
 """)
 
-    if st.button("Close"):
+    st.info(
+        "Only authorized approval should allow schedule replacement."
+    )
+
+    if st.button(
+        "Close",
+        use_container_width=True
+    ):
         st.rerun()
 
 # =========================
-# NEW PREVIEW DIALOG (ADDED ONLY)
+# UI HEADER
 # =========================
-@st.dialog("📸 Schedule Preview")
-def preview_dialog():
+st.title(
+    f"🏢 Schedule: {st.session_state.selected_branch}"
+)
 
-    st.success("Schedule Submitted Successfully!")
+selected_date = st.date_input(
+    "📅 Select Date",
+    value=datetime.today()
+)
 
-    df = st.session_state.preview_df
+# Sunday as first day
+week_start = selected_date - timedelta(
+    days=(selected_date.weekday() + 1) % 7
+)
 
-    st.dataframe(df, use_container_width=True)
-
-    img = generate_image(df)
-
-    st.image(img)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.download_button(
-            "💾 Save Screenshot",
-            img,
-            "schedule.png",
-            "image/png"
-        )
-
-    with col2:
-        if st.button("❌ Discard"):
-            st.session_state.show_preview = False
-            st.rerun()
-
-# =========================
-# HEADER (UNCHANGED YOUR STYLE)
-# =========================
-st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
-
-selected_date = st.date_input("📅 Select Date", value=datetime.today())
-
-week_start = selected_date - timedelta(days=(selected_date.weekday()+1)%7)
 week_start_str = week_start.strftime('%d %b %Y')
 
-st.caption(f"Week starting: {week_start_str}")
+st.caption(
+    f"Week starting: {week_start_str}"
+)
 
+# =========================
+# RESET STATES ON WEEK CHANGE
+# =========================
 if st.session_state.previous_week != week_start_str:
+
     st.session_state.shift_buffer = {}
+
     st.session_state.deleted_staff = set()
+
     st.session_state.previous_week = week_start_str
 
+# =========================
+# EDIT MODE TOGGLE
+# =========================
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================
-# LOAD DATA
+# LOAD BRANCH DATA
 # =========================
 all_data_df = load_data()
 
-df = all_data_df[
-    all_data_df["Branch"] == st.session_state.selected_branch
-].copy()
+if not all_data_df.empty:
+
+    df = all_data_df[
+        all_data_df["Branch"] ==
+        st.session_state.selected_branch
+    ].copy()
+
+else:
+
+    df = pd.DataFrame(
+        columns=[
+            "Branch",
+            "Name",
+            "Role"
+        ] + DAYS
+    )
 
 # =========================
-# CHECK EXISTING WEEK DATA (UNCHANGED LOGIC)
+# DAY LABELS
+# =========================
+day_labels = {
+
+    d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})"
+
+    for i, d in enumerate(DAYS)
+}
+
+# =========================
+# CHECK EXISTING WEEK DATA
 # =========================
 existing_week_data = pd.DataFrame()
 
@@ -268,106 +381,349 @@ if not st.session_state.cached_df.empty:
 
     temp_df = st.session_state.cached_df.copy()
 
-    week_cols = [d for d in DAYS]
-
-    branch_data = temp_df[temp_df["Branch"] == st.session_state.selected_branch]
-
-    existing_rows = branch_data[
-        branch_data[week_cols].fillna("").astype(str).apply(
-            lambda row: any(v.strip() != "" for v in row),
-            axis=1
-        )
+    week_cols = [
+        day_labels[d]
+        for d in DAYS
     ]
 
-    existing_week_data = existing_rows
+    available_cols = [
+        c for c in week_cols
+        if c in temp_df.columns
+    ]
+
+    if available_cols:
+
+        branch_data = temp_df[
+            temp_df["Branch"] ==
+            st.session_state.selected_branch
+        ]
+
+        existing_rows = branch_data[
+            branch_data[available_cols]
+            .fillna("")
+            .astype(str)
+            .apply(
+                lambda row: any(
+                    v.strip() != ""
+                    for v in row
+                ),
+                axis=1
+            )
+        ]
+
+        existing_week_data = existing_rows
 
 # =========================
-# EDIT MODE (YOUR FULL LOGIC PRESERVED)
+# EDIT MODE
 # =========================
 if edit_mode:
 
-    df_display = (
-        df[["Name","Role"]]
-        .dropna(subset=["Name"])
-        .drop_duplicates()
-        .reset_index(drop=True)
-    )
+    if not df.empty:
 
+        df_display = (
+            df[["Name", "Role"]]
+            .dropna(subset=["Name"])
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
+
+    else:
+
+        df_display = pd.DataFrame(
+            columns=[
+                "Name",
+                "Role"
+            ] + DAYS
+        )
+
+    # Remove deleted staff
+    if st.session_state.deleted_staff:
+
+        df_display = df_display[
+            ~df_display["Name"].isin(
+                st.session_state.deleted_staff
+            )
+        ].reset_index(drop=True)
+
+    # Empty schedule
     for d in DAYS:
         df_display[d] = ""
 
-    # restore buffer
+    # Restore shift buffer
     for i, row in df_display.iterrows():
+
         for d in DAYS:
+
             key = f"{i}_{d}"
+
             if key in st.session_state.shift_buffer:
-                df_display.loc[i, d] = st.session_state.shift_buffer[key]
 
-    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
+                df_display.loc[i, d] = (
+                    st.session_state.shift_buffer[key]
+                )
 
-    edited_df = st.data_editor(df_display, use_container_width=True)
+    # Calculate OT
+    df_display["Over-Time"] = df_display.apply(
+        calculate_row_ot,
+        axis=1
+    )
 
-    # SHIFT ACTIONS (UNCHANGED)
+    # =========================
+    # COLUMN CONFIG
+    # =========================
+    config = {
+
+        "Name": st.column_config.SelectboxColumn(
+            "Name",
+            options=(
+                df["Name"]
+                .dropna()
+                .unique()
+                .tolist()
+                if not df.empty else []
+            ),
+            width=90,
+            required=True
+        ),
+
+        "Role": st.column_config.SelectboxColumn(
+            "Role",
+            options=ROLE_OPTIONS,
+            width=140
+        ),
+
+        "Over-Time": st.column_config.TextColumn(
+            "Over-Time",
+            disabled=True,
+            width=90
+        )
+    }
+
+    for d in DAYS:
+
+        config[d] = st.column_config.SelectboxColumn(
+            label=day_labels[d],
+            options=list(
+                set(
+                    SHIFT_OPTIONS +
+                    df_display[d]
+                    .dropna()
+                    .unique()
+                    .tolist()
+                )
+            ),
+            width=135
+        )
+
+    # =========================
+    # DATA EDITOR
+    # =========================
+    edited_df = st.data_editor(
+        df_display[
+            ["Name", "Role"] +
+            DAYS +
+            ["Over-Time"]
+        ],
+        column_config=config,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="editor"
+    )
+
+    # =========================
+    # DELETE STAFF TRACKER
+    # =========================
+    current_names = set(
+        edited_df["Name"]
+        .dropna()
+        .tolist()
+    )
+
+    for name in df_display["Name"].tolist():
+
+        if name not in current_names:
+
+            st.session_state.deleted_staff.add(name)
+
+    # =========================
+    # SHIFT ACTIONS
+    # =========================
     for i, row in edited_df.iterrows():
 
         for d in DAYS:
 
-            if row.get(d) == "📴 Day Off":
-                st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
+            value = row.get(d)
+
+            if value == "📴 Day Off":
+
+                st.session_state.shift_buffer[
+                    f"{i}_{d}"
+                ] = "OFF"
+
                 st.rerun()
 
-            if row.get(d) == "➕ Custom Time":
-                custom_time_dialog(i, row["Name"], d)
+            if value == "➕ Custom Time":
+
+                custom_time_dialog(
+                    row_idx=i,
+                    row_name=row["Name"],
+                    day_name=d
+                )
 
     # =========================
-    # SUBMIT BUTTON (UPGRADED SAFELY)
+    # SUBMIT BUTTON
     # =========================
     if st.button("✅ Submit"):
 
+        # Prevent duplicate overwrite
         if not existing_week_data.empty:
+
             duplicate_submission_dialog()
+
             st.stop()
 
-        ws = master_sheet.worksheet("StaffSchedule")
+        try:
 
-        new_df = edited_df.copy()
-        new_df["Branch"] = st.session_state.selected_branch
+            ws = master_sheet.worksheet(
+                "StaffSchedule"
+            )
 
-        final = pd.concat(
-            [all_data_df[all_data_df["Branch"] != st.session_state.selected_branch], new_df],
-            ignore_index=True
-        )
+            others = st.session_state.cached_df[
+                st.session_state.cached_df["Branch"] !=
+                st.session_state.selected_branch
+            ].copy()
 
-        ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+            new_data = edited_df.copy()
 
-        # HISTORY LOG (NEW)
-        history_sheet.append_row([
-            st.session_state.selected_branch,
-            week_start_str,
-            "User",
-            str(datetime.now())
-        ])
+            new_data["Branch"] = (
+                st.session_state.selected_branch
+            )
 
-        # PREVIEW POPUP (NEW)
-        st.session_state.preview_df = new_df
-        st.session_state.show_preview = True
+            final = pd.concat(
+                [others, new_data],
+                ignore_index=True
+            )
+
+            final = final.rename(
+                columns={
+                    day: day_labels[day]
+                    for day in DAYS
+                }
+            )
+
+            ws.update(
+                [final.columns.tolist()] +
+                final.fillna("").values.tolist()
+            )
+
+            st.session_state.cached_df = final
+
+            st.session_state.shift_buffer = {}
+
+            st.session_state.deleted_staff = set()
+
+            st.success(
+                "✅ Submitted successfully!"
+            )
+
+            time.sleep(1)
+
+            st.rerun()
+
+        except Exception as e:
+
+            st.error(
+                f"❌ Submission Failed: {e}"
+            )
+
+# =========================
+# VIEW MODE
+# =========================
+else:
+
+    if st.button("🔄 Refresh Data"):
+
+        st.session_state.cached_df = None
 
         st.rerun()
 
-# =========================
-# VIEW MODE (UNCHANGED)
-# =========================
-else:
-    AgGrid(df, height=500)
+    df_display = df.copy()
 
-# =========================
-# PREVIEW POPUP TRIGGER
-# =========================
-if st.session_state.show_preview:
-    preview_dialog()
+    if (
+        st.session_state.deleted_staff
+        and not df_display.empty
+    ):
+
+        df_display = df_display[
+            ~df_display["Name"].isin(
+                st.session_state.deleted_staff
+            )
+        ].reset_index(drop=True)
+
+    if not df_display.empty:
+
+        df_display["Over-Time"] = (
+            df_display.apply(
+                calculate_row_ot,
+                axis=1
+            )
+        )
+
+    else:
+
+        df_display["Over-Time"] = []
+
+    # =========================
+    # AGGRID VIEW
+    # =========================
+    column_defs = [
+
+        {
+            "headerName": "Name",
+            "field": "Name",
+            "pinned": "left",
+            "width": 90
+        },
+
+        {
+            "headerName": "Role",
+            "field": "Role",
+            "width": 140
+        }
+    ]
+
+    for d in DAYS:
+
+        column_defs.append(
+            {
+                "headerName": day_labels[d],
+                "field": d,
+                "width": 135
+            }
+        )
+
+    column_defs.append(
+        {
+            "headerName": "Over-Time",
+            "field": "Over-Time",
+            "width": 90
+        }
+    )
+
+    AgGrid(
+        df_display,
+        gridOptions={
+            "columnDefs": column_defs,
+            "defaultColDef": {
+                "resizable": True
+            }
+        },
+        height=500
+    )
 
 # =========================
 # BACK BUTTON
 # =========================
 if st.button("⬅ Back"):
+
     st.switch_page("app.py")
