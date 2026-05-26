@@ -17,7 +17,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 
     st.warning("⚠ Session expired. Please login again.")
 
-    col1, col2, col3 = st.columns([1,1,1])
+    col1, col2, col3 = st.columns([1, 1, 1])
 
     with col2:
         if st.button("⬅ Back to Staff Login", use_container_width=True):
@@ -29,6 +29,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 # INITIALIZE GOOGLE CLIENT
 # =========================
 if "gspread_client" not in st.session_state:
+
     creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
@@ -73,13 +74,14 @@ ROLE_OPTIONS = [
 ]
 
 # =========================
-# DATA LOAD
+# LOAD DATA
 # =========================
 def load_data(force_reload=False):
 
     if force_reload or st.session_state.get("cached_df") is None:
 
         try:
+
             ws = master_sheet.worksheet("StaffSchedule")
 
             data = ws.get_all_records()
@@ -129,7 +131,7 @@ def load_data(force_reload=False):
     return st.session_state.cached_df
 
 # =========================
-# SESSION STATES
+# SESSION STATE
 # =========================
 if "shift_buffer" not in st.session_state:
     st.session_state.shift_buffer = {}
@@ -256,15 +258,14 @@ def custom_time_dialog(row_idx, row_name, day_name):
 
         if value is None:
 
-            st.error(
-                "❌ Minimum 9 hours required"
-            )
+            st.error("❌ Minimum 9 hours required")
 
         else:
 
             if apply_all:
 
                 for day in DAYS:
+
                     st.session_state.shift_buffer[
                         f"{row_idx}_{day}"
                     ] = value
@@ -278,7 +279,30 @@ def custom_time_dialog(row_idx, row_name, day_name):
             st.rerun()
 
 # =========================
-# HEADER
+# DUPLICATE SUBMISSION DIALOG
+# =========================
+@st.dialog("🚫 Submission Blocked")
+def duplicate_submission_dialog():
+
+    st.error("""
+This week's schedule has already been submitted for this branch.
+
+To prevent accidental overwriting or duplicate submissions,
+please contact the Branch Manager for approval before resubmitting.
+""")
+
+    st.info(
+        "Only authorized approval should allow schedule replacement."
+    )
+
+    if st.button(
+        "Close",
+        use_container_width=True
+    ):
+        st.rerun()
+
+# =========================
+# UI HEADER
 # =========================
 st.title(
     f"🏢 Schedule: {st.session_state.selected_branch}"
@@ -301,21 +325,23 @@ st.caption(
 )
 
 # =========================
-# RESET STATES ON NEW WEEK
+# RESET STATES ON WEEK CHANGE
 # =========================
 if st.session_state.previous_week != week_start_str:
 
     st.session_state.shift_buffer = {}
+
     st.session_state.deleted_staff = set()
+
     st.session_state.previous_week = week_start_str
 
 # =========================
-# MODE TOGGLE
+# EDIT MODE TOGGLE
 # =========================
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================
-# LOAD DATA
+# LOAD BRANCH DATA
 # =========================
 all_data_df = load_data()
 
@@ -410,6 +436,7 @@ if edit_mode:
             ] + DAYS
         )
 
+    # Remove deleted staff
     if st.session_state.deleted_staff:
 
         df_display = df_display[
@@ -435,7 +462,7 @@ if edit_mode:
                     st.session_state.shift_buffer[key]
                 )
 
-    # Overtime
+    # Calculate OT
     df_display["Over-Time"] = df_display.apply(
         calculate_row_ot,
         axis=1
@@ -543,70 +570,72 @@ if edit_mode:
                     day_name=d
                 )
 
-# =========================
-# SUBMIT BUTTON
-# =========================
-if st.button("✅ Submit"):
+    # =========================
+    # SUBMIT BUTTON
+    # =========================
+    if st.button("✅ Submit"):
 
-    # Prevent overwrite
-    if not existing_week_data.empty:
+        # Prevent duplicate overwrite
+        if not existing_week_data.empty:
 
-        duplicate_submission_dialog()
-        st.stop()
+            duplicate_submission_dialog()
 
-    try:
+            st.stop()
 
-        ws = master_sheet.worksheet(
-            "StaffSchedule"
-        )
+        try:
 
-        others = st.session_state.cached_df[
-            st.session_state.cached_df["Branch"] !=
-            st.session_state.selected_branch
-        ].copy()
+            ws = master_sheet.worksheet(
+                "StaffSchedule"
+            )
 
-        new_data = edited_df.copy()
+            others = st.session_state.cached_df[
+                st.session_state.cached_df["Branch"] !=
+                st.session_state.selected_branch
+            ].copy()
 
-        new_data["Branch"] = (
-            st.session_state.selected_branch
-        )
+            new_data = edited_df.copy()
 
-        final = pd.concat(
-            [others, new_data],
-            ignore_index=True
-        )
+            new_data["Branch"] = (
+                st.session_state.selected_branch
+            )
 
-        final = final.rename(
-            columns={
-                day: day_labels[day]
-                for day in DAYS
-            }
-        )
+            final = pd.concat(
+                [others, new_data],
+                ignore_index=True
+            )
 
-        ws.update(
-            [final.columns.tolist()] +
-            final.fillna("").values.tolist()
-        )
+            final = final.rename(
+                columns={
+                    day: day_labels[day]
+                    for day in DAYS
+                }
+            )
 
-        st.session_state.cached_df = final
+            ws.update(
+                [final.columns.tolist()] +
+                final.fillna("").values.tolist()
+            )
 
-        st.session_state.shift_buffer = {}
+            st.session_state.cached_df = final
 
-        st.session_state.deleted_staff = set()
+            st.session_state.shift_buffer = {}
 
-        st.success(
-            "✅ Submitted successfully!"
-        )
+            st.session_state.deleted_staff = set()
 
-        time.sleep(1)
+            st.success(
+                "✅ Submitted successfully!"
+            )
 
-        st.rerun()
+            time.sleep(1)
 
-    except Exception as e:
+            st.rerun()
 
-        st.error(
-            f"❌ Submission Failed: {e}"
-        )
+        except Exception as e:
+
+            st.error(
+                f"❌ Submission Failed: {e}"
+            )
+
 # =========================
 # VIEW MODE
 # =========================
@@ -645,7 +674,7 @@ else:
         df_display["Over-Time"] = []
 
     # =========================
-    # AGGRID
+    # AGGRID VIEW
     # =========================
     column_defs = [
 
