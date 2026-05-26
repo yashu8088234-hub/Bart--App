@@ -75,19 +75,27 @@ def load_data():
             data = ws.get_all_records()
             df = pd.DataFrame(data) if data else pd.DataFrame()
 
+            if not df.empty:
+                # Map date-stamped columns back to standard DAY names
+                new_cols = {}
+                for col in df.columns:
+                    for day in DAYS:
+                        if day in col:  # Matches "Sunday (24 May)" to "Sunday"
+                            new_cols[col] = day
+                            break
+                df = df.rename(columns=new_cols)
+
             if df.empty:
-                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
+                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
             st.session_state.cached_df = df
             st.session_state.last_fetch = now
         except Exception as e:
-            st.error(f"API Fetch Rate-Limit Warning. Using local cache fallback.")
+            st.error(f"Error loading data: {e}")
             if st.session_state.cached_df is None:
-                st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
+                st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
     return st.session_state.cached_df
-
-
 # =========================
 # TIME LOGIC
 # =========================
@@ -321,25 +329,33 @@ if edit_mode and st.button("💾 Save to Master Sheet"):
     new_data = edited_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
     
-    if "Over-Time" in new_data.columns:
-        new_data = new_data.drop(columns=["Over-Time"])
-
+    # We NO LONGER drop "Over-Time"
+    
     others = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
 
     final = pd.concat([others, new_data], ignore_index=True)
-    storage_cols = ["Branch", "Name", "Role"] + DAYS
+    
+    # Define columns to include in the save
+    storage_cols = ["Branch", "Name", "Role"] + DAYS + ["Over-Time"]
     final = final[storage_cols]
 
+    # RENAME COLUMNS TO INCLUDE DATES
+    # We create a mapping: {'Sunday': 'Sunday (24 May)', ...}
+    rename_map = {day: day_labels[day] for day in DAYS}
+    final = final.rename(columns=rename_map)
+
+    # Update Google Sheet
+    # Note: Using .fillna("") ensures no NaNs break the gspread update
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
 
+    # Cleanup State
     st.session_state.cached_df = final 
     st.session_state.last_fetch = time.time()
     st.session_state.shift_buffer = {}
     st.session_state.deleted_staff = set() 
 
-    st.success("✅ Saved successfully! Row updates synchronized.")
+    st.success("✅ Saved successfully with dates and OT column!")
     st.rerun()
-
 # =========================
 # BACK
 # =========================
