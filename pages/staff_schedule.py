@@ -192,90 +192,20 @@ if edit_mode:
                 st.rerun()
             if row.get(d) == "➕ Custom Time": custom_time_dialog(row_idx=i, row_name=row['Name'], day_name=d)
 
-
-
-
-
-
-
-    # =========================
-# CHECK EXISTING WEEK DATA
-# =========================
-existing_week_data = pd.DataFrame()
-
-if not st.session_state.cached_df.empty:
-    temp_df = st.session_state.cached_df.copy()
-
-    week_cols = [day_labels[d] for d in DAYS]
-
-    available_cols = [c for c in week_cols if c in temp_df.columns]
-
-    if available_cols:
-        branch_data = temp_df[
-            temp_df["Branch"] == st.session_state.selected_branch
-        ]
-
-        # Check if any schedule already exists for this week
-        existing_rows = branch_data[
-            branch_data[available_cols]
-            .fillna("")
-            .astype(str)
-            .apply(lambda row: any(v.strip() != "" for v in row), axis=1)
-        ]
-
-        existing_week_data = existing_rows
-
-  # =========================
-# SUBMIT BUTTON
-# =========================
-if st.button("✅ Submit"):
-
-    # Prevent duplicate overwrite
-    if not existing_week_data.empty:
-
-        st.error("""
-🚫 Schedule Already Submitted
-
-This week's schedule already exists for this branch.
-
-To prevent duplicate submissions or accidental overwriting,
-please contact the Branch Manager for approval before resubmitting.
-""")
-
-        st.stop()
-
-    try:
+    # SUBMIT BUTTON
+    if st.button("✅ Submit"):
         ws = master_sheet.worksheet("StaffSchedule")
-
-        others = st.session_state.cached_df[
-            st.session_state.cached_df["Branch"] != st.session_state.selected_branch
-        ].copy()
-
-        new_data = edited_df.copy()
-        new_data["Branch"] = st.session_state.selected_branch
-
+        others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
+        new_data = edited_df.copy(); new_data["Branch"] = st.session_state.selected_branch
         final = pd.concat([others, new_data], ignore_index=True)
-
-        final = final.rename(
-            columns={day: day_labels[day] for day in DAYS}
-        )
-
-        ws.update(
-            [final.columns.tolist()] +
-            final.fillna("").values.tolist()
-        )
-
-        st.session_state.cached_df = final
-        st.session_state.shift_buffer = {}
-        st.session_state.deleted_staff = set()
-
+        final = final.rename(columns={day: day_labels[day] for day in DAYS})
+        ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+        st.session_state.cached_df = final 
+        st.session_state.shift_buffer = {}; st.session_state.deleted_staff = set()
         st.success("✅ Submitted successfully!")
-
         time.sleep(1)
         st.rerun()
 
-    except Exception as e:
-        st.error(f"❌ Submission Failed: {e}")
 # =========================
 # VIEW MODE
 # =========================
