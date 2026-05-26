@@ -14,7 +14,15 @@ st.set_page_config(layout="wide", page_title="BART Master Schedule")
 # AUTH CHECK
 # =========================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.error("Please login first.")
+    
+    st.warning("⚠ Session expired. Please login again.")
+
+    col1, col2, col3 = st.columns([1,1,1])
+
+    with col2:
+        if st.button("⬅ Back to Staff Login", use_container_width=True):
+            st.switch_page("app.py")
+
     st.stop()
 
 # Initialize Google Credentials once
