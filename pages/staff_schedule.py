@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import time
 import re
 from fpdf import FPDF
 from oauth2client.service_account import ServiceAccountCredentials
@@ -15,10 +14,7 @@ st.set_page_config(layout="wide", page_title="BART Master Schedule")
 # =========================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.warning("⚠ Session expired. Please login again.")
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("⬅ Back to Staff Login", use_container_width=True):
-            st.switch_page("app.py")
+    if st.button("⬅ Back to Staff Login"): st.switch_page("app.py")
     st.stop()
 
 # =========================
@@ -27,8 +23,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 if "gspread_client" not in st.session_state:
     creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        creds_dict,
-        ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds_dict, ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     )
     st.session_state.gspread_client = gspread.authorize(creds)
 
@@ -42,7 +37,7 @@ SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
 ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
 
 # =========================
-# PDF GENERATION
+# PDF GENERATOR
 # =========================
 def generate_pdf(df, title):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
@@ -63,20 +58,19 @@ def generate_pdf(df, title):
         for col in df.columns:
             pdf.cell(col_width, 8, str(row[col]), border=1)
         pdf.ln()
-    return pdf.output(dest='S')
+    return pdf.output()
 
 # =========================
 # DIALOGS
 # =========================
 @st.dialog("✅ Submission Successful")
 def success_dialog(df):
-    st.success("Your schedule has been successfully submitted!")
-    st.write("### Schedule Preview")
+    st.success("Submitted successfully!")
+    st.write("### 📋 Preview")
     st.dataframe(df, use_container_width=True)
     pdf_data = generate_pdf(df, f"Schedule: {st.session_state.selected_branch}")
-    st.download_button("📥 Download Schedule PDF", data=pdf_data, file_name="Schedule.pdf", mime="application/pdf", use_container_width=True)
-    if st.button("Close", use_container_width=True):
-        st.rerun()
+    st.download_button("📥 Download PDF", data=pdf_data, file_name="Schedule.pdf", mime="application/pdf", use_container_width=True)
+    if st.button("Close"): st.rerun()
 
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
@@ -95,17 +89,16 @@ def custom_time_dialog(row_idx, row_name, day_name):
         else:
             if apply_all: 
                 for day in DAYS: st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
-            else: 
-                st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
+            else: st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
             st.rerun()
 
 @st.dialog("🚫 Submission Blocked")
 def duplicate_submission_dialog():
-    st.error("This week's schedule has already been submitted.")
-    if st.button("Close", use_container_width=True): st.rerun()
+    st.error("Already submitted. Contact manager to overwrite.")
+    if st.button("Close"): st.rerun()
 
 # =========================
-# LOGIC FUNCTIONS
+# LOGIC
 # =========================
 def load_data(force_reload=False):
     if force_reload or st.session_state.get("cached_df") is None:
@@ -118,14 +111,11 @@ def load_data(force_reload=False):
                 df = df.rename(columns=new_cols)
             if df.empty: df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
             st.session_state.cached_df = df
-        except Exception as e:
-            st.error(f"Error loading: {e}")
-            st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+        except: st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
     return st.session_state.cached_df
 
 def parse_hour(val):
-    hour, ap = val.split()
-    hour = int(hour)
+    hour, ap = val.split(); hour = int(hour)
     if ap == "PM" and hour != 12: hour += 12
     if ap == "AM" and hour == 12: hour = 0
     return hour
@@ -150,37 +140,28 @@ def calculate_row_ot(row):
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
 # =========================
-# MAIN APP
+# MAIN UI
 # =========================
 if "shift_buffer" not in st.session_state: st.session_state.shift_buffer = {}
-if "previous_week" not in st.session_state: st.session_state.previous_week = None
 if "deleted_staff" not in st.session_state: st.session_state.deleted_staff = set()
 
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 selected_date = st.date_input("📅 Select Date", value=datetime.today())
 week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
 week_start_str = week_start.strftime('%d %b %Y')
-st.caption(f"Week starting: {week_start_str}")
-
-if st.session_state.previous_week != week_start_str:
-    st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set()
-    st.session_state.previous_week = week_start_str
+day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
 
 edit_mode = st.toggle("Edit Mode Only")
 all_data_df = load_data()
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() if not all_data_df.empty else pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
-day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
 
-# UI Logic for Edit vs View mode follows your original structure...
 if edit_mode:
     df_display = (df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
     if st.session_state.deleted_staff: df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
     for d in DAYS: df_display[d] = ""
     for i, row in df_display.iterrows():
         for d in DAYS:
-            key = f"{i}_{d}"
-            if key in st.session_state.shift_buffer: df_display.loc[i, d] = st.session_state.shift_buffer[key]
+            if f"{i}_{d}" in st.session_state.shift_buffer: df_display.loc[i, d] = st.session_state.shift_buffer[f"{i}_{d}"]
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
     config = {
@@ -190,8 +171,8 @@ if edit_mode:
     }
     for d in DAYS: config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=135)
 
-    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
-    
+    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True)
+
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "📴 Day Off": st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"; st.rerun()
@@ -204,21 +185,15 @@ if edit_mode:
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
             final = pd.concat([others, new_data], ignore_index=True)
-            final = final.rename(columns={day: day_labels[day] for day in DAYS})
-            ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+            final_renamed = final.rename(columns={day: day_labels[day] for day in DAYS})
+            ws.update([final_renamed.columns.tolist()] + final_renamed.fillna("").values.tolist())
             st.session_state.cached_df = final
-            success_dialog(final)
-        except Exception as e: st.error(f"❌ Submission Failed: {e}")
+            success_dialog(new_data)
+        except Exception as e: st.error(f"Error: {e}")
 
 else:
-    if st.button("🔄 Refresh Data"): st.session_state.cached_df = None; st.rerun()
     df_display = df.copy()
-    if st.session_state.deleted_staff and not df_display.empty: df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1) if not df_display.empty else []
-    
-    col_defs = [{"headerName": "Name", "field": "Name", "pinned": "left", "width": 90}, {"headerName": "Role", "field": "Role", "width": 140}]
-    for d in DAYS: col_defs.append({"headerName": day_labels[d], "field": d, "width": 135})
-    col_defs.append({"headerName": "Over-Time", "field": "Over-Time", "width": 90})
-    AgGrid(df_display, gridOptions={"columnDefs": col_defs, "defaultColDef": {"resizable": True}}, height=500)
+    AgGrid(df_display, height=500)
 
 if st.button("⬅ Back"): st.switch_page("app.py")
