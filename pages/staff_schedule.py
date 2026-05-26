@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import time
 import re
 
 from oauth2client.service_account import ServiceAccountCredentials
@@ -24,7 +23,7 @@ if "gspread_client" not in st.session_state:
         creds_dict,
         [
             "https://spreadsheets.google.com/feeds",
-            "https://googleapis.com/auth/drive"
+            "https://www.googleapis.com/auth/drive"
         ]
     )
     st.session_state.gspread_client = gspread.authorize(creds)
@@ -47,7 +46,7 @@ ROLE_OPTIONS = [
 ]
 
 # =========================
-# REFRESH / DATA LOAD LOGIC
+# DATA LOAD (No API Cache TTL)
 # =========================
 def load_data(force_reload=False):
     if force_reload or st.session_state.get("cached_df") is None:
@@ -76,12 +75,6 @@ def load_data(force_reload=False):
     
     return st.session_state.cached_df
 
-# Add Refresh Button to Sidebar
-with st.sidebar:
-    if st.button("🔄 Refresh Data"):
-        st.session_state.cached_df = None
-        st.rerun()
-
 # =========================
 # SESSION STATE INITIALIZATION
 # =========================
@@ -95,7 +88,7 @@ if "deleted_staff" not in st.session_state:
     st.session_state.deleted_staff = set()
 
 # =========================
-# TIME LOGIC (Unchanged)
+# TIME LOGIC
 # =========================
 def parse_hour(val):
     hour, ap = val.split()
@@ -132,7 +125,7 @@ def calculate_row_ot(row):
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
 # =========================
-# MODAL DIALOG (Unchanged)
+# MODAL DIALOG
 # =========================
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
@@ -160,7 +153,7 @@ def custom_time_dialog(row_idx, row_name, day_name):
             st.rerun()
 
 # =========================
-# UI HEADER (Unchanged)
+# UI HEADER
 # =========================
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 selected_date = st.date_input("📅 Select Any Date In Week", value=datetime.today())
@@ -177,7 +170,7 @@ if st.session_state.previous_week != week_start_str:
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================
-# LOAD DATA (No TTL)
+# LOAD DATA
 # =========================
 all_data_df = load_data()
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() \
@@ -228,6 +221,10 @@ if edit_mode:
 # VIEW MODE
 # =========================
 else:
+    if st.button("🔄 Refresh Data"):
+        st.session_state.cached_df = None
+        st.rerun()
+
     df_display = df.copy()
     if st.session_state.deleted_staff and not df_display.empty:
         df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
