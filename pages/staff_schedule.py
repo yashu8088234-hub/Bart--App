@@ -3,9 +3,7 @@ import pandas as pd
 import gspread
 import time
 import re
-import matplotlib.pyplot as plt
-import io
-
+from fpdf import FPDF
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 from st_aggrid import AgGrid
@@ -24,22 +22,17 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# GOOGLE CLIENT
+# INITIALIZE GOOGLE CLIENT
 # =========================
 if "gspread_client" not in st.session_state:
     creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         creds_dict,
-        [
-            "https://spreadsheets.google.com/feeds",
-            "https://googleapis.com/auth/drive"
-        ]
+        ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     )
     st.session_state.gspread_client = gspread.authorize(creds)
 
-master_sheet = st.session_state.gspread_client.open_by_key(
-    "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
-)
+master_sheet = st.session_state.gspread_client.open_by_key("1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0")
 
 # =========================
 # CONFIG
@@ -49,99 +42,77 @@ SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
 ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
 
 # =========================
-# IMAGE GENERATOR (NEW FEATURE)
+# PDF GENERATOR
 # =========================
-def generate_schedule_image(df):
-    fig, ax = plt.subplots(figsize=(14, 6))
-    ax.axis("off")
-
-    if df.empty:
-        ax.text(0.5, 0.5, "No Schedule Data Available", ha="center", va="center", fontsize=14)
-    else:
-        table = ax.table(
-            cellText=df.values,
-            colLabels=df.columns,
-            cellLoc="center",
-            loc="center"
-        )
-
-        table.auto_set_font_size(False)
-        table.set_fontsize(8)
-        table.scale(1, 1.5)
-
-        for (row, col), cell in table.get_celld().items():
-            if row == 0:
-                cell.set_text_props(weight="bold", color="white")
-                cell.set_facecolor("#1f4e79")
-            else:
-                cell.set_facecolor("#f2f2f2" if row % 2 == 0 else "white")
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
-    buf.seek(0)
-    plt.close(fig)
-
-    return buf
+def generate_pdf(df, title):
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, title, ln=True, align='C')
+    pdf.ln(5)
+    
+    # Table Header Styling
+    pdf.set_fill_color(52, 73, 94)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 10)
+    
+    col_width = 35
+    for col in df.columns:
+        pdf.cell(col_width, 10, str(col), border=1, fill=True, align='C')
+    pdf.ln()
+    
+    # Table Content Styling
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 9)
+    for _, row in df.iterrows():
+        for col in df.columns:
+            pdf.cell(col_width, 8, str(row[col]), border=1)
+        pdf.ln()
+    
+    # CRITICAL FIX: Convert output to bytes explicitly
+    return pdf.output(dest='S').encode('latin-1')
 
 # =========================
 # DIALOGS
 # =========================
 @st.dialog("✅ Submission Successful")
-def success_dialog():
-    st.success("Schedule submitted successfully 🎉")
-
-    if "submitted_img" in st.session_state:
-        st.image(st.session_state.submitted_img, caption="Schedule Snapshot", use_container_width=True)
-
-        st.download_button(
-            "📥 Download Schedule Image",
-            data=st.session_state.submitted_img,
-            file_name="schedule_snapshot.png",
-            mime="image/png",
-            use_container_width=True
-        )
-
+def success_dialog(df):
+    st.success("Your schedule has been successfully submitted!")
+    st.write("### Schedule Preview")
+    st.dataframe(df, use_container_width=True)
+    pdf_data = generate_pdf(df, f"Schedule: {st.session_state.selected_branch}")
+    st.download_button("📥 Download Schedule PDF", data=pdf_data, file_name="Schedule.pdf", mime="application/pdf", use_container_width=True)
     if st.button("Close", use_container_width=True):
         st.rerun()
 
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
     st.write(f"Configure shift for **{row_name}** on **{day_name}**")
-
     col1, col2 = st.columns(2)
-
     with col1:
         sh = st.selectbox("Start Hour", list(range(1, 13)), index=8)
         sap = st.selectbox("AM/PM", ["AM", "PM"], key="sap_modal")
-
     with col2:
         eh = st.selectbox("End Hour", list(range(1, 13)), index=5)
-        eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal")
-
+        eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal", index=1)
     apply_all = st.checkbox("Apply to all working days this week")
-
     if st.button("Apply Shift", use_container_width=True):
         value, hrs = format_shift(f"{sh} {sap}", f"{eh} {eap}")
-
-        if value is None:
-            st.error("❌ Minimum 9 hours required")
+        if value is None: st.error("❌ Minimum 9 hours required")
         else:
-            if apply_all:
-                for day in DAYS:
-                    st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
-            else:
+            if apply_all: 
+                for day in DAYS: st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
+            else: 
                 st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
-
             st.rerun()
 
 @st.dialog("🚫 Submission Blocked")
 def duplicate_submission_dialog():
-    st.error("This week's schedule has already been submitted for this branch.")
-    if st.button("Close", use_container_width=True):
-        st.rerun()
+    st.error("This week's schedule has already been submitted.")
+    if st.button("Close", use_container_width=True): st.rerun()
 
 # =========================
-# FUNCTIONS
+# LOGIC FUNCTIONS
 # =========================
 def load_data(force_reload=False):
     if force_reload or st.session_state.get("cached_df") is None:
@@ -149,76 +120,52 @@ def load_data(force_reload=False):
             ws = master_sheet.worksheet("StaffSchedule")
             data = ws.get_all_records()
             df = pd.DataFrame(data) if data else pd.DataFrame()
-
-            if df.empty:
-                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
-
+            if not df.empty:
+                new_cols = {col: day for col in df.columns for day in DAYS if day in col}
+                df = df.rename(columns=new_cols)
+            if df.empty: df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
             st.session_state.cached_df = df
-
         except Exception as e:
-            st.error(f"Error loading data: {e}")
+            st.error(f"Error loading: {e}")
             st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
-
     return st.session_state.cached_df
-
 
 def parse_hour(val):
     hour, ap = val.split()
     hour = int(hour)
-    if ap == "PM" and hour != 12:
-        hour += 12
-    if ap == "AM" and hour == 12:
-        hour = 0
+    if ap == "PM" and hour != 12: hour += 12
+    if ap == "AM" and hour == 12: hour = 0
     return hour
 
-
 def calculate_hours(start, end):
-    s = parse_hour(start)
-    e = parse_hour(end)
-    if e <= s:
-        e += 24
+    s = parse_hour(start); e = parse_hour(end)
+    if e <= s: e += 24
     return e - s
-
 
 def format_shift(start, end):
     hrs = calculate_hours(start, end)
-    if hrs < 9:
-        return None, hrs
+    if hrs < 9: return None, hrs
     ot = max(0, hrs - 9)
-    if ot > 0:
-        return (f"{start} - {end} (OT {ot}h)", hrs)
-    return (f"{start} - {end}", hrs)
-
+    return (f"{start} - {end} (OT {ot}h)", hrs) if ot > 0 else (f"{start} - {end}", hrs)
 
 def calculate_row_ot(row):
     total_ot = 0
     for day in DAYS:
         val = str(row.get(day, ""))
         match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
-        if match:
-            total_ot += float(match.group(1))
+        if match: total_ot += float(match.group(1))
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
 # =========================
-# INIT
+# MAIN APP
 # =========================
-if "shift_buffer" not in st.session_state:
-    st.session_state.shift_buffer = {}
+if "shift_buffer" not in st.session_state: st.session_state.shift_buffer = {}
+if "previous_week" not in st.session_state: st.session_state.previous_week = None
+if "deleted_staff" not in st.session_state: st.session_state.deleted_staff = set()
 
-if "previous_week" not in st.session_state:
-    st.session_state.previous_week = None
-
-if "deleted_staff" not in st.session_state:
-    st.session_state.deleted_staff = set()
-
-# =========================
-# UI
-# =========================
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
-
 selected_date = st.date_input("📅 Select Date", value=datetime.today())
 week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
-
 week_start_str = week_start.strftime('%d %b %Y')
 st.caption(f"Week starting: {week_start_str}")
 
@@ -228,59 +175,57 @@ if st.session_state.previous_week != week_start_str:
     st.session_state.previous_week = week_start_str
 
 edit_mode = st.toggle("Edit Mode Only")
-
-# =========================
-# LOAD DATA
-# =========================
 all_data_df = load_data()
-df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
+df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() if not all_data_df.empty else pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
+day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
 
-# =========================
-# SUBMIT (UPDATED ONLY HERE)
-# =========================
-if st.button("✅ Submit"):
-
-    try:
-        # 🔥 CREATE IMAGE SNAPSHOT
-        preview_df = df.copy()
-        preview_df["Over-Time"] = preview_df.apply(calculate_row_ot, axis=1)
-
-        img_buffer = generate_schedule_image(preview_df)
-        st.session_state.submitted_img = img_buffer.getvalue()
-
-        # SAVE TO SHEETS
-        ws = master_sheet.worksheet("StaffSchedule")
-
-        new_data = df.copy()
-        new_data["Branch"] = st.session_state.selected_branch
-
-        ws.update([new_data.columns.tolist()] + new_data.fillna("").values.tolist())
-
-        st.session_state.cached_df = new_data
-        st.session_state.shift_buffer = {}
-        st.session_state.deleted_staff = set()
-
-        success_dialog()
-
-    except Exception as e:
-        st.error(f"❌ Submission Failed: {e}")
-
-# =========================
-# VIEW MODE (UNCHANGED LOGIC)
-# =========================
-if not edit_mode:
-    if st.button("🔄 Refresh Data"):
-        st.session_state.cached_df = None
-        st.rerun()
-
-    df_display = df.copy()
-
-    if st.session_state.deleted_staff and not df_display.empty:
-        df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)]
-
+# UI Logic for Edit vs View mode follows your original structure...
+if edit_mode:
+    df_display = (df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    if st.session_state.deleted_staff: df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
+    for d in DAYS: df_display[d] = ""
+    for i, row in df_display.iterrows():
+        for d in DAYS:
+            key = f"{i}_{d}"
+            if key in st.session_state.shift_buffer: df_display.loc[i, d] = st.session_state.shift_buffer[key]
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
-    AgGrid(df_display, height=500)
+    config = {
+        "Name": st.column_config.SelectboxColumn("Name", options=(df["Name"].dropna().unique().tolist() if not df.empty else []), width=90, required=True),
+        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=140),
+        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=90)
+    }
+    for d in DAYS: config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=135)
 
-if st.button("⬅ Back"):
-    st.switch_page("app.py")
+    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
+    
+    for i, row in edited_df.iterrows():
+        for d in DAYS:
+            if row.get(d) == "📴 Day Off": st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"; st.rerun()
+            if row.get(d) == "➕ Custom Time": custom_time_dialog(row_idx=i, row_name=row["Name"], day_name=d)
+
+    if st.button("✅ Submit"):
+        try:
+            ws = master_sheet.worksheet("StaffSchedule")
+            others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
+            new_data = edited_df.copy()
+            new_data["Branch"] = st.session_state.selected_branch
+            final = pd.concat([others, new_data], ignore_index=True)
+            final = final.rename(columns={day: day_labels[day] for day in DAYS})
+            ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
+            st.session_state.cached_df = final
+            success_dialog(final)
+        except Exception as e: st.error(f"❌ Submission Failed: {e}")
+
+else:
+    if st.button("🔄 Refresh Data"): st.session_state.cached_df = None; st.rerun()
+    df_display = df.copy()
+    if st.session_state.deleted_staff and not df_display.empty: df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
+    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1) if not df_display.empty else []
+    
+    col_defs = [{"headerName": "Name", "field": "Name", "pinned": "left", "width": 90}, {"headerName": "Role", "field": "Role", "width": 140}]
+    for d in DAYS: col_defs.append({"headerName": day_labels[d], "field": d, "width": 135})
+    col_defs.append({"headerName": "Over-Time", "field": "Over-Time", "width": 90})
+    AgGrid(df_display, gridOptions={"columnDefs": col_defs, "defaultColDef": {"resizable": True}}, height=500)
+
+if st.button("⬅ Back"): st.switch_page("app.py")
