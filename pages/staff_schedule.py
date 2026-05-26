@@ -42,7 +42,7 @@ SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
 ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
 
 # =========================
-# PDF GENERATION
+# PDF GENERATOR
 # =========================
 def generate_pdf(df, title):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
@@ -50,20 +50,27 @@ def generate_pdf(df, title):
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, title, ln=True, align='C')
     pdf.ln(5)
+    
+    # Table Header Styling
     pdf.set_fill_color(52, 73, 94)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", 'B', 10)
+    
     col_width = 35
     for col in df.columns:
         pdf.cell(col_width, 10, str(col), border=1, fill=True, align='C')
     pdf.ln()
+    
+    # Table Content Styling
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 9)
     for _, row in df.iterrows():
         for col in df.columns:
             pdf.cell(col_width, 8, str(row[col]), border=1)
         pdf.ln()
-    return pdf.output(dest='S')
+    
+    # CRITICAL FIX: Convert output to bytes explicitly
+    return pdf.output(dest='S').encode('latin-1')
 
 # =========================
 # DIALOGS
