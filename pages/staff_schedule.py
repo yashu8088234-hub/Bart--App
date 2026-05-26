@@ -24,7 +24,7 @@ if "gspread_client" not in st.session_state:
         creds_dict,
         [
             "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
+            "https://googleapis.com/auth/drive"
         ]
     )
     st.session_state.gspread_client = gspread.authorize(creds)
@@ -46,15 +46,45 @@ ROLE_OPTIONS = [
     "Acting_Supervisor","Supervisor","Branch_Manager"
 ]
 
-CACHE_TTL = 60 
+# =========================
+# REFRESH / DATA LOAD LOGIC
+# =========================
+def load_data(force_reload=False):
+    if force_reload or st.session_state.get("cached_df") is None:
+        try:
+            ws = master_sheet.worksheet("StaffSchedule")
+            data = ws.get_all_records()
+            df = pd.DataFrame(data) if data else pd.DataFrame()
+
+            if not df.empty:
+                new_cols = {}
+                for col in df.columns:
+                    for day in DAYS:
+                        if day in col:
+                            new_cols[col] = day
+                            break
+                df = df.rename(columns=new_cols)
+
+            if df.empty:
+                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+
+            st.session_state.cached_df = df
+        except Exception as e:
+            st.error(f"Error loading data: {e}")
+            if st.session_state.get("cached_df") is None:
+                st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+    
+    return st.session_state.cached_df
+
+# Add Refresh Button to Sidebar
+with st.sidebar:
+    if st.button("🔄 Refresh Data"):
+        st.session_state.cached_df = None
+        st.rerun()
 
 # =========================
 # SESSION STATE INITIALIZATION
 # =========================
-if "cached_df" not in st.session_state:
-    st.session_state.cached_df = None
-    st.session_state.last_fetch = 0
-
 if "shift_buffer" not in st.session_state:
     st.session_state.shift_buffer = {}
 
@@ -65,39 +95,7 @@ if "deleted_staff" not in st.session_state:
     st.session_state.deleted_staff = set()
 
 # =========================
-# DATA LOAD (API PROTECTION LAYER)
-# =========================
-def load_data():
-    now = time.time()
-    if st.session_state.cached_df is None or (now - st.session_state.last_fetch > CACHE_TTL):
-        try:
-            ws = master_sheet.worksheet("StaffSchedule")
-            data = ws.get_all_records()
-            df = pd.DataFrame(data) if data else pd.DataFrame()
-
-            if not df.empty:
-                # Map date-stamped columns back to standard DAY names
-                new_cols = {}
-                for col in df.columns:
-                    for day in DAYS:
-                        if day in col:  # Matches "Sunday (24 May)" to "Sunday"
-                            new_cols[col] = day
-                            break
-                df = df.rename(columns=new_cols)
-
-            if df.empty:
-                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
-
-            st.session_state.cached_df = df
-            st.session_state.last_fetch = now
-        except Exception as e:
-            st.error(f"Error loading data: {e}")
-            if st.session_state.cached_df is None:
-                st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
-
-    return st.session_state.cached_df
-# =========================
-# TIME LOGIC
+# TIME LOGIC (Unchanged)
 # =========================
 def parse_hour(val):
     hour, ap = val.split()
@@ -108,14 +106,12 @@ def parse_hour(val):
         hour = 0
     return hour
 
-
 def calculate_hours(start, end):
     s = parse_hour(start)
     e = parse_hour(end)
     if e <= s:
         e += 24
     return e - s
-
 
 def format_shift(start, end):
     hrs = calculate_hours(start, end)
@@ -126,7 +122,6 @@ def format_shift(start, end):
         return f"{start} - {end} (OT {ot}h)", hrs
     return f"{start} - {end}", hrs
 
-
 def calculate_row_ot(row):
     total_ot = 0
     for day in DAYS:
@@ -136,14 +131,12 @@ def calculate_row_ot(row):
             total_ot += float(match.group(1))
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
-
 # =========================
-# MODAL DIALOG FOR CUSTOM TIME
+# MODAL DIALOG (Unchanged)
 # =========================
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
     st.write(f"Configure shift for **{row_name}** on **{day_name}**")
-    
     col1, col2 = st.columns(2)
     with col1:
         sh = st.selectbox("Start Hour", list(range(1, 13)), index=8)
@@ -151,14 +144,11 @@ def custom_time_dialog(row_idx, row_name, day_name):
     with col2:
         eh = st.selectbox("End Hour", list(range(1, 13)), index=5)
         eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal", index=1)
-
     apply_all = st.checkbox("Apply to all working days this week")
-
     if st.button("Apply Shift", use_container_width=True):
         start = f"{sh} {sap}"
         end = f"{eh} {eap}"
         value, hrs = format_shift(start, end)
-
         if value is None:
             st.error("❌ Minimum 9 hours required")
         else:
@@ -167,21 +157,16 @@ def custom_time_dialog(row_idx, row_name, day_name):
                     st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
             else:
                 st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
-            
             st.rerun()
 
-
 # =========================
-# UI HEADER
+# UI HEADER (Unchanged)
 # =========================
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
-
 selected_date = st.date_input("📅 Select Any Date In Week", value=datetime.today())
-
 days_from_sunday = (selected_date.weekday() + 1) % 7
 week_start = selected_date - timedelta(days=days_from_sunday)
 week_start_str = week_start.strftime('%d %b %Y')
-
 st.caption(f"Week: {week_start_str}")
 
 if st.session_state.previous_week != week_start_str:
@@ -192,103 +177,50 @@ if st.session_state.previous_week != week_start_str:
 edit_mode = st.toggle("Edit Mode Only")
 
 # =========================
-# LOAD DATA FROM CACHE ONLY
+# LOAD DATA (No TTL)
 # =========================
 all_data_df = load_data()
-
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() \
     if not all_data_df.empty else pd.DataFrame(columns=["Branch","Name","Role"] + DAYS)
 
+day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
 
 # =========================
-# WEEK LABELS
-# =========================
-day_labels = {}
-for idx, day_name in enumerate(DAYS):
-    day_date = week_start + timedelta(days=idx)
-    day_labels[day_name] = f"{day_name} ({day_date.strftime('%d %b')})"
-
-# =========================
-# PREP DISPLAY
+# EDIT MODE
 # =========================
 if edit_mode:
-    if not df.empty:
-        df_display = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)
-        
-        if st.session_state.deleted_staff:
-            df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
-            
-        for d in DAYS:
-            df_display[d] = ""
-    else:
-        df_display = pd.DataFrame(columns=["Name", "Role"] + DAYS)
-
-    # APPLY ACTIVE INPUT BUFFERS
+    df_display = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    if st.session_state.deleted_staff:
+        df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
+    for d in DAYS:
+        df_display[d] = ""
     for i, row in df_display.iterrows():
         for d in DAYS:
             key = f"{i}_{d}"
             if key in st.session_state.shift_buffer:
                 df_display.loc[i, d] = st.session_state.shift_buffer[key]
-
-    # Calculate real-time OT
     df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
-
-    # =========================
-    # EDIT MODE WIDTH CONFIG (NAME COMPACTED)
-    # =========================
-    config = {
-        "Name": st.column_config.SelectboxColumn(
-            "Name", 
-            options=df["Name"].dropna().unique().tolist() if not df.empty else [],
-            width=90,  # Made extra compact to save maximum screen space
-            required=True
-        ),
-        "Role": st.column_config.SelectboxColumn(
-            "Role", 
-            options=ROLE_OPTIONS,
-            width=140
-        ),
-        "Over-Time": st.column_config.TextColumn(
-            "Over-Time", 
-            disabled=True,
-            width=90
-        )
-    }
-
-    for d in DAYS:
-        existing_shifts = df_display[d].dropna().unique().tolist()
-        dynamic_options = list(set(SHIFT_OPTIONS + existing_shifts))
-        config[d] = st.column_config.SelectboxColumn(
-            label=day_labels[d], 
-            options=dynamic_options,
-            width=135
-        )
-
-    col_order = ["Name", "Role"] + DAYS + ["Over-Time"]
     
-    edited_df = st.data_editor(
-        df_display[col_order], 
-        column_config=config, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        key="editor"
-    )
+    config = {
+        "Name": st.column_config.SelectboxColumn("Name", options=df["Name"].dropna().unique().tolist() if not df.empty else [], width=90, required=True),
+        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=140),
+        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=90)
+    }
+    for d in DAYS:
+        existing = df_display[d].dropna().unique().tolist()
+        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + existing)), width=135)
 
-    # TRACK IN-SESSION DELETIONS FROM DATA EDITOR
-    current_editor_names = set(edited_df["Name"].dropna().tolist())
-    for original_name in df_display["Name"].tolist():
-        if original_name not in current_editor_names:
-            st.session_state.deleted_staff.add(original_name)
+    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
+    
+    current_names = set(edited_df["Name"].dropna().tolist())
+    for name in df_display["Name"].tolist():
+        if name not in current_names: st.session_state.deleted_staff.add(name)
 
-    # =========================
-    # INTERCEPT SELECTBOX ACTIONS
-    # =========================
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "📴 Day Off":
                 st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
                 st.rerun()
-                
             if row.get(d) == "➕ Custom Time":
                 custom_time_dialog(row_idx=i, row_name=row['Name'], day_name=d)
 
@@ -299,65 +231,29 @@ else:
     df_display = df.copy()
     if st.session_state.deleted_staff and not df_display.empty:
         df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
-
-    if not df_display.empty:
-        df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
-    else:
-        df_display["Over-Time"] = []
-
-    # VIEW MODE WIDTH CONFIG (NAME COMPACTED)
-    column_defs = [
-        {"headerName":"Name","field":"Name","pinned":"left", "width": 90}, # Matches editor compact view
-        {"headerName":"Role","field":"Role", "width": 140}
-    ]
-    for d in DAYS:
-        column_defs.append({"headerName":day_labels[d],"field":d, "width": 135})
+    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1) if not df_display.empty else []
+    
+    column_defs = [{"headerName":"Name","field":"Name","pinned":"left", "width": 90}, {"headerName":"Role","field":"Role", "width": 140}]
+    for d in DAYS: column_defs.append({"headerName":day_labels[d],"field":d, "width": 135})
     column_defs.append({"headerName":"Over-Time","field":"Over-Time", "width": 90})
-
-    AgGrid(df_display, gridOptions={
-        "columnDefs": column_defs,
-        "defaultColDef": {"resizable": True}
-    }, height=500)
+    AgGrid(df_display, gridOptions={"columnDefs": column_defs, "defaultColDef": {"resizable": True}}, height=500)
 
 # =========================
-# SAVE (COMMIT TO CLOUD)
+# SAVE
 # =========================
 if edit_mode and st.button("💾 Save to Master Sheet"):
     ws = master_sheet.worksheet("StaffSchedule")
-    full_df = st.session_state.cached_df.copy()
-
+    others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
     new_data = edited_df.copy()
     new_data["Branch"] = st.session_state.selected_branch
-    
-    # We NO LONGER drop "Over-Time"
-    
-    others = full_df[full_df["Branch"] != st.session_state.selected_branch].copy()
-
     final = pd.concat([others, new_data], ignore_index=True)
-    
-    # Define columns to include in the save
-    storage_cols = ["Branch", "Name", "Role"] + DAYS + ["Over-Time"]
-    final = final[storage_cols]
-
-    # RENAME COLUMNS TO INCLUDE DATES
-    # We create a mapping: {'Sunday': 'Sunday (24 May)', ...}
-    rename_map = {day: day_labels[day] for day in DAYS}
-    final = final.rename(columns=rename_map)
-
-    # Update Google Sheet
-    # Note: Using .fillna("") ensures no NaNs break the gspread update
+    final = final.rename(columns={day: day_labels[day] for day in DAYS})
     ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
-
-    # Cleanup State
     st.session_state.cached_df = final 
-    st.session_state.last_fetch = time.time()
     st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set() 
-
-    st.success("✅ Saved successfully with dates and OT column!")
+    st.session_state.deleted_staff = set()
+    st.success("✅ Saved successfully!")
     st.rerun()
-# =========================
-# BACK
-# =========================
+
 if st.button("⬅ Back"):
     st.switch_page("app.py")
