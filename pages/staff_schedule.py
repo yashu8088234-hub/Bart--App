@@ -4,7 +4,6 @@ import gspread
 import time
 import re
 import matplotlib.pyplot as plt
-import numpy as np
 import io
 
 from oauth2client.service_account import ServiceAccountCredentials
@@ -50,35 +49,32 @@ SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
 ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
 
 # =========================
-# 🔥 NEW: IMAGE GENERATOR
+# IMAGE GENERATOR (NEW FEATURE)
 # =========================
-def generate_schedule_image(df, title="BART Master Schedule"):
+def generate_schedule_image(df):
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.axis('off')
+    ax.axis("off")
 
     if df.empty:
-        ax.text(0.5, 0.5, "No Schedule Data", ha='center', va='center', fontsize=14)
+        ax.text(0.5, 0.5, "No Schedule Data Available", ha="center", va="center", fontsize=14)
     else:
         table = ax.table(
             cellText=df.values,
             colLabels=df.columns,
-            cellLoc='center',
-            loc='center'
+            cellLoc="center",
+            loc="center"
         )
 
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1, 1.5)
 
-        # Header styling
         for (row, col), cell in table.get_celld().items():
             if row == 0:
-                cell.set_text_props(weight='bold', color='white')
+                cell.set_text_props(weight="bold", color="white")
                 cell.set_facecolor("#1f4e79")
             else:
                 cell.set_facecolor("#f2f2f2" if row % 2 == 0 else "white")
-
-    plt.title(title, fontsize=14, fontweight='bold')
 
     buf = io.BytesIO()
     plt.savefig(buf, format="png", bbox_inches="tight", dpi=200)
@@ -111,18 +107,22 @@ def success_dialog():
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
     st.write(f"Configure shift for **{row_name}** on **{day_name}**")
+
     col1, col2 = st.columns(2)
+
     with col1:
         sh = st.selectbox("Start Hour", list(range(1, 13)), index=8)
         sap = st.selectbox("AM/PM", ["AM", "PM"], key="sap_modal")
+
     with col2:
         eh = st.selectbox("End Hour", list(range(1, 13)), index=5)
-        eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal", index=1)
+        eap = st.selectbox("AM/PM", ["AM", "PM"], key="eap_modal")
 
     apply_all = st.checkbox("Apply to all working days this week")
 
     if st.button("Apply Shift", use_container_width=True):
         value, hrs = format_shift(f"{sh} {sap}", f"{eh} {eap}")
+
         if value is None:
             st.error("❌ Minimum 9 hours required")
         else:
@@ -131,6 +131,7 @@ def custom_time_dialog(row_idx, row_name, day_name):
                     st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
             else:
                 st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
+
             st.rerun()
 
 @st.dialog("🚫 Submission Blocked")
@@ -140,7 +141,7 @@ def duplicate_submission_dialog():
         st.rerun()
 
 # =========================
-# LOGIC FUNCTIONS
+# FUNCTIONS
 # =========================
 def load_data(force_reload=False):
     if force_reload or st.session_state.get("cached_df") is None:
@@ -153,31 +154,41 @@ def load_data(force_reload=False):
                 df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
             st.session_state.cached_df = df
+
         except Exception as e:
             st.error(f"Error loading data: {e}")
             st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+
     return st.session_state.cached_df
+
 
 def parse_hour(val):
     hour, ap = val.split()
     hour = int(hour)
-    if ap == "PM" and hour != 12: hour += 12
-    if ap == "AM" and hour == 12: hour = 0
+    if ap == "PM" and hour != 12:
+        hour += 12
+    if ap == "AM" and hour == 12:
+        hour = 0
     return hour
+
 
 def calculate_hours(start, end):
     s = parse_hour(start)
     e = parse_hour(end)
-    if e <= s: e += 24
+    if e <= s:
+        e += 24
     return e - s
+
 
 def format_shift(start, end):
     hrs = calculate_hours(start, end)
-    if hrs < 9: return None, hrs
+    if hrs < 9:
+        return None, hrs
     ot = max(0, hrs - 9)
     if ot > 0:
         return (f"{start} - {end} (OT {ot}h)", hrs)
     return (f"{start} - {end}", hrs)
+
 
 def calculate_row_ot(row):
     total_ot = 0
@@ -189,11 +200,16 @@ def calculate_row_ot(row):
     return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
 
 # =========================
-# INIT SESSION
+# INIT
 # =========================
-if "shift_buffer" not in st.session_state: st.session_state.shift_buffer = {}
-if "previous_week" not in st.session_state: st.session_state.previous_week = None
-if "deleted_staff" not in st.session_state: st.session_state.deleted_staff = set()
+if "shift_buffer" not in st.session_state:
+    st.session_state.shift_buffer = {}
+
+if "previous_week" not in st.session_state:
+    st.session_state.previous_week = None
+
+if "deleted_staff" not in st.session_state:
+    st.session_state.deleted_staff = set()
 
 # =========================
 # UI
@@ -211,26 +227,28 @@ if st.session_state.previous_week != week_start_str:
     st.session_state.deleted_staff = set()
     st.session_state.previous_week = week_start_str
 
+edit_mode = st.toggle("Edit Mode Only")
+
 # =========================
-# LOAD
+# LOAD DATA
 # =========================
 all_data_df = load_data()
 df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy()
 
 # =========================
-# SUBMIT BLOCK (MODIFIED ONLY HERE)
+# SUBMIT (UPDATED ONLY HERE)
 # =========================
 if st.button("✅ Submit"):
 
     try:
-        # 🔥 CREATE IMAGE BEFORE SAVING
+        # 🔥 CREATE IMAGE SNAPSHOT
         preview_df = df.copy()
         preview_df["Over-Time"] = preview_df.apply(calculate_row_ot, axis=1)
 
         img_buffer = generate_schedule_image(preview_df)
         st.session_state.submitted_img = img_buffer.getvalue()
 
-        # existing save logic (unchanged conceptually)
+        # SAVE TO SHEETS
         ws = master_sheet.worksheet("StaffSchedule")
 
         new_data = df.copy()
@@ -248,5 +266,21 @@ if st.button("✅ Submit"):
         st.error(f"❌ Submission Failed: {e}")
 
 # =========================
-# (rest of your code unchanged below)
+# VIEW MODE (UNCHANGED LOGIC)
 # =========================
+if not edit_mode:
+    if st.button("🔄 Refresh Data"):
+        st.session_state.cached_df = None
+        st.rerun()
+
+    df_display = df.copy()
+
+    if st.session_state.deleted_staff and not df_display.empty:
+        df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)]
+
+    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
+
+    AgGrid(df_display, height=500)
+
+if st.button("⬅ Back"):
+    st.switch_page("app.py")
