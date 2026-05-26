@@ -185,7 +185,7 @@ if edit_mode:
             if row.get(d) == "➕ Custom Time": custom_time_dialog(row_idx=i, row_name=row['Name'], day_name=d)
 
     # SUBMIT BUTTON
-    if st.button("🚀 Submit to Master Sheet"):
+    if st.button("✅ Submit"):
         ws = master_sheet.worksheet("StaffSchedule")
         others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
         new_data = edited_df.copy(); new_data["Branch"] = st.session_state.selected_branch
