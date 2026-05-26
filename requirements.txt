@@ -43,3 +43,9 @@ oauth2client
 streamlit-aggrid
 xlsxwriter
 plotly
+streamlit
+pandas
+gspread
+oauth2client
+
+fpdf2
