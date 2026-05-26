@@ -543,79 +543,28 @@ if edit_mode:
                     day_name=d
                 )
 
-    # =========================
-    # SUBMIT BUTTON
-    # =========================
-    if st.button("✅ Submit"):
+   # =========================
+# DUPLICATE SUBMISSION DIALOG
+# =========================
+@st.dialog("🚫 Submission Blocked")
+def duplicate_submission_dialog():
 
-        # Prevent overwrite
-        if not existing_week_data.empty:
+    st.error("""
+This week's schedule has already been submitted for this branch.
 
-            st.error("""
-🚫 Schedule Already Submitted
-
-This week's schedule already exists for this branch.
-
-To prevent duplicate submissions or accidental overwriting,
+To prevent accidental overwriting or duplicate submissions,
 please contact the Branch Manager for approval before resubmitting.
 """)
 
-            st.stop()
+    st.info(
+        "Only authorized approval should allow schedule replacement."
+    )
 
-        try:
-
-            ws = master_sheet.worksheet(
-                "StaffSchedule"
-            )
-
-            others = st.session_state.cached_df[
-                st.session_state.cached_df["Branch"] !=
-                st.session_state.selected_branch
-            ].copy()
-
-            new_data = edited_df.copy()
-
-            new_data["Branch"] = (
-                st.session_state.selected_branch
-            )
-
-            final = pd.concat(
-                [others, new_data],
-                ignore_index=True
-            )
-
-            final = final.rename(
-                columns={
-                    day: day_labels[day]
-                    for day in DAYS
-                }
-            )
-
-            ws.update(
-                [final.columns.tolist()] +
-                final.fillna("").values.tolist()
-            )
-
-            st.session_state.cached_df = final
-
-            st.session_state.shift_buffer = {}
-
-            st.session_state.deleted_staff = set()
-
-            st.success(
-                "✅ Submitted successfully!"
-            )
-
-            time.sleep(1)
-
-            st.rerun()
-
-        except Exception as e:
-
-            st.error(
-                f"❌ Submission Failed: {e}"
-            )
-
+    if st.button(
+        "Close",
+        use_container_width=True
+    ):
+        st.rerun()
 # =========================
 # VIEW MODE
 # =========================
