@@ -10,7 +10,7 @@ from st_aggrid import AgGrid
 # 1. SETUP PAGE SETTINGS
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
-# 2. CHECK IF USER IS LOGGED IN
+# 2. AUTHENTICATION CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.error("Please login first.")
     st.stop()
@@ -25,21 +25,19 @@ if "gspread_client" not in st.session_state:
 
 master_sheet = st.session_state.gspread_client.open_by_key("1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0")
 
-# 4. CONFIGURATION OPTIONS
+# 4. CONFIGURATION
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
 ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
 
-# 5. DATA LOADING FUNCTION (ONLY RUNS WHEN CALLED)
+# 5. DATA LOADING FUNCTION
 def load_data(force_reload=False):
-    # This keeps data in memory until the "Refresh" button is clicked
     if force_reload or st.session_state.get("cached_df") is None:
         try:
             ws = master_sheet.worksheet("StaffSchedule")
             data = ws.get_all_records()
             df = pd.DataFrame(data) if data else pd.DataFrame()
             if not df.empty:
-                # Rename columns from "Sunday (24 May)" to just "Sunday"
+                # Rename columns containing day names to standard Day names
                 new_cols = {col: day for col in df.columns for day in DAYS if day in col}
                 df = df.rename(columns=new_cols)
             st.session_state.cached_df = df
@@ -48,27 +46,7 @@ def load_data(force_reload=False):
             st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
     return st.session_state.cached_df
 
-# 6. HELPER FUNCTIONS FOR CALCULATING TIME
-def parse_hour(val):
-    hour, ap = val.split()
-    hour = int(hour)
-    if ap == "PM" and hour != 12: hour += 12
-    if ap == "AM" and hour == 12: hour = 0
-    return hour
-
-def format_shift(start, end):
-    hrs = parse_hour(end) - parse_hour(start)
-    if hrs < 0: hrs += 24
-    if hrs < 9: return None, hrs
-    ot = max(0, hrs - 9)
-    return (f"{start} - {end} (OT {ot}h)", hrs) if ot > 0 else (f"{start} - {end}", hrs)
-
-def calculate_row_ot(row):
-    total = sum([float(re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", str(row.get(d, ""))).group(1)) 
-                 for d in DAYS if re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", str(row.get(d, "")))])
-    return f"{total} hrs" if total > 0 else "0 hrs"
-
-# 7. POP-UP MODAL FOR CUSTOM SHIFTS
+# 6. SHIFT CUSTOMIZER MODAL
 @st.dialog("⏰ Set Custom Time")
 def custom_time_dialog(row_idx, row_name, day_name):
     st.write(f"Configure shift for **{row_name}** on **{day_name}**")
@@ -84,21 +62,24 @@ def custom_time_dialog(row_idx, row_name, day_name):
         st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = f"{sh} {sap} - {eh} {eap}"
         st.rerun()
 
-# 8. MAIN UI LAYOUT
+# 7. MAIN UI
 st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
 sel_date = st.date_input("📅 Select Date", value=datetime.today())
-week_start = sel_date - timedelta(days=(sel_date.weekday() + 1) % 7)
-day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
-
 edit_mode = st.toggle("Edit Mode Only")
+
 df = load_data()
 df = df[df["Branch"] == st.session_state.selected_branch].copy()
 
-# 9. EDIT MODE LOGIC
+# 8. EDIT MODE (WITH STABILITY FIXES)
 if edit_mode:
-    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+    # Fixes: Ensure column names are unique and strings
+    df.columns = df.columns.astype(str)
+    df = df.loc[:, ~df.columns.duplicated()]
+    df_for_editor = df.astype(str)
+
+    edited_df = st.data_editor(df_for_editor, num_rows="dynamic", use_container_width=True)
     
-    # Check for custom time triggers
+    # Custom Time Trigger
     for i, row in edited_df.iterrows():
         for d in DAYS:
             if row.get(d) == "➕ Custom Time": custom_time_dialog(i, row['Name'], d)
@@ -119,7 +100,7 @@ if edit_mode:
         st.session_state.cached_df = final
         st.rerun()
 
-# 10. VIEW MODE LOGIC
+# 9. VIEW MODE
 else:
     if st.button("🔄 Refresh Data"):
         load_data(force_reload=True)
