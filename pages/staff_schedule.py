@@ -189,8 +189,8 @@ if edit_mode:
 
     config = {
         "Name": st.column_config.SelectboxColumn("Name", options=(df["Name"].dropna().unique().tolist() if not df.empty else []), width=90, required=True),
-        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=70),
-        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=90)
+        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=90),
+        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=70)
     }
     for d in DAYS:
         config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=135)
