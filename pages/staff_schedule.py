@@ -193,7 +193,7 @@ if edit_mode:
         "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=70)
     }
     for d in DAYS:
-        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=135)
+        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=100)
 
     edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
     
