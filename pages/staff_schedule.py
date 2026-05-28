@@ -242,4 +242,4 @@ else:
     AgGrid(df_display, gridOptions={"columnDefs": column_defs, "defaultColDef": {"resizable": True}}, height=500)
 
 if st.button("⬅ Back"):
-    st.switch_page("app.py")
+    st.switch_page("pages/staff_dashboard.py")
