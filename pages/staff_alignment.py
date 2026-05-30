@@ -11,7 +11,10 @@ from st_aggrid import AgGrid
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(layout="wide", page_title="Management Control System v2")
+st.set_page_config(
+    layout="wide",
+    page_title="Staff Alignment - Management System"
+)
 
 # =========================
 # AUTH CHECK
@@ -26,7 +29,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# GOOGLE SHEETS CONNECTION (JSON VERSION)
+# GOOGLE SHEETS AUTH (FIXED)
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -38,7 +41,12 @@ SCOPES = [
 
 @st.cache_resource
 def get_client():
-    creds_dict = json.loads(st.secrets["GOOGLE_CREDS_JSON"])
+    creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
+
+    # IMPORTANT:
+    # Streamlit may already parse TOML into dict OR give string
+    if isinstance(creds_dict, str):
+        creds_dict = json.loads(creds_dict)
 
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -56,18 +64,23 @@ sheet = client.open_by_key(SHEET_ID)
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 # =========================
-# LOAD DATA
+# LOAD DATA (STABLE)
 # =========================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=300)
 def load_data():
-    ws = sheet.worksheet(TAB_NAME)
-    data = ws.get_all_records()
-    df = pd.DataFrame(data)
+    try:
+        ws = sheet.worksheet(TAB_NAME)
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
 
-    if df.empty:
-        df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+        if df.empty:
+            df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
-    return df
+        return df
+
+    except Exception as e:
+        st.error(f"Sheet Load Error: {e}")
+        return pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
 df = load_data()
 
@@ -76,28 +89,29 @@ df = load_data()
 # =========================
 def extract_ot(row):
     total = 0
+
     for d in DAYS:
         val = str(row.get(d, ""))
+
         m = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
         if m:
             total += float(m.group(1))
+
     return total
 
 # =========================
 # HEADER
 # =========================
-st.title("🏢 Management Control System v2")
+st.title("🏢 Staff Alignment System")
 
 branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
 
-selected_branch = st.selectbox("🏢 Branch Filter", ["All"] + branches)
+selected_branch = st.selectbox("🏢 Branch", ["All"] + branches)
 
 selected_date = st.date_input("📅 Week Selector", value=datetime.today())
+
 week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
-
 st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
-
-tab1, tab2, tab3 = st.tabs(["📊 Live View", "📈 Insights", "✏ Edit Mode"])
 
 # =========================
 # FILTER DATA
@@ -106,17 +120,14 @@ data = df.copy()
 if selected_branch != "All":
     data = data[data["Branch"] == selected_branch]
 
-# ======================================================
-# TAB 1 - LIVE VIEW
-# ======================================================
-with tab1:
+# =========================
+# VIEW MODE
+# =========================
+st.subheader("📊 Staff Schedule View")
 
-    st.subheader("📊 Live Schedule")
-
+if not data.empty:
     view_df = data.copy()
-
-    if not view_df.empty:
-        view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
+    view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
 
     column_defs = [
         {"field": "Branch", "pinned": "left"},
@@ -136,71 +147,31 @@ with tab1:
         fit_columns_on_grid_load=True
     )
 
-# ======================================================
-# TAB 2 - INSIGHTS
-# ======================================================
-with tab2:
+else:
+    st.info("No data available for selected branch")
 
-    st.subheader("📈 Branch Insights")
+# =========================
+# INSIGHTS PANEL
+# =========================
+st.subheader("📈 Quick Insights")
 
-    if data.empty:
-        st.warning("No data available")
-    else:
+if not data.empty:
+    staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
 
-        staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
+    data["OT"] = data.apply(extract_ot, axis=1)
+    ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
 
-        data["OT"] = data.apply(extract_ot, axis=1)
-        ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
+    col1, col2 = st.columns(2)
 
-        col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 👥 Staff Count")
+        st.dataframe(staff_count, use_container_width=True)
 
-        with col1:
-            st.markdown("### 👥 Staff Count")
-            st.dataframe(staff_count, use_container_width=True)
+    with col2:
+        st.markdown("### ⏱ OT Hours")
+        st.dataframe(ot_sum, use_container_width=True)
 
-        with col2:
-            st.markdown("### ⏱ OT Hours")
-            st.dataframe(ot_sum, use_container_width=True)
-
-        st.markdown("### 📊 OT Chart")
-        st.bar_chart(ot_sum.set_index("Branch"))
-
-# ======================================================
-# TAB 3 - EDIT MODE
-# ======================================================
-with tab3:
-
-    st.subheader("✏ Schedule Editor")
-
-    if data.empty:
-        st.warning("No data found")
-        st.stop()
-
-    edit_df = data.copy()
-    edit_df["Over-Time"] = edit_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
-
-    edited = st.data_editor(
-        edit_df,
-        use_container_width=True,
-        num_rows="dynamic"
-    )
-
-    if st.button("💾 Save Changes"):
-        try:
-            ws = sheet.worksheet(TAB_NAME)
-
-            ws.clear()
-            ws.update(
-                [edited.columns.tolist()] +
-                edited.fillna("").values.tolist()
-            )
-
-            st.success("✅ Saved successfully!")
-            st.cache_data.clear()
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"❌ Save failed: {e}")
+    st.bar_chart(ot_sum.set_index("Branch"))
 
 # =========================
 # REFRESH
