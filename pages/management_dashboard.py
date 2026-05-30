@@ -239,15 +239,21 @@ def load_all_data(branches):
 
 
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 if col1.button(" 🔄 Refresh Data"):
     st.cache_data.clear()
     st.cache_resource.clear()
     branch_cache.clear()
     st.rerun()
 
-if col2.button("⬅ Return to  Main Page"):
+if col2.button("👥 Staff Alignment"):
+    st.switch_page("pages/staff_alignment.py")
+
+
+if col3.button("⬅ Return to  Main Page"):
     st.switch_page("app.py")
+
+
             
             
             
