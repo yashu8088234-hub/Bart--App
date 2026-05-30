@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 import re
 from google.oauth2.service_account import Credentials
-from datetime import datetime, time
+from datetime import datetime
 
 # =========================
 # APP CONFIG
@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA (cached forever)
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=None)
 def fetch_sheet():
@@ -46,80 +46,68 @@ def fetch_sheet():
 df = fetch_sheet()
 
 # =========================
-# CLEAN TEXT
+# CLEAN
 # =========================
 def clean(text):
     text = str(text)
     text = text.replace("–", "-").replace("—", "-")
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
+    text = re.sub(r"\(.*?\)", "", text)  # remove OT
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 # =========================
-# TIME PARSER
+# 🔥 FIXED SHIFT PARSER (MAIN FIX)
 # =========================
-def parse_time(t):
-    try:
-        return datetime.strptime(t.strip().upper(), "%I %p").time()
-    except:
-        return None
-
-# =========================
-# SHIFT PARSER (IGNORE OT)
-# =========================
-def extract_shift_times(cell):
+def get_shift(cell):
     if not cell:
         return None
 
     text = clean(cell)
 
-    # ❌ remove OT completely
-    text = re.sub(r"\(.*?\)", "", text)
-
-    matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.IGNORECASE)
+    # Extract full time tokens correctly
+    matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.I)
 
     if len(matches) < 2:
         return None
 
-    start = parse_time(matches[0])
-    end = parse_time(matches[1])
+    def convert(t):
+        t = t.upper().replace(" ", "")
+        h = int(re.findall(r"\d{1,2}", t)[0])
+        ap = "AM" if "AM" in t else "PM"
 
-    if not start or not end:
-        return None
+        if ap == "AM":
+            if h == 12:
+                h = 0
+        else:
+            if h != 12:
+                h += 12
+
+        return h * 60
+
+    start = convert(matches[0])
+    end = convert(matches[1])
 
     return start, end
 
 # =========================
-# ACTIVE LOGIC (FINAL FIXED)
+# ACTIVE LOGIC
 # =========================
-def is_active(cell, now_t):
-    shift = extract_shift_times(cell)
+def is_active(cell, now_min):
+    shift = get_shift(cell)
     if not shift:
         return False
 
     start, end = shift
 
-    # SAME DAY SHIFT
+    # normal shift
     if start < end:
-        return start <= now_t < end
+        return start <= now_min < end
 
-    # OVERNIGHT SHIFT (cross midnight)
-    return now_t >= start or now_t < end
-
-# =========================
-# SESSION STATE
-# =========================
-if "active_df" not in st.session_state:
-    st.session_state.active_df = pd.DataFrame()
-
-if "inactive_df" not in st.session_state:
-    st.session_state.inactive_df = pd.DataFrame()
-
-if "last_calc" not in st.session_state:
-    st.session_state.last_calc = None
+    # overnight shift
+    return now_min >= start or now_min < end
 
 # =========================
-# BRANCH UI
+# UI
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 branch = st.selectbox("🏢 Select Branch", branches)
@@ -134,7 +122,8 @@ selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 # =========================
 if st.button("⚡ Calculate Active / Inactive"):
 
-    now_t = datetime.now().time()  # REAL TIME SNAPSHOT
+    now = datetime.now()
+    now_min = now.hour * 60 + now.minute
 
     active = []
     inactive = []
@@ -145,24 +134,24 @@ if st.button("⚡ Calculate Active / Inactive"):
         row_dict = row.to_dict()
         row_dict["Shift"] = cell
 
-        if is_active(cell, now_t):
+        if is_active(cell, now_min):
             active.append(row_dict)
         else:
             inactive.append(row_dict)
 
     st.session_state.active_df = pd.DataFrame(active)
     st.session_state.inactive_df = pd.DataFrame(inactive)
-    st.session_state.last_calc = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.last_calc = now.strftime("%Y-%m-%d %H:%M:%S")
 
     st.success("Updated Successfully!")
 
 # =========================
 # OUTPUT
 # =========================
-active_df = st.session_state.active_df
-inactive_df = st.session_state.inactive_df
+active_df = st.session_state.get("active_df", pd.DataFrame())
+inactive_df = st.session_state.get("inactive_df", pd.DataFrame())
 
-st.info(f"🕒 Last Calculation: {st.session_state.last_calc}")
+st.info(f"🕒 Last Calculation: {st.session_state.get('last_calc')}")
 
 col1, col2, col3 = st.columns(3)
 
@@ -181,7 +170,7 @@ st.subheader("🔥 Active Staff")
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
-    st.warning("No active staff right now")
+    st.warning("No active staff")
 
 st.subheader("📊 Full View")
 
