@@ -4,99 +4,115 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# GOOGLE SHEET CONFIG
+# CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
-SHEET_NAME = "StaffSchedule"
+TAB_NAME = "StaffSchedule"
 
-scope = [
-    "https://spreadsheets.google.com/feeds",
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
 
 # =========================
-# GOOGLE AUTH (SECRETS FIXED)
+# GOOGLE SHEETS AUTH
 # =========================
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=scope
-)
+@st.cache_resource
+def connect_gsheet():
+    creds = Credentials.from_service_account_file(
+        "service_account.json", scopes=SCOPES
+    )
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(SHEET_ID)
+    return sheet
 
-client = gspread.authorize(creds)
-sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+@st.cache_data(ttl=60)
+def load_data():
+    sheet = connect_gsheet()
+    ws = sheet.worksheet(TAB_NAME)
 
-data = sheet.get_all_values()
-df = pd.DataFrame(data)
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
 
-# =========================
-# CLEAN DATA
-# =========================
-df.columns = df.iloc[0]
-df = df[1:]
+    return df
 
-branch_col = "Branch"
-name_col = "Name"
-
-schedule_cols = df.columns[3:]  # all schedule + OT
-
-# =========================
-# DETECT CURRENT WORK STATUS
-# =========================
-today_col = schedule_cols[-2]  # last day before OT column
-
-def is_live(row):
-    val = str(row[today_col]).strip()
-    return val != "" and val.upper() != "OFF"
-
-df["Live"] = df.apply(is_live, axis=1)
-
-# =========================
-# STATS
-# =========================
-total_staff = len(df)
-live_staff = df["Live"].sum()
 
 # =========================
 # UI
 # =========================
-st.set_page_config(page_title="Live Staff Dashboard", layout="wide")
+st.set_page_config(page_title="Staff Live Dashboard", layout="wide")
 
-st.title("🏢 Staff Live Management Dashboard")
+st.title("📊 Staff Live Schedule Dashboard")
 
-col1, col2 = st.columns(2)
-
-col1.metric("👥 Total Staff", total_staff)
-col2.metric("🟢 Live Now", int(live_staff))
-
-st.divider()
+df = load_data()
 
 # =========================
-# BRANCH WISE LIVE VIEW
+# CLEAN COLUMNS
 # =========================
-st.subheader("📍 Branch Wise Live Staff")
-
-branches = df[branch_col].unique()
-
-for b in branches:
-
-    branch_df = df[df[branch_col] == b]
-    live_df = branch_df[branch_df["Live"]]
-
-    st.markdown(f"### 🏬 {b}")
-
-    st.write(f"🟢 Live: {len(live_df)} / {len(branch_df)}")
-
-    if len(live_df) > 0:
-        st.write("👷 Working Now:")
-        st.write(", ".join(live_df[name_col].tolist()))
-    else:
-        st.write("🔴 No staff working now")
-
-    st.divider()
+df.columns = [c.strip() for c in df.columns]
 
 # =========================
-# FULL TABLE
+# FILTERS
 # =========================
-st.subheader("📊 Live Status Table")
+col1, col2, col3 = st.columns(3)
 
-st.dataframe(df[[branch_col, name_col, "Live"]])
+with col1:
+    branch = st.selectbox("🏢 Branch", ["All"] + sorted(df["Branch"].dropna().unique().tolist()))
+
+with col2:
+    role = st.selectbox("👨‍💼 Role", ["All"] + sorted(df["Role"].dropna().unique().tolist()))
+
+with col3:
+    name = st.selectbox("👤 Name", ["All"] + sorted(df["Name"].dropna().unique().tolist()))
+
+# =========================
+# FILTER LOGIC
+# =========================
+filtered = df.copy()
+
+if branch != "All":
+    filtered = filtered[filtered["Branch"] == branch]
+
+if role != "All":
+    filtered = filtered[filtered["Role"] == role]
+
+if name != "All":
+    filtered = filtered[filtered["Name"] == name]
+
+# =========================
+# SHOW RAW TABLE
+# =========================
+st.subheader("📅 Raw Schedule Data")
+st.dataframe(filtered, use_container_width=True)
+
+# =========================
+# LIVE SUMMARY VIEW
+# =========================
+st.subheader("🔥 Live Staff Status View")
+
+days = [col for col in df.columns if "(" in col or "Friday" in col or "Saturday" in col]
+
+view_df = filtered[["Branch", "Name", "Role"] + days + ["Over-Time"]]
+
+st.dataframe(view_df, use_container_width=True)
+
+# =========================
+# OT ANALYSIS
+# =========================
+st.subheader("⏱ Overtime Summary")
+
+ot_col = "Over-Time"
+
+if ot_col in df.columns:
+    df["OT_Hours"] = (
+        df[ot_col].astype(str)
+        .str.replace("h", "", regex=False)
+        .replace("", "0")
+    )
+    df["OT_Hours"] = pd.to_numeric(df["OT_Hours"], errors="coerce").fillna(0)
+
+    ot_summary = df.groupby("Branch")["OT_Hours"].sum().reset_index()
+
+    st.dataframe(ot_summary, use_container_width=True)
+
+    st.bar_chart(ot_summary.set_index("Branch"))
