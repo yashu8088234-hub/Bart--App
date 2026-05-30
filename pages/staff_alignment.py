@@ -18,7 +18,7 @@ SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
 # =========================
-# GOOGLE CLIENT
+# GOOGLE CLIENT (NO REFRESH CACHE)
 # =========================
 @st.cache_resource
 def get_client():
@@ -35,15 +35,12 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# LOAD DATA (ONLY WHEN BUTTON PRESSED)
 # =========================
-@st.cache_data(ttl=60)
-def load_data():
+def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
-
-df = load_data()
 
 # =========================
 # CLEAN + PARSE SHIFT
@@ -91,29 +88,60 @@ def parse_shift(cell):
     return start, end
 
 # =========================
-# 🔥 FIXED ACTIVE LOGIC
+# ACTIVE CHECK (USES FIXED TIME)
 # =========================
-def is_active(cell):
+def is_active(cell, now_m):
     shift = parse_shift(cell)
     if not shift:
         return False
 
     start, end = shift
 
-    now = datetime.now()
-    now_m = now.hour * 60 + now.minute
-
-    # NORMAL SHIFT (1 PM - 10 PM)
+    # NORMAL SHIFT
     if start < end:
-        return start <= now_m < end   # STRICT CUT-OFF FIX
+        return start <= now_m < end
 
-    # OVERNIGHT SHIFT (10 PM - 5 AM)
+    # OVERNIGHT SHIFT
     return now_m >= start or now_m < end
 
 # =========================
-# UI
+# SESSION STATE INIT
 # =========================
-branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
+if "df" not in st.session_state:
+    st.session_state.df = None
+
+if "last_calc_time" not in st.session_state:
+    st.session_state.last_calc_time = None
+
+if "active_df" not in st.session_state:
+    st.session_state.active_df = pd.DataFrame()
+
+if "inactive_df" not in st.session_state:
+    st.session_state.inactive_df = pd.DataFrame()
+
+# =========================
+# BUTTON 1: LOAD SHEET
+# =========================
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("📥 Load / Refresh Google Sheet"):
+        st.session_state.df = fetch_sheet()
+        st.success("Sheet loaded successfully!")
+
+# =========================
+# STOP IF NO DATA
+# =========================
+if st.session_state.df is None:
+    st.warning("Click 'Load / Refresh Google Sheet' first.")
+    st.stop()
+
+df = st.session_state.df
+
+# =========================
+# UI SELECTORS
+# =========================
+branches = sorted(df["Branch"].dropna().unique().tolist())
 branch = st.selectbox("🏢 Select Branch", branches)
 
 data = df[df["Branch"] == branch].copy()
@@ -122,31 +150,41 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 
 # =========================
-# OPS ENGINE (FIXED)
+# BUTTON 2: CALCULATE STATUS
 # =========================
-active = []
-inactive = []
+with col2:
+    if st.button("⚡ Calculate Active / Inactive Now"):
+        now = datetime.now()
+        now_m = now.hour * 60 + now.minute  # FIXED SNAPSHOT TIME
 
-for _, row in data.iterrows():
-    cell = row.get(selected_col, "")
+        active = []
+        inactive = []
 
-    row_dict = row.to_dict()   # 🔥 IMPORTANT FIX (prevents InvalidIndexError)
-    row_dict["Shift"] = cell
+        for _, row in data.iterrows():
+            cell = row.get(selected_col, "")
+            row_dict = row.to_dict()
+            row_dict["Shift"] = cell
 
-    if is_active(cell):
-        active.append(row_dict)
-    else:
-        inactive.append(row_dict)
+            if is_active(cell, now_m):
+                active.append(row_dict)
+            else:
+                inactive.append(row_dict)
+
+        st.session_state.active_df = pd.DataFrame(active)
+        st.session_state.inactive_df = pd.DataFrame(inactive)
+
+        st.session_state.last_calc_time = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        st.success("Calculation updated!")
 
 # =========================
-# SAFE DATAFRAMES (FIXED)
+# DISPLAY
 # =========================
-active_df = pd.DataFrame(active).reset_index(drop=True)
-inactive_df = pd.DataFrame(inactive).reset_index(drop=True)
+active_df = st.session_state.active_df
+inactive_df = st.session_state.inactive_df
 
-# =========================
-# KPI
-# =========================
+st.info(f"🕒 Last Calculation: {st.session_state.last_calc_time}")
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -160,21 +198,13 @@ with col3:
 
 st.divider()
 
-# =========================
-# ACTIVE VIEW
-# =========================
 st.subheader("🔥 Active Staff")
-
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
     st.warning("No active staff right now")
 
-# =========================
-# FULL VIEW
-# =========================
 st.subheader("📊 Full Ops View")
-
 full_df = pd.concat([active_df, inactive_df], ignore_index=True)
 
 if not full_df.empty:
