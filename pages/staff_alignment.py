@@ -4,18 +4,22 @@ import gspread
 import re
 from google.oauth2.service_account import Credentials
 from datetime import datetime
+import time
 
 # =========================
-# APP CONFIG
+# PAGE
 # =========================
-st.set_page_config(layout="wide", page_title="Ops Intelligence System")
+st.set_page_config(layout="wide", page_title="Ops Intelligence Live")
 
 # =========================
-# AUTH
+# AUTO REFRESH (LIVE OPS MODE)
 # =========================
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.warning("Session expired")
-    st.stop()
+st.markdown(
+    """
+    <meta http-equiv="refresh" content="15">
+    """,
+    unsafe_allow_html=True
+)
 
 # =========================
 # SHEET CONFIG
@@ -43,9 +47,9 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA SAFE
+# LOAD DATA
 # =========================
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
@@ -59,39 +63,27 @@ def load_data():
 df = load_data()
 
 # =========================
-# CLEANING ENGINE (IMPORTANT)
+# CLEAN + SHIFT ENGINE
 # =========================
-def clean_text(text):
+def clean(text):
     text = str(text)
-
-    # normalize weird dashes
     text = text.replace("–", "-").replace("—", "-")
-
-    # remove hidden unicode spaces
     text = text.replace("\xa0", " ")
-
-    # collapse spaces
     text = re.sub(r"\s+", " ", text)
-
     return text.strip()
 
-# =========================
-# SHIFT PARSER (ROBUST CORE)
-# =========================
 def parse_shift(cell):
     try:
         if not cell:
             return None
 
-        text = clean_text(cell)
+        text = clean(cell)
 
         if text.upper() == "OFF":
             return None
 
-        # remove OT safely
-        text = re.sub(r"\(.*?\)", "", text).strip()
+        text = re.sub(r"\(.*?\)", "", text)
 
-        # extract shift
         match = re.search(
             r"(\d{1,2})\s*(AM|PM)\s*-\s*(\d{1,2})\s*(AM|PM)",
             text,
@@ -102,48 +94,41 @@ def parse_shift(cell):
             return None
 
         sh, sap, eh, eap = match.groups()
-        sh, eh = int(sh), int(eh)
 
-        def to_24(h, ap):
+        def to24(h, ap):
+            h = int(h)
             ap = ap.upper()
             if ap == "AM":
                 return 0 if h == 12 else h
             else:
                 return 12 if h == 12 else h + 12
 
-        start = to_24(sh, sap)
-        end = to_24(eh, eap)
+        start = to24(sh, sap)
+        end = to24(eh, eap)
 
         return start, end
 
     except:
         return None
 
-# =========================
-# ACTIVE ENGINE (REAL INTELLIGENCE)
-# =========================
 def is_active(cell):
     shift = parse_shift(cell)
-
     if not shift:
         return False
 
     start, end = shift
     now = datetime.now().hour
 
-    # NORMAL SHIFT
     if start < end:
         return start <= now <= end
-
-    # OVERNIGHT SHIFT (5 PM - 5 AM)
-    if start > end:
+    else:
         return now >= start or now <= end
-
-    return False
 
 # =========================
 # UI
 # =========================
+st.title("⚡ Ops Intelligence Live Control Center")
+
 branches = sorted(df["Branch"].unique()) if not df.empty else []
 selected_branch = st.selectbox("🏢 Select Branch", branches)
 
@@ -152,14 +137,13 @@ data = df[df["Branch"] == selected_branch].copy()
 today = DAYS[(datetime.today().weekday() + 1) % 7]
 
 # =========================
-# OPS COMPUTE
+# OPS ENGINE
 # =========================
 active = []
 inactive = []
 
 for _, row in data.iterrows():
     row_dict = row.to_dict()
-
     cell = row_dict.get(today, "")
 
     if is_active(cell):
@@ -171,7 +155,7 @@ active_df = pd.DataFrame.from_records(active)
 inactive_df = pd.DataFrame.from_records(inactive)
 
 # =========================
-# CONTROL CENTER HEADER
+# TOP KPIs
 # =========================
 col1, col2, col3 = st.columns(3)
 
@@ -189,20 +173,17 @@ st.divider()
 # =========================
 # ACTIVE STAFF
 # =========================
-st.subheader("🔥 Active Staff (Live Ops)")
+st.subheader("🔥 Active Staff Now")
 
 if not active_df.empty:
-    st.dataframe(
-        active_df[["Name", "Role", "Branch"]],
-        use_container_width=True
-    )
+    st.dataframe(active_df[["Name", "Role", "Branch"]], use_container_width=True)
 else:
-    st.info("No active staff currently working")
+    st.info("No active staff at this moment")
 
 # =========================
-# FULL OPS VIEW
+# FULL VIEW
 # =========================
-st.subheader("📊 Ops Intelligence View")
+st.subheader("📊 Full Ops View")
 
 combined = pd.concat([
     pd.DataFrame.from_records(active).assign(Status="ACTIVE"),
@@ -210,7 +191,4 @@ combined = pd.concat([
 ], ignore_index=True)
 
 if not combined.empty:
-    st.dataframe(
-        combined[["Name", "Role", "Status"]],
-        use_container_width=True
-    )
+    st.dataframe(combined[["Name", "Role", "Status"]], use_container_width=True)
