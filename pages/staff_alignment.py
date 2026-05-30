@@ -2,19 +2,23 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
 
 # =========================
-# GOOGLE SHEET CONNECT
+# CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 SHEET_NAME = "StaffSchedule"
 
-scope = ["https://spreadsheets.google.com/feeds",
-         "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
-creds = Credentials.from_service_account_file(
-    "service_account.json",
+# =========================
+# GOOGLE AUTH (STREAMLIT SECRETS FIX)
+# =========================
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
     scopes=scope
 )
 
@@ -25,24 +29,24 @@ data = sheet.get_all_values()
 df = pd.DataFrame(data)
 
 # =========================
-# CLEAN HEADER
+# CLEAN DATA
 # =========================
 df.columns = df.iloc[0]
 df = df[1:]
 
-# Column mapping
 branch_col = "Branch"
 name_col = "Name"
 
-schedule_cols = df.columns[3:-1]  # all days
+# all schedule columns (days + OT)
+schedule_cols = df.columns[3:]
 
 # =========================
-# TODAY COLUMN (AUTO DETECT LAST FILLED DAY)
+# AUTO DETECT TODAY COLUMN
 # =========================
-today_col = schedule_cols[-2]  # second last column usually a day
+today_col = schedule_cols[-2]  # last day before OT column
 
 # =========================
-# LIVE STATUS LOGIC
+# LIVE LOGIC
 # =========================
 def is_live(row):
     val = str(row[today_col]).strip()
@@ -59,9 +63,9 @@ live_staff = df["Live"].sum()
 # =========================
 # UI
 # =========================
-st.set_page_config(page_title="Live Staff Dashboard", layout="wide")
+st.set_page_config(page_title="Staff Live Dashboard", layout="wide")
 
-st.title("🏢 Live Staff Management Dashboard")
+st.title("🏢 Staff Live Management Dashboard")
 
 col1, col2 = st.columns(2)
 
@@ -71,7 +75,7 @@ col2.metric("🟢 Live Now", int(live_staff))
 st.divider()
 
 # =========================
-# BRANCH WISE VIEW
+# BRANCH WISE LIVE VIEW
 # =========================
 st.subheader("📍 Branch Wise Live Staff")
 
@@ -80,7 +84,6 @@ branches = df[branch_col].unique()
 for b in branches:
 
     branch_df = df[df[branch_col] == b]
-
     live_df = branch_df[branch_df["Live"]]
 
     st.markdown(f"### 🏬 {b}")
@@ -91,13 +94,13 @@ for b in branches:
         st.write("👷 Working Now:")
         st.write(", ".join(live_df[name_col].tolist()))
     else:
-        st.write("🔴 No staff working currently")
+        st.write("🔴 No staff working now")
 
     st.divider()
 
 # =========================
-# FULL LIVE TABLE
+# FULL TABLE
 # =========================
-st.subheader("📊 Live Staff Table")
+st.subheader("📊 Live Status Table")
 
 st.dataframe(df[[branch_col, name_col, "Live"]])
