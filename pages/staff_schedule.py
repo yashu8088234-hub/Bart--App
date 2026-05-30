@@ -136,13 +136,17 @@ def format_shift(start, end):
 
 def calculate_row_ot(row):
     total_ot = 0
+    # Iterate through columns that exist in the row and are in the DAYS list
     for day in DAYS:
         val = str(row.get(day, ""))
-        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
-        if match: total_ot += float(match.group(1))
-    return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
-
-# =========================
+        # Improved regex to handle various spacing
+        match = re.search(r"\(OT\s*(\d+(?:\.\d+)?)\s*h\)", val, re.IGNORECASE)
+        if match:
+            try:
+                total_ot += float(match.group(1))
+            except ValueError:
+                continue
+    return f"{total_ot:.1f} hrs" if total_ot > 0 else "0 hrs"# =========================
 # INITIALIZATION
 # =========================
 if "shift_buffer" not in st.session_state: st.session_state.shift_buffer = {}
