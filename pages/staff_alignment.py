@@ -18,8 +18,6 @@ st.title("⚡ Ops Intelligence Control Center")
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
-DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
-
 # =========================
 # GOOGLE CLIENT
 # =========================
@@ -44,12 +42,16 @@ sheet = client.open_by_key(SHEET_ID)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
+
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
+
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
 df = load_data()
 
 # =========================
-# CLEAN ENGINE (VERY IMPORTANT)
+# CLEAN ENGINE
 # =========================
 def clean(text):
     text = str(text)
@@ -59,13 +61,9 @@ def clean(text):
     return text.strip()
 
 # =========================
-# SELF-HEALING SHIFT PARSER
+# SHIFT PARSER (ROBUST)
 # =========================
-def extract_time_pairs(text):
-    """
-    Extracts ALL time patterns like:
-    5 PM, 12 AM, etc.
-    """
+def extract_times(text):
     return re.findall(r"(\d{1,2})\s*(AM|PM)", text, re.IGNORECASE)
 
 def to_24(h, ap):
@@ -76,80 +74,73 @@ def to_24(h, ap):
     return 12 if h == 12 else h + 12
 
 def parse_shift(cell):
-    try:
-        if not cell:
-            return None
-
-        text = clean(cell)
-
-        if "OFF" in text.upper():
-            return None
-
-        # remove OT safely
-        text = re.sub(r"\(.*?\)", "", text)
-
-        times = extract_time_pairs(text)
-
-        if len(times) < 2:
-            return None
-
-        start_h, start_ap = times[0]
-        end_h, end_ap = times[1]
-
-        start = to_24(start_h, start_ap)
-        end = to_24(end_h, end_ap)
-
-        return start, end
-
-    except:
+    if not cell:
         return None
 
-# =========================
-# ACTIVE ENGINE (REAL INTELLIGENCE)
-# =========================
+    text = clean(cell)
+
+    if "OFF" in text.upper():
+        return None
+
+    text = re.sub(r"\(.*?\)", "", text)
+
+    times = extract_times(text)
+
+    if len(times) < 2:
+        return None
+
+    start = to_24(*times[0])
+    end = to_24(*times[1])
+
+    return start, end
+
 def is_active(cell):
     shift = parse_shift(cell)
-
     if not shift:
         return False
 
     start, end = shift
     now = datetime.now().hour
 
-    # normal shift
     if start < end:
         return start <= now <= end
 
-    # overnight shift
     return now >= start or now <= end
 
 # =========================
-# UI
+# AUTO DETECT SHIFT COLUMN (IMPORTANT FIX)
+# =========================
+exclude_cols = ["Branch", "Name", "Role"]
+shift_columns = [c for c in df.columns if c not in exclude_cols]
+
+if not shift_columns:
+    st.error("No shift columns found in sheet")
+    st.stop()
+
+selected_col = st.selectbox("📅 Select Shift Column", shift_columns)
+
+# =========================
+# FILTER BRANCH
 # =========================
 branches = sorted(df["Branch"].unique()) if not df.empty else []
-branch = st.selectbox("🏢 Select Branch", branches)
+selected_branch = st.selectbox("🏢 Select Branch", branches)
 
-data = df[df["Branch"] == branch].copy()
-
-today = DAYS[(datetime.today().weekday() + 1) % 7]
+data = df[df["Branch"] == selected_branch].copy()
 
 # =========================
-# DEBUG (SELF HEALING INSIGHT)
-# =========================
-broken_rows = []
-
-# =========================
-# OPS COMPUTE
+# OPS ENGINE
 # =========================
 active = []
 inactive = []
+broken = []
 
 for _, row in data.iterrows():
-    cell = row.get(today, "")
+    cell = row.get(selected_col, "")
 
     parsed = parse_shift(cell)
+
     if cell and not parsed and "OFF" not in str(cell).upper():
-        broken_rows.append(cell)
+        broken.append(cell)
 
     if is_active(cell):
         active.append(row.to_dict())
@@ -178,28 +169,28 @@ st.divider()
 # =========================
 # ACTIVE VIEW
 # =========================
-st.subheader("🔥 Active Staff (LIVE OPS)")
+st.subheader("🔥 Active Staff (LIVE)")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name","Role"]], use_container_width=True)
+    st.dataframe(active_df[["Name", "Role"]], use_container_width=True)
 else:
-    st.error("No active staff detected (check debug below)")
+    st.warning("No active staff right now")
 
 # =========================
 # FULL OPS VIEW
 # =========================
-st.subheader("📊 Full Ops Intelligence View")
+st.subheader("📊 Full Ops View")
 
-combined = pd.concat([
+final_df = pd.concat([
     active_df.assign(Status="ACTIVE"),
     inactive_df.assign(Status="INACTIVE")
 ], ignore_index=True)
 
-if not combined.empty:
-    st.dataframe(combined[["Name","Role","Status"]], use_container_width=True)
+if not final_df.empty:
+    st.dataframe(final_df[["Name", "Role", "Status"]], use_container_width=True)
 
 # =========================
-# SELF HEALING DEBUG PANEL
+# DEBUG PANEL
 # =========================
-with st.expander("🧠 Debug: Unparsed Shift Rows"):
-    st.write(broken_rows)
+with st.expander("🧠 Debug (Unparsed Rows)"):
+    st.write(broken)
