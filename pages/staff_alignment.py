@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 import re
+import json
 
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
@@ -10,7 +11,7 @@ from st_aggrid import AgGrid
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(layout="wide", page_title="BART Management Control System v2")
+st.set_page_config(layout="wide", page_title="Management Control System v2")
 
 # =========================
 # AUTH CHECK
@@ -25,7 +26,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# GOOGLE SHEETS
+# GOOGLE SHEETS CONNECTION (JSON VERSION)
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -37,10 +38,13 @@ SCOPES = [
 
 @st.cache_resource
 def get_client():
+    creds_dict = json.loads(st.secrets["GOOGLE_CREDS_JSON"])
+
     creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        creds_dict,
         scopes=SCOPES
     )
+
     return gspread.authorize(creds)
 
 client = get_client()
@@ -85,6 +89,7 @@ def extract_ot(row):
 st.title("🏢 Management Control System v2")
 
 branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
+
 selected_branch = st.selectbox("🏢 Branch Filter", ["All"] + branches)
 
 selected_date = st.date_input("📅 Week Selector", value=datetime.today())
@@ -124,23 +129,26 @@ with tab1:
 
     column_defs.append({"field": "Over-Time"})
 
-    AgGrid(view_df, gridOptions={"columnDefs": column_defs}, height=600)
+    AgGrid(
+        view_df,
+        gridOptions={"columnDefs": column_defs},
+        height=600,
+        fit_columns_on_grid_load=True
+    )
 
 # ======================================================
 # TAB 2 - INSIGHTS
 # ======================================================
 with tab2:
 
-    st.subheader("📈 Branch Insights Dashboard")
+    st.subheader("📈 Branch Insights")
 
     if data.empty:
         st.warning("No data available")
     else:
 
-        # staff count
         staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
 
-        # OT per branch
         data["OT"] = data.apply(extract_ot, axis=1)
         ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
 
@@ -151,7 +159,7 @@ with tab2:
             st.dataframe(staff_count, use_container_width=True)
 
         with col2:
-            st.markdown("### ⏱ Total OT Hours")
+            st.markdown("### ⏱ OT Hours")
             st.dataframe(ot_sum, use_container_width=True)
 
         st.markdown("### 📊 OT Chart")
@@ -187,7 +195,7 @@ with tab3:
                 edited.fillna("").values.tolist()
             )
 
-            st.success("✅ Updated successfully!")
+            st.success("✅ Saved successfully!")
             st.cache_data.clear()
             st.rerun()
 
@@ -197,6 +205,6 @@ with tab3:
 # =========================
 # REFRESH
 # =========================
-if st.button("🔄 Refresh"):
+if st.button("🔄 Refresh Data"):
     st.cache_data.clear()
     st.rerun()
