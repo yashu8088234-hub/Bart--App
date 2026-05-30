@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import gspread
 import re
-from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
+from datetime import datetime
 
 # =========================
-# PAGE
+# PAGE CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Intelligence System")
 
@@ -18,7 +18,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# CONFIG
+# SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -26,7 +26,7 @@ TAB_NAME = "StaffSchedule"
 DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
 # =========================
-# CLIENT
+# GOOGLE CLIENT
 # =========================
 @st.cache_resource
 def get_client():
@@ -43,91 +43,119 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# LOAD DATA SAFE
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
+
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
+
     df = pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
     return df
 
 df = load_data()
 
 # =========================
-# SHIFT PARSER (CORE ENGINE)
+# SHIFT PARSER (FIXED FOR YOUR DATA)
 # =========================
 def parse_shift(cell):
-    match = re.search(r"(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})", str(cell))
-    if not match:
+    try:
+        if not cell:
+            return None
+
+        text = str(cell).strip()
+
+        if text.upper() == "OFF":
+            return None
+
+        # remove OT
+        text = re.sub(r"\(.*?\)", "", text).strip()
+
+        match = re.search(
+            r"(\d{1,2})\s*(AM|PM)\s*-\s*(\d{1,2})\s*(AM|PM)",
+            text,
+            re.IGNORECASE
+        )
+
+        if not match:
+            return None
+
+        sh, sap, eh, eap = match.groups()
+
+        sh, eh = int(sh), int(eh)
+
+        def conv(h, ap):
+            ap = ap.upper()
+            if ap == "AM":
+                return 0 if h == 12 else h
+            else:
+                return 12 if h == 12 else h + 12
+
+        start = conv(sh, sap)
+        end = conv(eh, eap)
+
+        return start, end
+
+    except:
         return None
 
-    start = datetime.strptime(match.group(1), "%H:%M").time()
-    end = datetime.strptime(match.group(2), "%H:%M").time()
-
-    return start, end
-
-def status(cell, now):
+# =========================
+# ACTIVE CHECK
+# =========================
+def is_active(cell, now_hour):
     shift = parse_shift(cell)
     if not shift:
-        return "OFF"
+        return False
 
     start, end = shift
 
-    if start <= now <= end:
-        return "ACTIVE"
-    elif now < start:
-        return "UPCOMING"
+    # overnight shift
+    if start > end:
+        return now_hour >= start or now_hour <= end
     else:
-        return "DONE"
+        return start <= now_hour <= end
 
 # =========================
-# TIME ENGINE
+# TIME
 # =========================
-now = datetime.now().time()
+now_hour = datetime.now().hour
 
 # =========================
-# UI FILTER
+# UI - BRANCH SELECT
 # =========================
-branches = sorted(df["Branch"].unique())
-branch = st.selectbox("🏢 Select Branch", branches)
+branches = sorted(df["Branch"].dropna().unique()) if not df.empty else []
+selected_branch = st.selectbox("🏢 Select Branch", branches)
 
-data = df[df["Branch"] == branch].copy()
+data = df[df["Branch"] == selected_branch].copy()
 
 today = DAYS[(datetime.today().weekday() + 1) % 7]
 
 # =========================
-# INTELLIGENCE COMPUTE
+# OPS CALCULATION
 # =========================
 active = []
-upcoming = []
-late = []
-off = []
+inactive = []
 
-for _, r in data.iterrows():
+for _, row in data.iterrows():
+    cell = row.get(today, "")
 
-    cell = r.get(today, "")
-    s = status(cell, now)
+    row_dict = row.to_dict()
 
-    row = r.to_dict()
-
-    if s == "ACTIVE":
-        active.append(row)
-    elif s == "UPCOMING":
-        upcoming.append(row)
-    elif s == "DONE":
-        late.append(row)
+    if is_active(cell, now_hour):
+        active.append(row_dict)
     else:
-        off.append(row)
+        inactive.append(row_dict)
 
 active_df = pd.DataFrame.from_records(active)
-upcoming_df = pd.DataFrame.from_records(upcoming)
-late_df = pd.DataFrame.from_records(late)
+inactive_df = pd.DataFrame.from_records(inactive)
 
 # =========================
-# OPS KPI LAYER (CONTROL ROOM TOP BAR)
+# TOP OPS BAR
 # =========================
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("👥 Total Staff", len(data))
@@ -136,17 +164,14 @@ with col2:
     st.metric("🔴 Active Now", len(active_df))
 
 with col3:
-    st.metric("⏳ Upcoming", len(upcoming_df))
-
-with col4:
-    st.metric("⚠️ Late/Done", len(late_df))
+    st.metric("⚪ Inactive", len(inactive_df))
 
 st.divider()
 
 # =========================
-# ACTIVE OPS VIEW
+# ACTIVE STAFF
 # =========================
-st.subheader("🔥 Live Active Staff")
+st.subheader("🔥 Active Staff (Now Working)")
 
 if not active_df.empty:
     st.dataframe(active_df[["Name","Role","Branch"]], use_container_width=True)
@@ -154,40 +179,17 @@ else:
     st.info("No active staff right now")
 
 # =========================
-# UPCOMING VIEW (INTELLIGENCE)
+# FULL OPS VIEW
 # =========================
-st.subheader("⏳ Next Staff (Upcoming Shifts)")
+st.subheader("📊 Ops Intelligence View")
 
-if not upcoming_df.empty:
-    st.dataframe(upcoming_df[["Name","Role","Branch"]], use_container_width=True)
-else:
-    st.info("No upcoming shifts")
-
-# =========================
-# BRANCH HEALTH SCORE (SMART KPI)
-# =========================
-total = len(data)
-score = 0
-
-if total > 0:
-    score = int((len(active_df) / total) * 100)
-
-st.subheader("📊 Branch Health Score")
-
-st.progress(score / 100)
-st.write(f"Operational Efficiency: {score}%")
-
-# =========================
-# FULL INTELLIGENCE VIEW
-# =========================
-st.subheader("🧠 Full Ops Intelligence View")
-
-full = pd.concat([
+combined = pd.concat([
     pd.DataFrame.from_records(active).assign(Status="ACTIVE"),
-    pd.DataFrame.from_records(upcoming).assign(Status="UPCOMING"),
-    pd.DataFrame.from_records(late).assign(Status="DONE"),
-    pd.DataFrame.from_records(off).assign(Status="OFF")
+    pd.DataFrame.from_records(inactive).assign(Status="INACTIVE")
 ], ignore_index=True)
 
-if not full.empty:
-    st.dataframe(full[["Name","Role","Status"]], use_container_width=True)
+if not combined.empty:
+    st.dataframe(
+        combined[["Name","Role","Status"]],
+        use_container_width=True
+    )
