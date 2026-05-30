@@ -18,7 +18,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if st.button("⬅ Back to Staff Login", use_container_width=True):
-            st.switch_page("pages/staff_dashboard.py")
+            st.switch_page("app.py")
     st.stop()
 
 # =========================
@@ -136,17 +136,13 @@ def format_shift(start, end):
 
 def calculate_row_ot(row):
     total_ot = 0
-    # Iterate through columns that exist in the row and are in the DAYS list
     for day in DAYS:
         val = str(row.get(day, ""))
-        # Improved regex to handle various spacing
-        match = re.search(r"\(OT\s*(\d+(?:\.\d+)?)\s*h\)", val, re.IGNORECASE)
-        if match:
-            try:
-                total_ot += float(match.group(1))
-            except ValueError:
-                continue
-    return f"{total_ot:.1f} hrs" if total_ot > 0 else "0 hrs"# =========================
+        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
+        if match: total_ot += float(match.group(1))
+    return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
+
+# =========================
 # INITIALIZATION
 # =========================
 if "shift_buffer" not in st.session_state: st.session_state.shift_buffer = {}
@@ -214,7 +210,7 @@ if edit_mode:
             if value == "➕ Custom Time":
                 custom_time_dialog(row_idx=i, row_name=row["Name"], day_name=d)
 
-if st.button("✅ Submit"):
+    if st.button("✅ Submit"):
         if not existing_week_data.empty:
             duplicate_submission_dialog()
             st.stop()
@@ -222,23 +218,13 @@ if st.button("✅ Submit"):
             ws = master_sheet.worksheet("StaffSchedule")
             others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
             new_data = edited_df.copy()
-            
-            # Ensure "Branch" column is present and data is clean
             new_data["Branch"] = st.session_state.selected_branch
             final = pd.concat([others, new_data], ignore_index=True)
-            
-            # Rename back to the date-formatted headers for storage
             final = final.rename(columns={day: day_labels[day] for day in DAYS})
-            
             ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
-            
-            # --- CRITICAL FIX ---
-            # Clear the cache so it forces a fresh reload from GSheet
-            st.session_state.cached_df = None 
+            st.session_state.cached_df = final
             st.session_state.shift_buffer = {}
             st.session_state.deleted_staff = set()
-            # --------------------
-            
             success_dialog()
         except Exception as e:
             st.error(f"❌ Submission Failed: {e}")
