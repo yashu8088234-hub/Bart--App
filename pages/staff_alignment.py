@@ -35,12 +35,15 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD SHEET (ONLY BUTTON)
+# LOAD SHEET (cached permanently)
 # =========================
+@st.cache_data(ttl=None)
 def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
+
+df = fetch_sheet()
 
 # =========================
 # CLEAN TEXT
@@ -53,23 +56,17 @@ def clean(text):
     return text.strip()
 
 # =========================
-# TIME PARSER (ROBUST)
+# FLEXIBLE TIME PARSER
+# (handles messy formats safely)
 # =========================
-def parse_time_str(t):
-    return datetime.strptime(t.strip().upper(), "%I %p").time()
-
-# =========================
-# SHIFT PARSER
-# =========================
-def parse_shift(cell):
-    if not cell:
+def parse_time(t):
+    try:
+        return datetime.strptime(t.strip().upper(), "%I %p").time()
+    except:
         return None
 
-    text = clean(cell)
-
-    if "OFF" in text.upper():
-        return None
-
+def extract_shift_times(text):
+    text = clean(text)
     text = re.sub(r"\(.*?\)", "", text)
 
     matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.IGNORECASE)
@@ -77,10 +74,10 @@ def parse_shift(cell):
     if len(matches) < 2:
         return None
 
-    try:
-        start = parse_time_str(matches[0])
-        end = parse_time_str(matches[1])
-    except:
+    start = parse_time(matches[0])
+    end = parse_time(matches[1])
+
+    if not start or not end:
         return None
 
     return start, end
@@ -89,25 +86,22 @@ def parse_shift(cell):
 # ACTIVE CHECK
 # =========================
 def is_active(cell, now_t):
-    shift = parse_shift(cell)
+    shift = extract_shift_times(cell)
     if not shift:
         return False
 
     start, end = shift
 
-    # NORMAL SHIFT
+    # normal shift
     if start < end:
         return start <= now_t < end
 
-    # OVERNIGHT SHIFT
+    # overnight shift
     return now_t >= start or now_t < end
 
 # =========================
 # SESSION STATE
 # =========================
-if "df" not in st.session_state:
-    st.session_state.df = None
-
 if "active_df" not in st.session_state:
     st.session_state.active_df = pd.DataFrame()
 
@@ -118,27 +112,26 @@ if "last_calc" not in st.session_state:
     st.session_state.last_calc = None
 
 # =========================
-# BUTTON 1: LOAD SHEET
-# =========================
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button("📥 Load Google Sheet"):
-        st.session_state.df = fetch_sheet()
-        st.success("Sheet Loaded Successfully!")
-
-# STOP IF NO DATA
-if st.session_state.df is None:
-    st.warning("Click 'Load Google Sheet' first")
-    st.stop()
-
-df = st.session_state.df
-
-# =========================
-# UI FILTERS
+# BRANCH SELECT (AUTO REFRESH TRIGGER)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
-branch = st.selectbox("🏢 Select Branch", branches)
+
+branch = st.selectbox(
+    "🏢 Select Branch",
+    branches,
+    key="branch_select"
+)
+
+# 🔥 AUTO RESET WHEN BRANCH CHANGES
+if "last_branch" not in st.session_state:
+    st.session_state.last_branch = branch
+
+if st.session_state.last_branch != branch:
+    st.session_state.active_df = pd.DataFrame()
+    st.session_state.inactive_df = pd.DataFrame()
+    st.session_state.last_calc = None
+    st.session_state.last_branch = branch
+    st.rerun()
 
 data = df[df["Branch"] == branch].copy()
 
@@ -146,11 +139,13 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 
 # =========================
-# BUTTON 2: CALCULATE
+# BUTTON: CALCULATE
 # =========================
-with col2:
-    if st.button("⚡ Calculate Active / Inactive"):
-        now_t = datetime.now().time()  # FIXED TIME SNAPSHOT
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button("⚡ Calculate Now"):
+        now_t = datetime.now().time()
 
         active = []
         inactive = []
@@ -170,7 +165,10 @@ with col2:
         st.session_state.inactive_df = pd.DataFrame(inactive)
         st.session_state.last_calc = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        st.success("Calculation Updated!")
+        st.success("Updated!")
+
+with col2:
+    st.info(f"🕒 Last: {st.session_state.last_calc}")
 
 # =========================
 # OUTPUT
@@ -178,23 +176,12 @@ with col2:
 active_df = st.session_state.active_df
 inactive_df = st.session_state.inactive_df
 
-st.info(f"🕒 Last Calculation: {st.session_state.last_calc}")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("👥 Total Staff", len(data))
-
-with col2:
-    st.metric("🟢 Active", len(active_df))
-
-with col3:
-    st.metric("⚪ Inactive", len(inactive_df))
-
 st.divider()
 
-st.subheader("🔥 Active Staff")
+st.metric("🟢 Active", len(active_df))
+st.metric("⚪ Inactive", len(inactive_df))
 
+st.subheader("🔥 Active Staff")
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
