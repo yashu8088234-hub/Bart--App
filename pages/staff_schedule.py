@@ -329,33 +329,40 @@ if st.button("✅ Submit"):
             duplicate_submission_dialog()
             st.stop()
 
-        try:
+try:
             ws = master_sheet.worksheet("StaffSchedule")
             
-            # 1. Fetch the MOST CURRENT data from the sheet right before writing
-            # to avoid race conditions
+            # 1. Fetch current data
             all_current_data = pd.DataFrame(ws.get_all_records())
             
-            # 2. Filter out ONLY the current branch's rows to keep others intact
+            # 2. Separate current branch from others
             others = all_current_data[all_current_data["Branch"] != st.session_state.selected_branch].copy()
 
             # 3. Prepare new data
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
-            new_data["Over-Time"] = new_data.apply(calculate_row_ot, axis=1)
-
-            # 4. Concatenate
+            
+            # Rename columns to match the specific date-based format (e.g., "Sunday (20 Jun)")
+            column_mapping = {d: day_labels[d] for d in DAYS}
+            new_data = new_data.rename(columns=column_mapping)
+            
+            # 4. Concatenate and Fill
             final = pd.concat([others, new_data], ignore_index=True)
-
-            # 5. Handle empty values explicitly as empty strings, not NaN
+            
+            # CRITICAL: Replace all NaN with empty string to prevent "0" appearing in cells
             final = final.fillna("")
 
-            # 6. Prepare for Google Sheets (Headers + Data)
-            # Use a list of lists format
-            data_to_upload = [final.columns.values.tolist()] + final.values.tolist()
+            # 5. Ensure columns are in the correct order to match the sheet
+            # The sheet likely expects: Branch, Name, Role, [Day 1], [Day 2]... [Day 7], Over-Time
+            target_columns = ["Branch", "Name", "Role"] + list(day_labels.values()) + ["Over-Time"]
+            
+            # Reindex only using existing columns to avoid adding unexpected ones
+            final = final.reindex(columns=target_columns)
 
-            # 7. Update the range specifically
-            ws.update(range_name='A1', values=data_to_upload)
+            # 6. Update Sheets
+            # Convert to list of lists (headers + data)
+            values = [final.columns.tolist()] + final.values.tolist()
+            ws.update(range_name='A1', values=values)
 
             st.session_state.cached_df = final
             st.session_state.shift_buffer = {}
