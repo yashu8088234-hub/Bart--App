@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import gspread
 import re
-from google.oauth2.service_account import Credentials
 from datetime import datetime
+from google.oauth2.service_account import Credentials
 
 # =========================
 # PAGE CONFIG
@@ -18,12 +18,10 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# SHEET CONFIG
+# CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
-
-DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
 # =========================
 # GOOGLE CLIENT
@@ -43,7 +41,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA SAFE
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
@@ -59,7 +57,13 @@ def load_data():
 df = load_data()
 
 # =========================
-# SHIFT PARSER (FIXED FOR YOUR DATA)
+# DAYS MAP (IMPORTANT FIX)
+# =========================
+DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+today = DAYS[(datetime.today().weekday() + 1) % 7]
+
+# =========================
+# SHIFT PARSER (YOUR FORMAT FIXED)
 # =========================
 def parse_shift(cell):
     try:
@@ -84,7 +88,6 @@ def parse_shift(cell):
             return None
 
         sh, sap, eh, eap = match.groups()
-
         sh, eh = int(sh), int(eh)
 
         def conv(h, ap):
@@ -103,48 +106,42 @@ def parse_shift(cell):
         return None
 
 # =========================
-# ACTIVE CHECK
+# REAL ACTIVE ENGINE (CORE INTELLIGENCE)
 # =========================
-def is_active(cell, now_hour):
+def is_active_now(cell):
     shift = parse_shift(cell)
     if not shift:
         return False
 
     start, end = shift
+    now = datetime.now().hour
 
     # overnight shift
     if start > end:
-        return now_hour >= start or now_hour <= end
+        return now >= start or now <= end
     else:
-        return start <= now_hour <= end
-
-# =========================
-# TIME
-# =========================
-now_hour = datetime.now().hour
+        return start <= now <= end
 
 # =========================
 # UI - BRANCH SELECT
 # =========================
-branches = sorted(df["Branch"].dropna().unique()) if not df.empty else []
+branches = sorted(df["Branch"].unique()) if not df.empty else []
 selected_branch = st.selectbox("🏢 Select Branch", branches)
 
 data = df[df["Branch"] == selected_branch].copy()
 
-today = DAYS[(datetime.today().weekday() + 1) % 7]
-
 # =========================
-# OPS CALCULATION
+# OPS COMPUTATION
 # =========================
 active = []
 inactive = []
 
 for _, row in data.iterrows():
-    cell = row.get(today, "")
-
     row_dict = row.to_dict()
 
-    if is_active(cell, now_hour):
+    cell = row_dict.get(today, "")
+
+    if is_active_now(cell):
         active.append(row_dict)
     else:
         inactive.append(row_dict)
@@ -153,7 +150,7 @@ active_df = pd.DataFrame.from_records(active)
 inactive_df = pd.DataFrame.from_records(inactive)
 
 # =========================
-# TOP OPS BAR
+# TOP OPS BAR (CONTROL CENTER)
 # =========================
 col1, col2, col3 = st.columns(3)
 
@@ -169,14 +166,17 @@ with col3:
 st.divider()
 
 # =========================
-# ACTIVE STAFF
+# ACTIVE STAFF VIEW
 # =========================
-st.subheader("🔥 Active Staff (Now Working)")
+st.subheader("🔥 Active Staff (Real-Time)")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name","Role","Branch"]], use_container_width=True)
+    st.dataframe(
+        active_df[["Name", "Role", "Branch"]],
+        use_container_width=True
+    )
 else:
-    st.info("No active staff right now")
+    st.info("No active staff at this moment")
 
 # =========================
 # FULL OPS VIEW
@@ -190,6 +190,6 @@ combined = pd.concat([
 
 if not combined.empty:
     st.dataframe(
-        combined[["Name","Role","Status"]],
+        combined[["Name", "Role", "Status"]],
         use_container_width=True
     )
