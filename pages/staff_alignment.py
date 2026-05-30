@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD SHEET (cached permanently)
+# LOAD SHEET (NO TTL CACHE ISSUES)
 # =========================
 @st.cache_data(ttl=None)
 def fetch_sheet():
@@ -56,8 +56,7 @@ def clean(text):
     return text.strip()
 
 # =========================
-# FLEXIBLE TIME PARSER
-# (handles messy formats safely)
+# SAFE TIME PARSER
 # =========================
 def parse_time(t):
     try:
@@ -65,8 +64,18 @@ def parse_time(t):
     except:
         return None
 
-def extract_shift_times(text):
-    text = clean(text)
+# =========================
+# SHIFT EXTRACTION (ROBUST)
+# =========================
+def extract_shift_times(cell):
+    if not cell:
+        return None
+
+    text = clean(cell)
+
+    if "OFF" in text.upper():
+        return None
+
     text = re.sub(r"\(.*?\)", "", text)
 
     matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.IGNORECASE)
@@ -83,7 +92,7 @@ def extract_shift_times(text):
     return start, end
 
 # =========================
-# ACTIVE CHECK
+# ACTIVE CHECK (FIXED LOGIC)
 # =========================
 def is_active(cell, now_t):
     shift = extract_shift_times(cell)
@@ -92,11 +101,15 @@ def is_active(cell, now_t):
 
     start, end = shift
 
-    # normal shift
+    # SAFETY CHECK
+    if start is None or end is None:
+        return False
+
+    # NORMAL SHIFT (same day)
     if start < end:
         return start <= now_t < end
 
-    # overnight shift
+    # OVERNIGHT SHIFT (cross midnight)
     return now_t >= start or now_t < end
 
 # =========================
@@ -112,26 +125,11 @@ if "last_calc" not in st.session_state:
     st.session_state.last_calc = None
 
 # =========================
-# BRANCH SELECT (AUTO REFRESH TRIGGER)
+# UI - BRANCH
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 
-branch = st.selectbox(
-    "🏢 Select Branch",
-    branches,
-    key="branch_select"
-)
-
-# 🔥 AUTO RESET WHEN BRANCH CHANGES
-if "last_branch" not in st.session_state:
-    st.session_state.last_branch = branch
-
-if st.session_state.last_branch != branch:
-    st.session_state.active_df = pd.DataFrame()
-    st.session_state.inactive_df = pd.DataFrame()
-    st.session_state.last_calc = None
-    st.session_state.last_branch = branch
-    st.rerun()
+branch = st.selectbox("🏢 Select Branch", branches)
 
 data = df[df["Branch"] == branch].copy()
 
@@ -139,36 +137,31 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 
 # =========================
-# BUTTON: CALCULATE
+# CALCULATE BUTTON
 # =========================
-col1, col2 = st.columns(2)
+if st.button("⚡ Calculate Active / Inactive Now"):
 
-with col1:
-    if st.button("⚡ Calculate Now"):
-        now_t = datetime.now().time()
+    now_t = datetime.now().time()
 
-        active = []
-        inactive = []
+    active = []
+    inactive = []
 
-        for _, row in data.iterrows():
-            cell = row.get(selected_col, "")
+    for _, row in data.iterrows():
+        cell = row.get(selected_col, "")
 
-            row_dict = row.to_dict()
-            row_dict["Shift"] = cell
+        row_dict = row.to_dict()
+        row_dict["Shift"] = cell
 
-            if is_active(cell, now_t):
-                active.append(row_dict)
-            else:
-                inactive.append(row_dict)
+        if is_active(cell, now_t):
+            active.append(row_dict)
+        else:
+            inactive.append(row_dict)
 
-        st.session_state.active_df = pd.DataFrame(active)
-        st.session_state.inactive_df = pd.DataFrame(inactive)
-        st.session_state.last_calc = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.active_df = pd.DataFrame(active)
+    st.session_state.inactive_df = pd.DataFrame(inactive)
+    st.session_state.last_calc = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        st.success("Updated!")
-
-with col2:
-    st.info(f"🕒 Last: {st.session_state.last_calc}")
+    st.success("Updated Successfully!")
 
 # =========================
 # OUTPUT
@@ -176,16 +169,27 @@ with col2:
 active_df = st.session_state.active_df
 inactive_df = st.session_state.inactive_df
 
+st.info(f"🕒 Last Calculation: {st.session_state.last_calc}")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("👥 Total Staff", len(data))
+
+with col2:
+    st.metric("🟢 Active", len(active_df))
+
+with col3:
+    st.metric("⚪ Inactive", len(inactive_df))
+
 st.divider()
 
-st.metric("🟢 Active", len(active_df))
-st.metric("⚪ Inactive", len(inactive_df))
-
 st.subheader("🔥 Active Staff")
+
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
-    st.warning("No active staff")
+    st.warning("No active staff right now")
 
 st.subheader("📊 Full View")
 
