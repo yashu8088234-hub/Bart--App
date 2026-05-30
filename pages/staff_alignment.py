@@ -1,24 +1,23 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 
 # =========================
-# PAGE CONFIG
+# PAGE CONFIG (MODERN FEEL)
 # =========================
 st.set_page_config(
     layout="wide",
-    page_title="Staff Dashboard"
+    page_title="Ops Control Center"
 )
 
 # =========================
-# AUTH CHECK
+# AUTH
 # =========================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.warning("⚠ Session expired. Please login again.")
-    if st.button("⬅ Back to Login"):
+    st.warning("Session expired. Please login again.")
+    if st.button("Back"):
         st.switch_page("app.py")
     st.stop()
 
@@ -36,7 +35,7 @@ SCOPES = [
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 # =========================
-# GOOGLE CLIENT
+# CLIENT
 # =========================
 @st.cache_resource
 def get_client():
@@ -60,7 +59,7 @@ def load_data():
     if not raw or len(raw) < 2:
         return pd.DataFrame()
 
-    headers = [str(h).strip() for h in raw[0]]
+    headers = [h.strip() for h in raw[0]]
 
     seen = {}
     clean_headers = []
@@ -77,91 +76,82 @@ def load_data():
 df = load_data()
 
 # =========================
-# OT CALC
+# CURRENT CONTEXT
 # =========================
-def extract_ot(row):
-    total = 0
-    for d in DAYS:
-        val = str(row.get(d, ""))
-        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
-        if match:
-            total += float(match.group(1))
-    return total
+today = datetime.today()
+today_name = DAYS[(today.weekday() + 1) % 7]
 
 # =========================
-# HEADER
+# FILTER
 # =========================
-st.title("📊 Staff Management Dashboard")
-
 branches = sorted(df["Branch"].dropna().unique()) if not df.empty else []
-selected_branch = st.selectbox("🏢 Select Branch", ["All"] + branches)
+selected_branch = st.selectbox("🏢 Branch", ["All"] + branches)
 
-selected_date = st.date_input("📅 Week", datetime.today())
-
-week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
-st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
-
-# =========================
-# FILTER DATA
-# =========================
 data = df.copy()
 if selected_branch != "All":
     data = data[data["Branch"] == selected_branch]
 
 # =========================
-# KPI CALC
+# HEADER KPIs (CLEAN + MODERN)
 # =========================
-staff_count = len(data)
+st.title("⚡ Operations Control Center")
 
-data["OT"] = data.apply(extract_ot, axis=1)
-total_ot = round(data["OT"].sum(), 2)
-
-# =========================
-# KPI CARDS (MODERN HEADER)
-# =========================
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("👥 Staff Count", staff_count)
+    st.metric("👥 Active Staff", len(data))
 
 with col2:
-    st.metric("⏱ Total OT Hours", f"{total_ot} hrs")
+    st.metric("📅 Today", today_name)
 
 with col3:
-    active_branch = selected_branch if selected_branch != "All" else "All Branches"
-    st.metric("🏢 View Mode", active_branch)
+    st.metric("🏢 Branch", selected_branch if selected_branch != "All" else "All")
 
 st.divider()
 
 # =========================
-# MINI TABLE (ONLY ESSENTIAL)
+# MAIN VIEW (SHIFT VIEW - CORE)
 # =========================
-st.subheader("👨‍💼 Staff List (Compact View)")
+st.subheader("🧑‍💼 Live Staff Schedule View")
 
 if not data.empty:
-    mini_df = data[["Branch", "Name", "Role"]].copy()
-    mini_df["OT Hours"] = data["OT"].astype(float).round(2)
+
+    view = data[["Name", "Role", "Branch"]].copy()
+
+    # show full week schedule clearly (not OT)
+    for d in DAYS:
+        if d in data.columns:
+            view[d] = data[d]
 
     st.dataframe(
-        mini_df,
+        view,
         use_container_width=True,
-        height=420
+        height=520
     )
+
 else:
-    st.info("No staff found for selected branch")
+    st.info("No staff available")
 
 # =========================
-# QUICK INSIGHT CHART
+# TODAY HIGHLIGHT VIEW (IMPORTANT OPS FEATURE)
 # =========================
-st.subheader("📈 OT Overview")
+st.subheader(f"🔥 Today’s Active Schedule ({today_name})")
+
+if not data.empty and today_name in data.columns:
+
+    today_view = data[["Name", "Role", today_name]].copy()
+    today_view = today_view[today_view[today_name].astype(str).str.strip() != ""]
+
+    st.dataframe(
+        today_view,
+        use_container_width=True,
+        height=300
+    )
+
+# =========================
+# BRANCH DISTRIBUTION (LIGHT INSIGHT ONLY)
+# =========================
+st.subheader("📊 Branch Distribution")
 
 if not data.empty:
-    chart_df = data.groupby("Name")["OT"].sum().sort_values(ascending=False).head(10)
-    st.bar_chart(chart_df)
-
-# =========================
-# REFRESH
-# =========================
-if st.button("🔄 Refresh"):
-    st.cache_data.clear()
-    st.rerun()
+    st.bar_chart(data["Branch"].value_counts())
