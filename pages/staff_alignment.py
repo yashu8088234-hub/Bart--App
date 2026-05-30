@@ -8,8 +8,8 @@ from datetime import datetime
 # =========================
 # APP
 # =========================
-st.set_page_config(layout="wide", page_title="Ops Intelligence System")
-st.title("⚡ Ops Intelligence Control Center")
+st.set_page_config(layout="wide", page_title="Ops System")
+st.title("⚡ Ops Control Center")
 
 # =========================
 # SHEET
@@ -32,7 +32,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# LOAD
 # =========================
 @st.cache_data(ttl=60)
 def load_data():
@@ -43,17 +43,14 @@ def load_data():
 df = load_data()
 
 # =========================
-# CLEAN + PARSE
+# PARSE SHIFT
 # =========================
-def clean(text):
-    text = str(text)
-    text = text.replace("–", "-").replace("—", "-")
-    text = text.replace("\xa0", " ")
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
+def clean(t):
+    t = str(t).replace("–", "-").replace("—", "-")
+    return re.sub(r"\s+", " ", t).strip()
 
-def extract_times(text):
-    return re.findall(r"(\d{1,2})\s*(AM|PM)", text, re.IGNORECASE)
+def extract(t):
+    return re.findall(r"(\d{1,2})\s*(AM|PM)", t, re.I)
 
 def to_minutes(h, ap):
     h = int(h)
@@ -66,19 +63,14 @@ def to_minutes(h, ap):
 
     return h * 60
 
-def parse_shift(cell):
-    if not cell:
+def get_shift(cell):
+    if not cell or "OFF" in cell.upper():
         return None
 
-    text = clean(cell)
+    cell = clean(cell)
+    cell = re.sub(r"\(.*?\)", "", cell)
 
-    if "OFF" in text.upper():
-        return None
-
-    text = re.sub(r"\(.*?\)", "", text)
-
-    times = extract_times(text)
-
+    times = extract(cell)
     if len(times) < 2:
         return None
 
@@ -88,10 +80,10 @@ def parse_shift(cell):
     return start, end
 
 # =========================
-# 🔥 FINAL FIXED ACTIVE LOGIC
+# 🔥 SIMPLE CORRECT LOGIC
 # =========================
 def is_active(cell):
-    shift = parse_shift(cell)
+    shift = get_shift(cell)
     if not shift:
         return False
 
@@ -100,45 +92,36 @@ def is_active(cell):
     now = datetime.now()
     now_m = now.hour * 60 + now.minute
 
-    # =========================
-    # NORMAL SHIFT (IMPORTANT FIX)
-    # =========================
+    # NORMAL SHIFT
     if start < end:
-        # STRICT CUT OFF (THIS FIXES YOUR ISSUE)
         return start <= now_m < end
 
-    # =========================
     # OVERNIGHT SHIFT
-    # =========================
     return now_m >= start or now_m < end
 
 # =========================
 # UI
 # =========================
 branches = sorted(df["Branch"].unique()) if not df.empty else []
-branch = st.selectbox("🏢 Select Branch", branches)
+branch = st.selectbox("Branch", branches)
 
-data = df[df["Branch"] == branch].copy()
+data = df[df["Branch"] == branch]
 
-shift_columns = [c for c in df.columns if c not in ["Branch","Name","Role"]]
-selected_col = st.selectbox("📅 Select Shift Column", shift_columns)
+shift_cols = [c for c in df.columns if c not in ["Branch","Name","Role"]]
+col = st.selectbox("Shift Column", shift_cols)
 
 # =========================
-# ENGINE
+# SPLIT
 # =========================
-active = []
-inactive = []
+active, inactive = [], []
 
 for _, row in data.iterrows():
-    cell = row.get(selected_col, "")
-
-    row_dict = row.to_dict()
-    row_dict["Shift"] = cell
+    cell = row[col]
 
     if is_active(cell):
-        active.append(row_dict)
+        active.append(row)
     else:
-        inactive.append(row_dict)
+        inactive.append(row)
 
 active_df = pd.DataFrame(active)
 inactive_df = pd.DataFrame(inactive)
@@ -146,15 +129,13 @@ inactive_df = pd.DataFrame(inactive)
 # =========================
 # KPI
 # =========================
-col1, col2, col3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-with col1:
-    st.metric("Total Staff", len(data))
-
-with col2:
-    st.metric("Active Now", len(active_df))
-
-with col3:
+with c1:
+    st.metric("Total", len(data))
+with c2:
+    st.metric("Active", len(active_df))
+with c3:
     st.metric("Inactive", len(inactive_df))
 
 st.divider()
@@ -165,16 +146,13 @@ st.divider()
 st.subheader("🔥 Active Staff")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name","Role","Shift"]], use_container_width=True)
+    st.dataframe(active_df[["Name","Role",col]])
 else:
     st.warning("No active staff")
 
 # =========================
 # FULL VIEW
 # =========================
-st.subheader("📊 Full Ops View")
+st.subheader("📊 Full View")
 
-st.dataframe(
-    pd.concat([active_df, inactive_df], ignore_index=True)[["Name","Role","Shift"]],
-    use_container_width=True
-)
+st.dataframe(pd.concat([active_df, inactive_df], ignore_index=True)[["Name","Role",col]])
