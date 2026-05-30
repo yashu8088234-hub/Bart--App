@@ -487,38 +487,48 @@ if edit_mode:
             if value == "➕ Custom Time":
                 custom_time_dialog(row_idx=i, row_name=row["Name"], day_name=d)
 
-    # 4. SUBMIT BUTTON (Now correctly inside edit_mode)
+# 4. SUBMIT BUTTON
     if st.button("✅ Submit"):
         if not existing_week_data.empty:
             duplicate_submission_dialog()
             st.stop()
         try:
             ws = master_sheet.worksheet("StaffSchedule")
-            others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
             
+            # 1. Get existing data and filter out the current branch
+            all_existing = st.session_state.cached_df.copy()
+            others = all_existing[all_existing["Branch"] != st.session_state.selected_branch].copy()
+            
+            # 2. Prepare new data
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
             
+            # 3. Concatenate and ensure "Over-Time" exists
             final = pd.concat([others, new_data], ignore_index=True)
             
-            # Ensure Over-Time is preserved during renaming
-            rename_map = {day: day_labels[day] for day in DAYS}
-            rename_map["Over-Time"] = "Over-Time"
+            # Force the column to exist and be populated
+            final["Over-Time"] = final.apply(calculate_row_ot, axis=1)
             
+            # 4. Rename columns for the specific week
+            rename_map = {day: day_labels[day] for day in DAYS}
             final = final.rename(columns=rename_map)
             
-            # Final Safety Check
-            if "Over-Time" not in final.columns:
-                final["Over-Time"] = "0 hrs"
-
+            # 5. REORDER COLUMNS to match the sheet perfectly
+            # This is critical so Google Sheets gets the expected structure
+            cols = ["Branch", "Name", "Role"] + list(rename_map.values()) + ["Over-Time"]
+            final = final.reindex(columns=cols)
+            
+            # Update Sheet
             ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
             
             st.session_state.cached_df = final
             st.session_state.shift_buffer = {}
             st.session_state.deleted_staff = set()
             success_dialog()
+            
         except Exception as e:
             st.error(f"❌ Submission Failed: {e}")
+            st.exception(e) # This will show you exactly which line failed
 
 else:
     if st.button("🔄 Refresh Data"):
