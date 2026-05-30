@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 import re
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, time
 
 # =========================
 # APP CONFIG
@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD SHEET (ONLY ON BUTTON)
+# LOAD SHEET (ONLY BUTTON)
 # =========================
 def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
@@ -43,7 +43,7 @@ def fetch_sheet():
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
 # =========================
-# CLEAN + PARSE
+# CLEAN TEXT
 # =========================
 def clean(text):
     text = str(text)
@@ -52,23 +52,15 @@ def clean(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def extract_times(text):
-    return re.findall(r"(\d{1,2})\s*(AM|PM)", text, re.IGNORECASE)
+# =========================
+# TIME PARSER (ROBUST)
+# =========================
+def parse_time_str(t):
+    return datetime.strptime(t.strip().upper(), "%I %p").time()
 
-# 🔥 FIXED AM/PM CONVERSION
-def to_minutes(h, ap):
-    h = int(h)
-    ap = ap.upper()
-
-    if ap == "AM":
-        if h == 12:
-            h = 0
-    else:  # PM
-        if h != 12:
-            h += 12
-
-    return h * 60
-
+# =========================
+# SHIFT PARSER
+# =========================
 def parse_shift(cell):
     if not cell:
         return None
@@ -80,20 +72,23 @@ def parse_shift(cell):
 
     text = re.sub(r"\(.*?\)", "", text)
 
-    times = extract_times(text)
+    matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.IGNORECASE)
 
-    if len(times) < 2:
+    if len(matches) < 2:
         return None
 
-    start = to_minutes(*times[0])
-    end = to_minutes(*times[1])
+    try:
+        start = parse_time_str(matches[0])
+        end = parse_time_str(matches[1])
+    except:
+        return None
 
     return start, end
 
 # =========================
 # ACTIVE CHECK
 # =========================
-def is_active(cell, now_m):
+def is_active(cell, now_t):
     shift = parse_shift(cell)
     if not shift:
         return False
@@ -102,10 +97,10 @@ def is_active(cell, now_m):
 
     # NORMAL SHIFT
     if start < end:
-        return start <= now_m < end
+        return start <= now_t < end
 
     # OVERNIGHT SHIFT
-    return now_m >= start or now_m < end
+    return now_t >= start or now_t < end
 
 # =========================
 # SESSION STATE
@@ -130,7 +125,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("📥 Load Google Sheet"):
         st.session_state.df = fetch_sheet()
-        st.success("Sheet Loaded!")
+        st.success("Sheet Loaded Successfully!")
 
 # STOP IF NO DATA
 if st.session_state.df is None:
@@ -151,12 +146,11 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 
 # =========================
-# BUTTON 2: CALCULATE STATUS
+# BUTTON 2: CALCULATE
 # =========================
 with col2:
     if st.button("⚡ Calculate Active / Inactive"):
-        now = datetime.now()
-        now_m = now.hour * 60 + now.minute  # SNAPSHOT TIME
+        now_t = datetime.now().time()  # FIXED TIME SNAPSHOT
 
         active = []
         inactive = []
@@ -167,16 +161,16 @@ with col2:
             row_dict = row.to_dict()
             row_dict["Shift"] = cell
 
-            if is_active(cell, now_m):
+            if is_active(cell, now_t):
                 active.append(row_dict)
             else:
                 inactive.append(row_dict)
 
         st.session_state.active_df = pd.DataFrame(active)
         st.session_state.inactive_df = pd.DataFrame(inactive)
-        st.session_state.last_calc = now.strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.last_calc = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        st.success("Calculation Done!")
+        st.success("Calculation Updated!")
 
 # =========================
 # OUTPUT
@@ -200,6 +194,7 @@ with col3:
 st.divider()
 
 st.subheader("🔥 Active Staff")
+
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
