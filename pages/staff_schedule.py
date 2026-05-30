@@ -1,259 +1,202 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import time
 import re
 
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 from st_aggrid import AgGrid
 
-st.set_page_config(layout="wide", page_title="BART Master Schedule")
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(layout="wide", page_title="BART Management Control System v2")
 
 # =========================
 # AUTH CHECK
 # =========================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.warning("⚠ Session expired. Please login again.")
+
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("⬅ Back to Staff Login", use_container_width=True):
+        if st.button("⬅ Back to Login", use_container_width=True):
             st.switch_page("app.py")
     st.stop()
 
 # =========================
-# INITIALIZE GOOGLE CLIENT (FIXED - STREAMLIT SECRETS)
+# GOOGLE SHEETS
 # =========================
-if "gspread_client" not in st.session_state:
-    try:
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
+SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
+TAB_NAME = "StaffSchedule"
 
-        creds = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
-            scopes=scopes
-        )
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-        st.session_state.gspread_client = gspread.authorize(creds)
+@st.cache_resource
+def get_client():
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=SCOPES
+    )
+    return gspread.authorize(creds)
 
-    except Exception as e:
-        st.error(f"Authentication setup error: {e}")
-        st.stop()
-
-# =========================
-# SHEET LOAD
-# =========================
-master_sheet = st.session_state.gspread_client.open_by_key(
-    "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
-)
+client = get_client()
+sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# CONFIG
+# CONSTANTS
 # =========================
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-SHIFT_OPTIONS = ["➕ Custom Time", "📴 Day Off"]
-ROLE_OPTIONS = ["Team-Member", "Acting_Team_Leader", "Team_Leader", "Acting_Supervisor", "Supervisor", "Branch_Manager"]
-
-# =========================
-# DIALOGS
-# =========================
-@st.dialog("✅ Submission Successful")
-def success_dialog():
-    st.success("Your schedule has been successfully submitted to the Master Schedule.")
-    if st.button("Close", use_container_width=True):
-        st.rerun()
-
-@st.dialog("⏰ Set Custom Time")
-def custom_time_dialog(row_idx, row_name, day_name):
-    st.write(f"Configure shift for **{row_name}** on **{day_name}**")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        sh = st.selectbox("Start Hour", list(range(1, 13)), index=8)
-        sap = st.selectbox("AM/PM", ["AM", "PM"])
-
-    with col2:
-        eh = st.selectbox("End Hour", list(range(1, 13)), index=5)
-        eap = st.selectbox("AM/PM", ["AM", "PM"], index=1)
-
-    apply_all = st.checkbox("Apply to all working days this week")
-
-    if st.button("Apply Shift", use_container_width=True):
-        value, hrs = format_shift(f"{sh} {sap}", f"{eh} {eap}")
-        if value is None:
-            st.error("❌ Minimum 9 hours required")
-        else:
-            if apply_all:
-                for day in DAYS:
-                    st.session_state.shift_buffer[f"{row_idx}_{day}"] = value
-            else:
-                st.session_state.shift_buffer[f"{row_idx}_{day_name}"] = value
-            st.rerun()
-
-@st.dialog("🚫 Submission Blocked")
-def duplicate_submission_dialog():
-    st.error("This week's schedule has already been submitted for this branch.")
-    if st.button("Close", use_container_width=True):
-        st.rerun()
 
 # =========================
 # LOAD DATA
 # =========================
-def load_data(force_reload=False):
-    if force_reload or st.session_state.get("cached_df") is None:
-        try:
-            ws = master_sheet.worksheet("StaffSchedule")
-            data = ws.get_all_records()
-            df = pd.DataFrame(data) if data else pd.DataFrame()
+@st.cache_data(ttl=60)
+def load_data():
+    ws = sheet.worksheet(TAB_NAME)
+    data = ws.get_all_records()
+    df = pd.DataFrame(data)
 
-            if df.empty:
-                df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+    if df.empty:
+        df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
 
-            st.session_state.cached_df = df
+    return df
 
-        except Exception as e:
-            st.error(f"Error loading data: {e}")
-            st.session_state.cached_df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
-
-    return st.session_state.cached_df
+df = load_data()
 
 # =========================
-# SHIFT CALCULATION
+# OT CALCULATION
 # =========================
-def parse_hour(val):
-    hour, ap = val.split()
-    hour = int(hour)
-    if ap == "PM" and hour != 12:
-        hour += 12
-    if ap == "AM" and hour == 12:
-        hour = 0
-    return hour
-
-def calculate_hours(start, end):
-    s = parse_hour(start)
-    e = parse_hour(end)
-    if e <= s:
-        e += 24
-    return e - s
-
-def format_shift(start, end):
-    hrs = calculate_hours(start, end)
-    if hrs < 9:
-        return None, hrs
-    ot = max(0, hrs - 9)
-    if ot > 0:
-        return (f"{start} - {end} (OT {ot}h)", hrs)
-    return (f"{start} - {end}", hrs)
-
-def calculate_row_ot(row):
-    total_ot = 0
-    for day in DAYS:
-        val = str(row.get(day, ""))
-        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
-        if match:
-            total_ot += float(match.group(1))
-    return f"{total_ot} hrs" if total_ot > 0 else "0 hrs"
-
-# =========================
-# INIT SESSION STATE
-# =========================
-if "shift_buffer" not in st.session_state:
-    st.session_state.shift_buffer = {}
-
-if "previous_week" not in st.session_state:
-    st.session_state.previous_week = None
-
-if "deleted_staff" not in st.session_state:
-    st.session_state.deleted_staff = set()
+def extract_ot(row):
+    total = 0
+    for d in DAYS:
+        val = str(row.get(d, ""))
+        m = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
+        if m:
+            total += float(m.group(1))
+    return total
 
 # =========================
 # HEADER
 # =========================
-st.title(f"🏢 Schedule: {st.session_state.selected_branch}")
+st.title("🏢 Management Control System v2")
 
-selected_date = st.date_input("📅 Select Date", value=datetime.today())
+branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
+selected_branch = st.selectbox("🏢 Branch Filter", ["All"] + branches)
 
+selected_date = st.date_input("📅 Week Selector", value=datetime.today())
 week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
-week_start_str = week_start.strftime('%d %b %Y')
 
-st.caption(f"Week starting: {week_start_str}")
+st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
 
-if st.session_state.previous_week != week_start_str:
-    st.session_state.shift_buffer = {}
-    st.session_state.deleted_staff = set()
-    st.session_state.previous_week = week_start_str
-
-edit_mode = st.toggle("Edit Mode Only")
+tab1, tab2, tab3 = st.tabs(["📊 Live View", "📈 Insights", "✏ Edit Mode"])
 
 # =========================
-# LOAD + FILTER
+# FILTER DATA
 # =========================
-all_data_df = load_data()
+data = df.copy()
+if selected_branch != "All":
+    data = data[data["Branch"] == selected_branch]
 
-df = all_data_df[all_data_df["Branch"] == st.session_state.selected_branch].copy() if not all_data_df.empty else pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS)
+# ======================================================
+# TAB 1 - LIVE VIEW
+# ======================================================
+with tab1:
 
-day_labels = {d: f"{d} ({(week_start + timedelta(days=i)).strftime('%d %b')})" for i, d in enumerate(DAYS)}
+    st.subheader("📊 Live Schedule")
 
-# =========================
-# EDIT MODE
-# =========================
-if edit_mode:
+    view_df = data.copy()
 
-    df_display = df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
-
-    for d in DAYS:
-        df_display[d] = ""
-
-    for i, row in df_display.iterrows():
-        for d in DAYS:
-            key = f"{i}_{d}"
-            if key in st.session_state.shift_buffer:
-                df_display.loc[i, d] = st.session_state.shift_buffer[key]
-
-    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
-
-    edited_df = st.data_editor(df_display, num_rows="dynamic", use_container_width=True, key="editor")
-
-    if st.button("✅ Submit"):
-        try:
-            ws = master_sheet.worksheet("StaffSchedule")
-
-            final = edited_df.copy()
-            final["Branch"] = st.session_state.selected_branch
-
-            ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
-
-            success_dialog()
-
-        except Exception as e:
-            st.error(f"❌ Submission Failed: {e}")
-
-else:
-
-    if st.button("🔄 Refresh Data"):
-        st.session_state.cached_df = None
-        st.rerun()
-
-    df_display = df.copy()
-
-    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1) if not df_display.empty else []
+    if not view_df.empty:
+        view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
 
     column_defs = [
-        {"headerName": "Name", "field": "Name", "pinned": "left"},
-        {"headerName": "Role", "field": "Role"}
+        {"field": "Branch", "pinned": "left"},
+        {"field": "Name", "pinned": "left"},
+        {"field": "Role"},
     ]
 
     for d in DAYS:
-        column_defs.append({"headerName": d, "field": d})
+        column_defs.append({"field": d})
 
-    column_defs.append({"headerName": "Over-Time", "field": "Over-Time"})
+    column_defs.append({"field": "Over-Time"})
 
-    AgGrid(df_display, gridOptions={"columnDefs": column_defs}, height=500)
+    AgGrid(view_df, gridOptions={"columnDefs": column_defs}, height=600)
+
+# ======================================================
+# TAB 2 - INSIGHTS
+# ======================================================
+with tab2:
+
+    st.subheader("📈 Branch Insights Dashboard")
+
+    if data.empty:
+        st.warning("No data available")
+    else:
+
+        # staff count
+        staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
+
+        # OT per branch
+        data["OT"] = data.apply(extract_ot, axis=1)
+        ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 👥 Staff Count")
+            st.dataframe(staff_count, use_container_width=True)
+
+        with col2:
+            st.markdown("### ⏱ Total OT Hours")
+            st.dataframe(ot_sum, use_container_width=True)
+
+        st.markdown("### 📊 OT Chart")
+        st.bar_chart(ot_sum.set_index("Branch"))
+
+# ======================================================
+# TAB 3 - EDIT MODE
+# ======================================================
+with tab3:
+
+    st.subheader("✏ Schedule Editor")
+
+    if data.empty:
+        st.warning("No data found")
+        st.stop()
+
+    edit_df = data.copy()
+    edit_df["Over-Time"] = edit_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
+
+    edited = st.data_editor(
+        edit_df,
+        use_container_width=True,
+        num_rows="dynamic"
+    )
+
+    if st.button("💾 Save Changes"):
+        try:
+            ws = sheet.worksheet(TAB_NAME)
+
+            ws.clear()
+            ws.update(
+                [edited.columns.tolist()] +
+                edited.fillna("").values.tolist()
+            )
+
+            st.success("✅ Updated successfully!")
+            st.cache_data.clear()
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Save failed: {e}")
 
 # =========================
-# BACK
+# REFRESH
 # =========================
-if st.button("⬅ Back"):
-    st.switch_page("pages/staff_dashboard.py")
+if st.button("🔄 Refresh"):
+    st.cache_data.clear()
+    st.rerun()
