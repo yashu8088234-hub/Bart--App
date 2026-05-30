@@ -19,7 +19,7 @@ SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
 # =========================
-# CLIENT
+# GOOGLE CLIENT
 # =========================
 @st.cache_resource
 def get_client():
@@ -42,6 +42,10 @@ sheet = client.open_by_key(SHEET_ID)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
+
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
+
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
 df = load_data()
@@ -56,6 +60,9 @@ def clean(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+# =========================
+# SHIFT PARSER (ROBUST)
+# =========================
 def extract_times(text):
     return re.findall(r"(\d{1,2})\s*(AM|PM)", text, re.IGNORECASE)
 
@@ -101,43 +108,50 @@ def is_active(cell):
     return now >= start or now <= end
 
 # =========================
-# UI
+# AUTO DETECT SHIFT COLUMN (IMPORTANT FIX)
 # =========================
-branches = sorted(df["Branch"].unique()) if not df.empty else []
-branch = st.selectbox("🏢 Select Branch", branches)
+exclude_cols = ["Branch", "Name", "Role"]
+shift_columns = [c for c in df.columns if c not in exclude_cols]
 
-data = df[df["Branch"] == branch].copy()
-
-# =========================
-# SHIFT COLUMN DETECTION
-# =========================
-exclude = ["Branch", "Name", "Role"]
-shift_columns = [c for c in df.columns if c not in exclude]
+if not shift_columns:
+    st.error("No shift columns found in sheet")
+    st.stop()
 
 selected_col = st.selectbox("📅 Select Shift Column", shift_columns)
+
+# =========================
+# FILTER BRANCH
+# =========================
+branches = sorted(df["Branch"].unique()) if not df.empty else []
+selected_branch = st.selectbox("🏢 Select Branch", branches)
+
+data = df[df["Branch"] == selected_branch].copy()
 
 # =========================
 # OPS ENGINE
 # =========================
 active = []
 inactive = []
+broken = []
 
 for _, row in data.iterrows():
-    shift_text = row.get(selected_col, "")
+    cell = row.get(selected_col, "")
 
-    row_dict = row.to_dict()
-    row_dict["Shift"] = shift_text   # 👈 IMPORTANT CHANGE
+    parsed = parse_shift(cell)
 
-    if is_active(shift_text):
-        active.append(row_dict)
+    if cell and not parsed and "OFF" not in str(cell).upper():
+        broken.append(cell)
+
+    if is_active(cell):
+        active.append(row.to_dict())
     else:
-        inactive.append(row_dict)
+        inactive.append(row.to_dict())
 
 active_df = pd.DataFrame(active)
 inactive_df = pd.DataFrame(inactive)
 
 # =========================
-# KPI
+# KPI HEADER
 # =========================
 col1, col2, col3 = st.columns(3)
 
@@ -153,30 +167,30 @@ with col3:
 st.divider()
 
 # =========================
-# ACTIVE STAFF
+# ACTIVE VIEW
 # =========================
-st.subheader("🔥 Active Staff (Live)")
+st.subheader("🔥 Active Staff (LIVE)")
 
 if not active_df.empty:
-    st.dataframe(
-        active_df[["Name", "Role", "Shift"]],
-        use_container_width=True
-    )
+    st.dataframe(active_df[["Name", "Role"]], use_container_width=True)
 else:
     st.warning("No active staff right now")
 
 # =========================
 # FULL OPS VIEW
 # =========================
-st.subheader("📊 Full Ops Intelligence View")
+st.subheader("📊 Full Ops View")
 
-full_df = pd.concat([
+final_df = pd.concat([
     active_df.assign(Status="ACTIVE"),
     inactive_df.assign(Status="INACTIVE")
 ], ignore_index=True)
 
-if not full_df.empty:
-    st.dataframe(
-        full_df[["Name", "Role", "Shift", "Status"]],
-        use_container_width=True
-    )
+if not final_df.empty:
+    st.dataframe(final_df[["Name", "Role", "Status"]], use_container_width=True)
+
+# =========================
+# DEBUG PANEL
+# =========================
+with st.expander("🧠 Debug (Unparsed Rows)"):
+    st.write(broken)
