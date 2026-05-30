@@ -1,10 +1,31 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import re
+
 from google.oauth2.service_account import Credentials
+from datetime import datetime, timedelta
+from st_aggrid import AgGrid
 
 # =========================
-# CONFIG
+# PAGE CONFIG
+# =========================
+st.set_page_config(layout="wide", page_title="BART Management Control System v2")
+
+# =========================
+# AUTH CHECK
+# =========================
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.warning("⚠ Session expired. Please login again.")
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("⬅ Back to Login", use_container_width=True):
+            st.switch_page("app.py")
+    st.stop()
+
+# =========================
+# GOOGLE SHEETS
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -14,105 +35,168 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# =========================
-# GOOGLE SHEETS AUTH
-# =========================
 @st.cache_resource
-def connect_gsheet():
-    creds = Credentials.from_service_account_file(
-        "service_account.json", scopes=SCOPES
+def get_client():
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=SCOPES
     )
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(SHEET_ID)
-    return sheet
+    return gspread.authorize(creds)
 
+client = get_client()
+sheet = client.open_by_key(SHEET_ID)
+
+# =========================
+# CONSTANTS
+# =========================
+DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+# =========================
+# LOAD DATA
+# =========================
 @st.cache_data(ttl=60)
 def load_data():
-    sheet = connect_gsheet()
     ws = sheet.worksheet(TAB_NAME)
-
     data = ws.get_all_records()
     df = pd.DataFrame(data)
 
+    if df.empty:
+        df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+
     return df
-
-
-# =========================
-# UI
-# =========================
-st.set_page_config(page_title="Staff Live Dashboard", layout="wide")
-
-st.title("📊 Staff Live Schedule Dashboard")
 
 df = load_data()
 
 # =========================
-# CLEAN COLUMNS
+# OT CALCULATION
 # =========================
-df.columns = [c.strip() for c in df.columns]
-
-# =========================
-# FILTERS
-# =========================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    branch = st.selectbox("🏢 Branch", ["All"] + sorted(df["Branch"].dropna().unique().tolist()))
-
-with col2:
-    role = st.selectbox("👨‍💼 Role", ["All"] + sorted(df["Role"].dropna().unique().tolist()))
-
-with col3:
-    name = st.selectbox("👤 Name", ["All"] + sorted(df["Name"].dropna().unique().tolist()))
+def extract_ot(row):
+    total = 0
+    for d in DAYS:
+        val = str(row.get(d, ""))
+        m = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
+        if m:
+            total += float(m.group(1))
+    return total
 
 # =========================
-# FILTER LOGIC
+# HEADER
 # =========================
-filtered = df.copy()
+st.title("🏢 Management Control System v2")
 
-if branch != "All":
-    filtered = filtered[filtered["Branch"] == branch]
+branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
+selected_branch = st.selectbox("🏢 Branch Filter", ["All"] + branches)
 
-if role != "All":
-    filtered = filtered[filtered["Role"] == role]
+selected_date = st.date_input("📅 Week Selector", value=datetime.today())
+week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
 
-if name != "All":
-    filtered = filtered[filtered["Name"] == name]
+st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
 
-# =========================
-# SHOW RAW TABLE
-# =========================
-st.subheader("📅 Raw Schedule Data")
-st.dataframe(filtered, use_container_width=True)
+tab1, tab2, tab3 = st.tabs(["📊 Live View", "📈 Insights", "✏ Edit Mode"])
 
 # =========================
-# LIVE SUMMARY VIEW
+# FILTER DATA
 # =========================
-st.subheader("🔥 Live Staff Status View")
+data = df.copy()
+if selected_branch != "All":
+    data = data[data["Branch"] == selected_branch]
 
-days = [col for col in df.columns if "(" in col or "Friday" in col or "Saturday" in col]
+# ======================================================
+# TAB 1 - LIVE VIEW
+# ======================================================
+with tab1:
 
-view_df = filtered[["Branch", "Name", "Role"] + days + ["Over-Time"]]
+    st.subheader("📊 Live Schedule")
 
-st.dataframe(view_df, use_container_width=True)
+    view_df = data.copy()
 
-# =========================
-# OT ANALYSIS
-# =========================
-st.subheader("⏱ Overtime Summary")
+    if not view_df.empty:
+        view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
 
-ot_col = "Over-Time"
+    column_defs = [
+        {"field": "Branch", "pinned": "left"},
+        {"field": "Name", "pinned": "left"},
+        {"field": "Role"},
+    ]
 
-if ot_col in df.columns:
-    df["OT_Hours"] = (
-        df[ot_col].astype(str)
-        .str.replace("h", "", regex=False)
-        .replace("", "0")
+    for d in DAYS:
+        column_defs.append({"field": d})
+
+    column_defs.append({"field": "Over-Time"})
+
+    AgGrid(view_df, gridOptions={"columnDefs": column_defs}, height=600)
+
+# ======================================================
+# TAB 2 - INSIGHTS
+# ======================================================
+with tab2:
+
+    st.subheader("📈 Branch Insights Dashboard")
+
+    if data.empty:
+        st.warning("No data available")
+    else:
+
+        # staff count
+        staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
+
+        # OT per branch
+        data["OT"] = data.apply(extract_ot, axis=1)
+        ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 👥 Staff Count")
+            st.dataframe(staff_count, use_container_width=True)
+
+        with col2:
+            st.markdown("### ⏱ Total OT Hours")
+            st.dataframe(ot_sum, use_container_width=True)
+
+        st.markdown("### 📊 OT Chart")
+        st.bar_chart(ot_sum.set_index("Branch"))
+
+# ======================================================
+# TAB 3 - EDIT MODE
+# ======================================================
+with tab3:
+
+    st.subheader("✏ Schedule Editor")
+
+    if data.empty:
+        st.warning("No data found")
+        st.stop()
+
+    edit_df = data.copy()
+    edit_df["Over-Time"] = edit_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
+
+    edited = st.data_editor(
+        edit_df,
+        use_container_width=True,
+        num_rows="dynamic"
     )
-    df["OT_Hours"] = pd.to_numeric(df["OT_Hours"], errors="coerce").fillna(0)
 
-    ot_summary = df.groupby("Branch")["OT_Hours"].sum().reset_index()
+    if st.button("💾 Save Changes"):
+        try:
+            ws = sheet.worksheet(TAB_NAME)
 
-    st.dataframe(ot_summary, use_container_width=True)
+            ws.clear()
+            ws.update(
+                [edited.columns.tolist()] +
+                edited.fillna("").values.tolist()
+            )
 
-    st.bar_chart(ot_summary.set_index("Branch"))
+            st.success("✅ Updated successfully!")
+            st.cache_data.clear()
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Save failed: {e}")
+
+# =========================
+# REFRESH
+# =========================
+if st.button("🔄 Refresh"):
+    st.cache_data.clear()
+    st.rerun()
