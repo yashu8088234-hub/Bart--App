@@ -445,39 +445,50 @@ if not st.session_state.cached_df.empty:
 # EDIT MODE
 # =========================
 if edit_mode:
-    df_display = (df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
-    if st.session_state.deleted_staff: df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
-    for d in DAYS: df_display[d] = ""
-    for i, row in df_display.iterrows():
-        for d in DAYS:
-            key = f"{i}_{d}"
-            if key in st.session_state.shift_buffer: df_display.loc[i, d] = st.session_state.shift_buffer[key]
-    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
+    # 1. Setup DataFrame
+    df_display = (df[["Name", "Role"]].dropna(subset=["Name"]).drop_duplicates().reset_index(drop=True)) if not df.empty else pd.DataFrame(columns=["Name", "Role"] + DAYS)
+    if st.session_state.deleted_staff: 
+        df_display = df_display[~df_display["Name"].isin(st.session_state.deleted_staff)].reset_index(drop=True)
+    
+    for d in DAYS: 
+        df_display[d] = ""
+    
+    for i, row in df_display.iterrows():
+        for d in DAYS:
+            key = f"{i}_{d}"
+            if key in st.session_state.shift_buffer: 
+                df_display.loc[i, d] = st.session_state.shift_buffer[key]
+    
+    df_display["Over-Time"] = df_display.apply(calculate_row_ot, axis=1)
 
-    config = {
-        "Name": st.column_config.SelectboxColumn("Name", options=(df["Name"].dropna().unique().tolist() if not df.empty else []), width=90, required=True),
-        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=90),
-        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=70)
-    }
-    for d in DAYS:
-        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=100)
+    # 2. Config & Editor
+    config = {
+        "Name": st.column_config.SelectboxColumn("Name", options=(df["Name"].dropna().unique().tolist() if not df.empty else []), width=90, required=True),
+        "Role": st.column_config.SelectboxColumn("Role", options=ROLE_OPTIONS, width=90),
+        "Over-Time": st.column_config.TextColumn("Over-Time", disabled=True, width=70)
+    }
+    for d in DAYS:
+        config[d] = st.column_config.SelectboxColumn(label=day_labels[d], options=list(set(SHIFT_OPTIONS + df_display[d].dropna().unique().tolist())), width=100)
 
-    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
-    
-    current_names = set(edited_df["Name"].dropna().tolist())
-    for name in df_display["Name"].tolist():
-        if name not in current_names: st.session_state.deleted_staff.add(name)
+    edited_df = st.data_editor(df_display[["Name", "Role"] + DAYS + ["Over-Time"]], column_config=config, num_rows="dynamic", use_container_width=True, key="editor")
+    
+    # 3. Handle Deletions/Dialogs
+    current_names = set(edited_df["Name"].dropna().tolist())
+    for name in df_display["Name"].tolist():
+        if name not in current_names: 
+            st.session_state.deleted_staff.add(name)
 
-    for i, row in edited_df.iterrows():
-        for d in DAYS:
-            value = row.get(d)
-            if value == "📴 Day Off":
-                st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
-                st.rerun()
-            if value == "➕ Custom Time":
-                custom_time_dialog(row_idx=i, row_name=row["Name"], day_name=d)
+    for i, row in edited_df.iterrows():
+        for d in DAYS:
+            value = row.get(d)
+            if value == "📴 Day Off":
+                st.session_state.shift_buffer[f"{i}_{d}"] = "OFF"
+                st.rerun()
+            if value == "➕ Custom Time":
+                custom_time_dialog(row_idx=i, row_name=row["Name"], day_name=d)
 
-if st.button("✅ Submit"):
+    # 4. SUBMIT BUTTON (Now correctly inside edit_mode)
+    if st.button("✅ Submit"):
         if not existing_week_data.empty:
             duplicate_submission_dialog()
             st.stop()
@@ -485,28 +496,21 @@ if st.button("✅ Submit"):
             ws = master_sheet.worksheet("StaffSchedule")
             others = st.session_state.cached_df[st.session_state.cached_df["Branch"] != st.session_state.selected_branch].copy()
             
-            # Prepare new data
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
             
-            # Combine
             final = pd.concat([others, new_data], ignore_index=True)
             
-            # --- FIX STARTS HERE ---
-            # Create the mapping for days
+            # Ensure Over-Time is preserved during renaming
             rename_map = {day: day_labels[day] for day in DAYS}
-            # Ensure "Over-Time" is kept (rename it only if it exists, otherwise leave as is)
-            if "Over-Time" not in rename_map:
-                rename_map["Over-Time"] = "Over-Time"
+            rename_map["Over-Time"] = "Over-Time"
             
             final = final.rename(columns=rename_map)
-            # --- FIX ENDS HERE ---
             
-            # Ensure 'Over-Time' column exists in final even if empty
+            # Final Safety Check
             if "Over-Time" not in final.columns:
                 final["Over-Time"] = "0 hrs"
 
-            # Update Sheet
             ws.update([final.columns.tolist()] + final.fillna("").values.tolist())
             
             st.session_state.cached_df = final
@@ -515,6 +519,7 @@ if st.button("✅ Submit"):
             success_dialog()
         except Exception as e:
             st.error(f"❌ Submission Failed: {e}")
+
 else:
     if st.button("🔄 Refresh Data"):
         st.session_state.cached_df = None
