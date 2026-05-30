@@ -2,10 +2,8 @@ import streamlit as st
 import pandas as pd
 import gspread
 import re
-import json
-
-from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
+from google.oauth2.service_account import Credentials
 from st_aggrid import AgGrid
 
 # =========================
@@ -29,7 +27,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# GOOGLE SHEETS AUTH (FIXED)
+# CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -39,14 +37,12 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+# =========================
+# GOOGLE CLIENT (SAFE)
+# =========================
 @st.cache_resource
 def get_client():
     creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-
-    # IMPORTANT:
-    # Streamlit may already parse TOML into dict OR give string
-    if isinstance(creds_dict, str):
-        creds_dict = json.loads(creds_dict)
 
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -59,30 +55,48 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# CONSTANTS
-# =========================
-DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-
-# =========================
-# LOAD DATA (STABLE)
+# SAFE LOADER (FIX DUPLICATE HEADER CRASH)
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
     try:
         ws = sheet.worksheet(TAB_NAME)
-        data = ws.get_all_records()
-        df = pd.DataFrame(data)
 
-        if df.empty:
-            df = pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+        raw = ws.get_all_values()
+
+        if not raw or len(raw) < 2:
+            return pd.DataFrame(columns=["Branch", "Name", "Role"])
+
+        headers = [str(h).strip() for h in raw[0]]
+
+        # 🔥 FIX DUPLICATE HEADERS
+        seen = {}
+        clean_headers = []
+
+        for h in headers:
+            if h in seen:
+                seen[h] += 1
+                h = f"{h}_{seen[h]}"
+            else:
+                seen[h] = 0
+
+            clean_headers.append(h)
+
+        rows = raw[1:]
+        df = pd.DataFrame(rows, columns=clean_headers)
 
         return df
 
     except Exception as e:
         st.error(f"Sheet Load Error: {e}")
-        return pd.DataFrame(columns=["Branch", "Name", "Role"] + DAYS + ["Over-Time"])
+        return pd.DataFrame(columns=["Branch", "Name", "Role"])
 
 df = load_data()
+
+# =========================
+# CONSTANTS
+# =========================
+DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 # =========================
 # OT CALCULATION
@@ -93,20 +107,20 @@ def extract_ot(row):
     for d in DAYS:
         val = str(row.get(d, ""))
 
-        m = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
-        if m:
-            total += float(m.group(1))
+        match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
+        if match:
+            total += float(match.group(1))
 
     return total
 
 # =========================
-# HEADER
+# HEADER UI
 # =========================
-st.title("🏢 Staff Alignment System")
+st.title("🏢 Staff Alignment System (Management View)")
 
 branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
 
-selected_branch = st.selectbox("🏢 Branch", ["All"] + branches)
+selected_branch = st.selectbox("🏢 Select Branch", ["All"] + branches)
 
 selected_date = st.date_input("📅 Week Selector", value=datetime.today())
 
@@ -117,22 +131,24 @@ st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
 # FILTER DATA
 # =========================
 data = df.copy()
+
 if selected_branch != "All":
     data = data[data["Branch"] == selected_branch]
 
 # =========================
-# VIEW MODE
+# VIEW TABLE
 # =========================
-st.subheader("📊 Staff Schedule View")
+st.subheader("📊 Staff Schedule")
 
 if not data.empty:
     view_df = data.copy()
+
     view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
 
     column_defs = [
         {"field": "Branch", "pinned": "left"},
         {"field": "Name", "pinned": "left"},
-        {"field": "Role"},
+        {"field": "Role"}
     ]
 
     for d in DAYS:
@@ -148,12 +164,12 @@ if not data.empty:
     )
 
 else:
-    st.info("No data available for selected branch")
+    st.info("No data found for selected branch")
 
 # =========================
-# INSIGHTS PANEL
+# INSIGHTS
 # =========================
-st.subheader("📈 Quick Insights")
+st.subheader("📈 Insights")
 
 if not data.empty:
     staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
