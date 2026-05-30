@@ -5,21 +5,16 @@ import re
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# =========================
-# APP
-# =========================
-st.set_page_config(layout="wide", page_title="Ops Intelligence System")
-st.title("⚡ Ops Intelligence Control Center")
+st.set_page_config(layout="wide", page_title="Ops Debug System")
+
+st.title("⚡ OPS DEBUG CONTROL CENTER")
 
 # =========================
-# SHEET CONFIG
+# SHEET
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
-# =========================
-# GOOGLE CLIENT
-# =========================
 @st.cache_resource
 def get_client():
     creds = Credentials.from_service_account_info(
@@ -34,10 +29,7 @@ def get_client():
 client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
-# =========================
-# LOAD DATA
-# =========================
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
@@ -61,86 +53,80 @@ def extract_times(text):
 def to_minutes(h, ap):
     h = int(h)
     ap = ap.upper()
-
     if ap == "AM":
         h = 0 if h == 12 else h
     else:
         h = 12 if h == 12 else h + 12
-
     return h * 60
 
 # =========================
-# STRICT SHIFT PARSER (FIXED)
+# PARSER (STRICT + TRACEABLE)
 # =========================
-def parse_shift(cell):
-    if not cell:
-        return None
+def parse_shift_debug(cell):
+    raw = str(cell)
 
-    text = clean(cell)
-
-    if "OFF" in text.upper():
-        return None
-
+    text = clean(raw)
     text = re.sub(r"\(.*?\)", "", text)
 
     times = extract_times(text)
 
     if len(times) < 2:
-        return None
+        return None, f"FAILED PARSE → {raw}"
 
     start = to_minutes(*times[0])
     end = to_minutes(*times[1])
 
-    # 🔥 FORCE VALID ORDERING SAFETY
-    if start == end:
-        return None
-
-    return start, end
+    return (start, end), f"OK → {times}"
 
 # =========================
-# FIXED ACTIVE ENGINE (NO FALSE ACTIVE)
+# ACTIVE ENGINE (CORRECT)
 # =========================
 def is_active(cell):
-    shift = parse_shift(cell)
+    shift, debug = parse_shift_debug(cell)
+
     if not shift:
-        return False
+        return False, debug
 
     start, end = shift
 
     now = datetime.now()
     now_m = now.hour * 60 + now.minute
 
-    # NORMAL SHIFT (e.g. 1 PM - 10 PM)
     if start < end:
-        return start <= now_m < end   # STRICT END CUT OFF
+        return (start <= now_m < end), debug
 
-    # OVERNIGHT SHIFT (e.g. 10 PM - 5 AM)
-    return now_m >= start or now_m < end
+    return (now_m >= start or now_m < end), debug
 
 # =========================
 # UI
 # =========================
 branches = sorted(df["Branch"].unique()) if not df.empty else []
-branch = st.selectbox("🏢 Select Branch", branches)
+branch = st.selectbox("Select Branch", branches)
 
 data = df[df["Branch"] == branch].copy()
 
 shift_columns = [c for c in df.columns if c not in ["Branch","Name","Role"]]
-selected_col = st.selectbox("📅 Select Shift Column", shift_columns)
+selected_col = st.selectbox("Select Shift Column", shift_columns)
 
 # =========================
-# OPS ENGINE
+# ENGINE
 # =========================
 active = []
 inactive = []
+debug_log = []
 
 for _, row in data.iterrows():
     cell = row.get(selected_col, "")
 
+    status, debug = is_active(cell)
+
     row_dict = row.to_dict()
     row_dict["Shift"] = cell
+    row_dict["DEBUG"] = debug
 
-    if is_active(cell):
+    debug_log.append(debug)
+
+    if status:
         active.append(row_dict)
     else:
         inactive.append(row_dict)
@@ -154,32 +140,38 @@ inactive_df = pd.DataFrame(inactive)
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("👥 Total Staff", len(data))
+    st.metric("Total", len(data))
 
 with col2:
-    st.metric("🟢 Active Now", len(active_df))
+    st.metric("Active", len(active_df))
 
 with col3:
-    st.metric("⚪ Inactive", len(inactive_df))
+    st.metric("Inactive", len(inactive_df))
 
 st.divider()
 
 # =========================
-# ACTIVE STAFF
+# ACTIVE VIEW
 # =========================
 st.subheader("🔥 Active Staff")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name","Role","Shift"]], use_container_width=True)
+    st.dataframe(active_df[["Name","Role","Shift","DEBUG"]], use_container_width=True)
 else:
-    st.warning("No active staff right now")
+    st.warning("No active staff")
 
 # =========================
-# FULL OPS VIEW
+# FULL VIEW
 # =========================
-st.subheader("📊 Full Ops Intelligence View")
+st.subheader("📊 Full Ops View")
 
-full_df = pd.concat([active_df, inactive_df], ignore_index=True)
+full = pd.concat([active_df, inactive_df], ignore_index=True)
 
-if not full_df.empty:
-    st.dataframe(full_df[["Name","Role","Shift"]], use_container_width=True)
+if not full.empty:
+    st.dataframe(full[["Name","Role","Shift","DEBUG"]], use_container_width=True)
+
+# =========================
+# RAW DEBUG PANEL
+# =========================
+with st.expander("🧠 RAW DEBUG LOG"):
+    st.write(debug_log)
