@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import gspread
 import re
-from datetime import datetime
 from google.oauth2.service_account import Credentials
+from datetime import datetime
 
 # =========================
 # APP CONFIG
@@ -43,7 +43,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA (SAFE)
+# LOAD DATA SAFE
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
@@ -59,16 +59,25 @@ def load_data():
 df = load_data()
 
 # =========================
-# SHIFT INTELLIGENCE ENGINE (ROBUST CORE)
+# CLEANING ENGINE (IMPORTANT)
 # =========================
 def clean_text(text):
-    """Normalize weird sheet text"""
     text = str(text)
-    text = text.replace("–", "-").replace("—", "-")
-    text = text.strip()
-    text = re.sub(r"\s+", " ", text)
-    return text
 
+    # normalize weird dashes
+    text = text.replace("–", "-").replace("—", "-")
+
+    # remove hidden unicode spaces
+    text = text.replace("\xa0", " ")
+
+    # collapse spaces
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+# =========================
+# SHIFT PARSER (ROBUST CORE)
+# =========================
 def parse_shift(cell):
     try:
         if not cell:
@@ -79,7 +88,7 @@ def parse_shift(cell):
         if text.upper() == "OFF":
             return None
 
-        # remove OT part safely
+        # remove OT safely
         text = re.sub(r"\(.*?\)", "", text).strip()
 
         # extract shift
@@ -95,12 +104,12 @@ def parse_shift(cell):
         sh, sap, eh, eap = match.groups()
         sh, eh = int(sh), int(eh)
 
-        def to_24(hour, ap):
+        def to_24(h, ap):
             ap = ap.upper()
             if ap == "AM":
-                return 0 if hour == 12 else hour
+                return 0 if h == 12 else h
             else:
-                return 12 if hour == 12 else hour + 12
+                return 12 if h == 12 else h + 12
 
         start = to_24(sh, sap)
         end = to_24(eh, eap)
@@ -110,9 +119,12 @@ def parse_shift(cell):
     except:
         return None
 
+# =========================
+# ACTIVE ENGINE (REAL INTELLIGENCE)
+# =========================
 def is_active(cell):
-    """REAL intelligence check using current time"""
     shift = parse_shift(cell)
+
     if not shift:
         return False
 
@@ -123,7 +135,7 @@ def is_active(cell):
     if start < end:
         return start <= now <= end
 
-    # OVERNIGHT SHIFT (CRITICAL FIX)
+    # OVERNIGHT SHIFT (5 PM - 5 AM)
     if start > end:
         return now >= start or now <= end
 
@@ -140,13 +152,14 @@ data = df[df["Branch"] == selected_branch].copy()
 today = DAYS[(datetime.today().weekday() + 1) % 7]
 
 # =========================
-# INTELLIGENCE COMPUTE
+# OPS COMPUTE
 # =========================
 active = []
 inactive = []
 
 for _, row in data.iterrows():
     row_dict = row.to_dict()
+
     cell = row_dict.get(today, "")
 
     if is_active(cell):
@@ -158,7 +171,7 @@ active_df = pd.DataFrame.from_records(active)
 inactive_df = pd.DataFrame.from_records(inactive)
 
 # =========================
-# OPS HEADER (CONTROL ROOM)
+# CONTROL CENTER HEADER
 # =========================
 col1, col2, col3 = st.columns(3)
 
@@ -174,14 +187,17 @@ with col3:
 st.divider()
 
 # =========================
-# ACTIVE VIEW
+# ACTIVE STAFF
 # =========================
-st.subheader("🔥 Active Staff (Real-Time)")
+st.subheader("🔥 Active Staff (Live Ops)")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name", "Role", "Branch"]], use_container_width=True)
+    st.dataframe(
+        active_df[["Name", "Role", "Branch"]],
+        use_container_width=True
+    )
 else:
-    st.info("No active staff at this moment")
+    st.info("No active staff currently working")
 
 # =========================
 # FULL OPS VIEW
