@@ -324,44 +324,45 @@ if edit_mode:
             if value == "➕ Custom Time":
                 custom_time_dialog(i, row["Name"], d)
 
-    if st.button("✅ Submit"):
+if st.button("✅ Submit"):
         if not existing_week_data.empty:
             duplicate_submission_dialog()
             st.stop()
 
         try:
             ws = master_sheet.worksheet("StaffSchedule")
+            
+            # 1. Fetch the MOST CURRENT data from the sheet right before writing
+            # to avoid race conditions
+            all_current_data = pd.DataFrame(ws.get_all_records())
+            
+            # 2. Filter out ONLY the current branch's rows to keep others intact
+            others = all_current_data[all_current_data["Branch"] != st.session_state.selected_branch].copy()
 
-            others = st.session_state.cached_df[
-                st.session_state.cached_df["Branch"] != st.session_state.selected_branch
-            ].copy()
-
+            # 3. Prepare new data
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
-
-            # 🔥 IMPORTANT FIX
             new_data["Over-Time"] = new_data.apply(calculate_row_ot, axis=1)
 
+            # 4. Concatenate
             final = pd.concat([others, new_data], ignore_index=True)
 
-            final = final.rename(columns={day: day_labels[day] for day in DAYS})
+            # 5. Handle empty values explicitly as empty strings, not NaN
             final = final.fillna("")
 
-            # 🔥 FIX COLUMN ALIGNMENT (VERY IMPORTANT)
-            expected_cols = ["Branch", "Name", "Role"] + list(day_labels.values()) + ["Over-Time"]
-            final = final.reindex(columns=expected_cols)
+            # 6. Prepare for Google Sheets (Headers + Data)
+            # Use a list of lists format
+            data_to_upload = [final.columns.values.tolist()] + final.values.tolist()
 
-            ws.update([final.columns.tolist()] + final.values.tolist())
+            # 7. Update the range specifically
+            ws.update(range_name='A1', values=data_to_upload)
 
             st.session_state.cached_df = final
             st.session_state.shift_buffer = {}
-            st.session_state.deleted_staff = set()
-
             success_dialog()
 
         except Exception as e:
             st.error(f"❌ Submission Failed: {e}")
-
 else:
 
     if st.button("🔄 Refresh Data"):
