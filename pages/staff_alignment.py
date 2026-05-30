@@ -4,14 +4,13 @@ import gspread
 import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
-from st_aggrid import AgGrid
 
 # =========================
 # PAGE CONFIG
 # =========================
 st.set_page_config(
     layout="wide",
-    page_title="Staff Alignment - Management System"
+    page_title="Staff Dashboard"
 )
 
 # =========================
@@ -19,11 +18,8 @@ st.set_page_config(
 # =========================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.warning("⚠ Session expired. Please login again.")
-
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("⬅ Back to Login", use_container_width=True):
-            st.switch_page("app.py")
+    if st.button("⬅ Back to Login"):
+        st.switch_page("app.py")
     st.stop()
 
 # =========================
@@ -37,92 +33,70 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
 # =========================
-# GOOGLE CLIENT (SAFE)
+# GOOGLE CLIENT
 # =========================
 @st.cache_resource
 def get_client():
-    creds_dict = st.secrets["GOOGLE_CREDS_JSON"]
-
     creds = Credentials.from_service_account_info(
-        creds_dict,
+        st.secrets["GOOGLE_CREDS_JSON"],
         scopes=SCOPES
     )
-
     return gspread.authorize(creds)
 
 client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# SAFE LOADER (FIX DUPLICATE HEADER CRASH)
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
-    try:
-        ws = sheet.worksheet(TAB_NAME)
+    ws = sheet.worksheet(TAB_NAME)
+    raw = ws.get_all_values()
 
-        raw = ws.get_all_values()
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
 
-        if not raw or len(raw) < 2:
-            return pd.DataFrame(columns=["Branch", "Name", "Role"])
+    headers = [str(h).strip() for h in raw[0]]
 
-        headers = [str(h).strip() for h in raw[0]]
+    seen = {}
+    clean_headers = []
+    for h in headers:
+        if h in seen:
+            seen[h] += 1
+            h = f"{h}_{seen[h]}"
+        else:
+            seen[h] = 0
+        clean_headers.append(h)
 
-        # 🔥 FIX DUPLICATE HEADERS
-        seen = {}
-        clean_headers = []
-
-        for h in headers:
-            if h in seen:
-                seen[h] += 1
-                h = f"{h}_{seen[h]}"
-            else:
-                seen[h] = 0
-
-            clean_headers.append(h)
-
-        rows = raw[1:]
-        df = pd.DataFrame(rows, columns=clean_headers)
-
-        return df
-
-    except Exception as e:
-        st.error(f"Sheet Load Error: {e}")
-        return pd.DataFrame(columns=["Branch", "Name", "Role"])
+    return pd.DataFrame(raw[1:], columns=clean_headers)
 
 df = load_data()
 
 # =========================
-# CONSTANTS
-# =========================
-DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-
-# =========================
-# OT CALCULATION
+# OT CALC
 # =========================
 def extract_ot(row):
     total = 0
-
     for d in DAYS:
         val = str(row.get(d, ""))
-
         match = re.search(r"\(OT\s+(\d+(?:\.\d+)?)\s*h\)", val)
         if match:
             total += float(match.group(1))
-
     return total
 
 # =========================
-# HEADER UI
+# HEADER
 # =========================
-st.title("🏢 Staff Alignment System (Management View)")
+st.title("📊 Staff Management Dashboard")
 
-branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
-
+branches = sorted(df["Branch"].dropna().unique()) if not df.empty else []
 selected_branch = st.selectbox("🏢 Select Branch", ["All"] + branches)
 
-selected_date = st.date_input("📅 Week Selector", value=datetime.today())
+selected_date = st.date_input("📅 Week", datetime.today())
 
 week_start = selected_date - timedelta(days=(selected_date.weekday() + 1) % 7)
 st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
@@ -131,67 +105,63 @@ st.caption(f"Week Start: {week_start.strftime('%d %b %Y')}")
 # FILTER DATA
 # =========================
 data = df.copy()
-
 if selected_branch != "All":
     data = data[data["Branch"] == selected_branch]
 
 # =========================
-# VIEW TABLE
+# KPI CALC
 # =========================
-st.subheader("📊 Staff Schedule")
+staff_count = len(data)
+
+data["OT"] = data.apply(extract_ot, axis=1)
+total_ot = round(data["OT"].sum(), 2)
+
+# =========================
+# KPI CARDS (MODERN HEADER)
+# =========================
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("👥 Staff Count", staff_count)
+
+with col2:
+    st.metric("⏱ Total OT Hours", f"{total_ot} hrs")
+
+with col3:
+    active_branch = selected_branch if selected_branch != "All" else "All Branches"
+    st.metric("🏢 View Mode", active_branch)
+
+st.divider()
+
+# =========================
+# MINI TABLE (ONLY ESSENTIAL)
+# =========================
+st.subheader("👨‍💼 Staff List (Compact View)")
 
 if not data.empty:
-    view_df = data.copy()
+    mini_df = data[["Branch", "Name", "Role"]].copy()
+    mini_df["OT Hours"] = data["OT"].astype(float).round(2)
 
-    view_df["Over-Time"] = view_df.apply(lambda r: f"{extract_ot(r)} hrs", axis=1)
-
-    column_defs = [
-        {"field": "Branch", "pinned": "left"},
-        {"field": "Name", "pinned": "left"},
-        {"field": "Role"}
-    ]
-
-    for d in DAYS:
-        column_defs.append({"field": d})
-
-    column_defs.append({"field": "Over-Time"})
-
-    AgGrid(
-        view_df,
-        gridOptions={"columnDefs": column_defs},
-        height=600,
-        fit_columns_on_grid_load=True
+    st.dataframe(
+        mini_df,
+        use_container_width=True,
+        height=420
     )
-
 else:
-    st.info("No data found for selected branch")
+    st.info("No staff found for selected branch")
 
 # =========================
-# INSIGHTS
+# QUICK INSIGHT CHART
 # =========================
-st.subheader("📈 Insights")
+st.subheader("📈 OT Overview")
 
 if not data.empty:
-    staff_count = data.groupby("Branch")["Name"].count().reset_index(name="Staff Count")
-
-    data["OT"] = data.apply(extract_ot, axis=1)
-    ot_sum = data.groupby("Branch")["OT"].sum().reset_index()
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### 👥 Staff Count")
-        st.dataframe(staff_count, use_container_width=True)
-
-    with col2:
-        st.markdown("### ⏱ OT Hours")
-        st.dataframe(ot_sum, use_container_width=True)
-
-    st.bar_chart(ot_sum.set_index("Branch"))
+    chart_df = data.groupby("Name")["OT"].sum().sort_values(ascending=False).head(10)
+    st.bar_chart(chart_df)
 
 # =========================
 # REFRESH
 # =========================
-if st.button("🔄 Refresh Data"):
+if st.button("🔄 Refresh"):
     st.cache_data.clear()
     st.rerun()
