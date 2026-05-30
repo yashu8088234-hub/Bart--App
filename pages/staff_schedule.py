@@ -18,7 +18,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         if st.button("⬅ Back to Staff Login", use_container_width=True):
-            st.switch_page("app.py")
+            st.switch_page("pages/staff_dashboard.py")
     st.stop()
 
 # =========================
