@@ -4,7 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # =========================
-# CONFIG
+# GOOGLE SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 SHEET_NAME = "StaffSchedule"
@@ -15,7 +15,7 @@ scope = [
 ]
 
 # =========================
-# GOOGLE AUTH (STREAMLIT SECRETS FIX)
+# GOOGLE AUTH (SECRETS FIXED)
 # =========================
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
@@ -37,17 +37,13 @@ df = df[1:]
 branch_col = "Branch"
 name_col = "Name"
 
-# all schedule columns (days + OT)
-schedule_cols = df.columns[3:]
+schedule_cols = df.columns[3:]  # all schedule + OT
 
 # =========================
-# AUTO DETECT TODAY COLUMN
+# DETECT CURRENT WORK STATUS
 # =========================
 today_col = schedule_cols[-2]  # last day before OT column
 
-# =========================
-# LIVE LOGIC
-# =========================
 def is_live(row):
     val = str(row[today_col]).strip()
     return val != "" and val.upper() != "OFF"
@@ -63,7 +59,7 @@ live_staff = df["Live"].sum()
 # =========================
 # UI
 # =========================
-st.set_page_config(page_title="Staff Live Dashboard", layout="wide")
+st.set_page_config(page_title="Live Staff Dashboard", layout="wide")
 
 st.title("🏢 Staff Live Management Dashboard")
 
