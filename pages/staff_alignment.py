@@ -8,7 +8,7 @@ from datetime import datetime, time
 # =========================
 # APP CONFIG
 # =========================
-st.set_page_config(layout="wide", page_title="Ops Intelligence System")
+st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
 # =========================
@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD SHEET (NO TTL CACHE ISSUES)
+# LOAD DATA (cached forever)
 # =========================
 @st.cache_data(ttl=None)
 def fetch_sheet():
@@ -56,7 +56,7 @@ def clean(text):
     return text.strip()
 
 # =========================
-# SAFE TIME PARSER
+# TIME PARSER
 # =========================
 def parse_time(t):
     try:
@@ -65,7 +65,7 @@ def parse_time(t):
         return None
 
 # =========================
-# SHIFT EXTRACTION (ROBUST)
+# SHIFT PARSER (IGNORE OT)
 # =========================
 def extract_shift_times(cell):
     if not cell:
@@ -73,9 +73,7 @@ def extract_shift_times(cell):
 
     text = clean(cell)
 
-    if "OFF" in text.upper():
-        return None
-
+    # ❌ remove OT completely
     text = re.sub(r"\(.*?\)", "", text)
 
     matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.IGNORECASE)
@@ -92,7 +90,7 @@ def extract_shift_times(cell):
     return start, end
 
 # =========================
-# ACTIVE CHECK (FIXED LOGIC)
+# ACTIVE LOGIC (FINAL FIXED)
 # =========================
 def is_active(cell, now_t):
     shift = extract_shift_times(cell)
@@ -101,11 +99,7 @@ def is_active(cell, now_t):
 
     start, end = shift
 
-    # SAFETY CHECK
-    if start is None or end is None:
-        return False
-
-    # NORMAL SHIFT (same day)
+    # SAME DAY SHIFT
     if start < end:
         return start <= now_t < end
 
@@ -125,10 +119,9 @@ if "last_calc" not in st.session_state:
     st.session_state.last_calc = None
 
 # =========================
-# UI - BRANCH
+# BRANCH UI
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
-
 branch = st.selectbox("🏢 Select Branch", branches)
 
 data = df[df["Branch"] == branch].copy()
@@ -139,9 +132,9 @@ selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 # =========================
 # CALCULATE BUTTON
 # =========================
-if st.button("⚡ Calculate Active / Inactive Now"):
+if st.button("⚡ Calculate Active / Inactive"):
 
-    now_t = datetime.now().time()
+    now_t = datetime.now().time()  # REAL TIME SNAPSHOT
 
     active = []
     inactive = []
@@ -185,7 +178,6 @@ with col3:
 st.divider()
 
 st.subheader("🔥 Active Staff")
-
 if not active_df.empty:
     st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
