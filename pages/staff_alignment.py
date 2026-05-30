@@ -12,14 +12,11 @@ st.set_page_config(layout="wide", page_title="Ops Intelligence System")
 st.title("⚡ Ops Intelligence Control Center")
 
 # =========================
-# SHEET CONFIG
+# SHEET
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
-# =========================
-# GOOGLE CLIENT
-# =========================
 @st.cache_resource
 def get_client():
     creds = Credentials.from_service_account_info(
@@ -46,7 +43,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# CLEAN + PARSE ENGINE
+# CLEAN + PARSE
 # =========================
 def clean(text):
     text = str(text)
@@ -91,7 +88,7 @@ def parse_shift(cell):
     return start, end
 
 # =========================
-# 🔥 FINAL ACTIVE ENGINE (CORRECT + SAFE)
+# 🔥 FINAL FIXED ACTIVE LOGIC
 # =========================
 def is_active(cell):
     shift = parse_shift(cell)
@@ -104,29 +101,30 @@ def is_active(cell):
     now_m = now.hour * 60 + now.minute
 
     # =========================
-    # NORMAL SHIFT (e.g. 1 PM - 10 PM)
+    # NORMAL SHIFT (IMPORTANT FIX)
     # =========================
     if start < end:
-        return start <= now_m < end   # STRICT END CUT-OFF
+        # STRICT CUT OFF (THIS FIXES YOUR ISSUE)
+        return start <= now_m < end
 
     # =========================
-    # OVERNIGHT SHIFT (e.g. 10 PM - 5 AM)
+    # OVERNIGHT SHIFT
     # =========================
     return now_m >= start or now_m < end
 
 # =========================
-# UI CONTROLS
+# UI
 # =========================
 branches = sorted(df["Branch"].unique()) if not df.empty else []
 branch = st.selectbox("🏢 Select Branch", branches)
 
 data = df[df["Branch"] == branch].copy()
 
-shift_columns = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
+shift_columns = [c for c in df.columns if c not in ["Branch","Name","Role"]]
 selected_col = st.selectbox("📅 Select Shift Column", shift_columns)
 
 # =========================
-# OPS ENGINE
+# ENGINE
 # =========================
 active = []
 inactive = []
@@ -146,18 +144,18 @@ active_df = pd.DataFrame(active)
 inactive_df = pd.DataFrame(inactive)
 
 # =========================
-# KPI DASHBOARD
+# KPI
 # =========================
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("👥 Total Staff", len(data))
+    st.metric("Total Staff", len(data))
 
 with col2:
-    st.metric("🟢 Active Now", len(active_df))
+    st.metric("Active Now", len(active_df))
 
 with col3:
-    st.metric("⚪ Inactive", len(inactive_df))
+    st.metric("Inactive", len(inactive_df))
 
 st.divider()
 
@@ -167,16 +165,16 @@ st.divider()
 st.subheader("🔥 Active Staff")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name", "Role", "Shift"]], use_container_width=True)
+    st.dataframe(active_df[["Name","Role","Shift"]], use_container_width=True)
 else:
-    st.warning("No active staff right now")
+    st.warning("No active staff")
 
 # =========================
-# FULL OPS VIEW
+# FULL VIEW
 # =========================
-st.subheader("📊 Full Ops Intelligence View")
+st.subheader("📊 Full Ops View")
 
-full_df = pd.concat([active_df, inactive_df], ignore_index=True)
-
-if not full_df.empty:
-    st.dataframe(full_df[["Name", "Role", "Shift"]], use_container_width=True)
+st.dataframe(
+    pd.concat([active_df, inactive_df], ignore_index=True)[["Name","Role","Shift"]],
+    use_container_width=True
+)
