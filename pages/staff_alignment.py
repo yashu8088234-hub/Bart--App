@@ -18,7 +18,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# SHEETS
+# SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
@@ -43,76 +43,94 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# LOAD SAFE DATA
 # =========================
 @st.cache_data(ttl=300)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
 
+    if not raw or len(raw) < 2:
+        return pd.DataFrame()
+
     df = pd.DataFrame(raw[1:], columns=raw[0])
+
+    # clean NaN issues
+    df = df.fillna("")
+
     return df
 
 df = load_data()
 
 # =========================
-# SHIFT PARSER (IMPORTANT)
+# SAFE SHIFT PARSER
 # =========================
-def parse_time_range(cell):
-    """
-    Extracts 09:00-18:00
-    """
-    match = re.search(r"(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})", str(cell))
-    if not match:
+def parse_shift(cell):
+    try:
+        if not cell or str(cell).strip() == "":
+            return None
+
+        match = re.search(r"(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})", str(cell))
+        if not match:
+            return None
+
+        start = datetime.strptime(match.group(1), "%H:%M").time()
+        end = datetime.strptime(match.group(2), "%H:%M").time()
+
+        return start, end
+
+    except:
         return None
 
-    start = datetime.strptime(match.group(1), "%H:%M").time()
-    end = datetime.strptime(match.group(2), "%H:%M").time()
-    return start, end
-
 def is_active(cell, now_time):
-    shift = parse_time_range(cell)
+    shift = parse_shift(cell)
     if not shift:
         return False
     start, end = shift
     return start <= now_time <= end
 
 # =========================
-# TIME NOW
+# TIME
 # =========================
-now = datetime.now().time()
+now_time = datetime.now().time()
 
 # =========================
-# FILTER
+# FILTER UI
 # =========================
-branches = sorted(df["Branch"].dropna().unique())
-selected_branch = st.selectbox("🏢 Select Branch", branches)
+branches = sorted(df["Branch"].dropna().unique()) if not df.empty else []
+
+selected_branch = st.selectbox("🏢 Branch", branches)
 
 data = df[df["Branch"] == selected_branch].copy()
 
 # =========================
-# ACTIVE CALC
+# SAFE ACTIVE SPLIT
 # =========================
-active_staff = []
-inactive_staff = []
+active_rows = []
+inactive_rows = []
 
-for _, row in data.iterrows():
+if not data.empty:
+
     today = DAYS[(datetime.today().weekday() + 1) % 7]
 
-    cell = row.get(today, "")
+    for _, row in data.iterrows():
+        try:
+            cell = row.get(today, "")
+        except:
+            cell = ""
 
-    if is_active(cell, now):
-        active_staff.append(row)
-    else:
-        inactive_staff.append(row)
+        if is_active(cell, now_time):
+            active_rows.append(row)
+        else:
+            inactive_rows.append(row)
 
-active_df = pd.DataFrame(active_staff)
-inactive_df = pd.DataFrame(inactive_staff)
+active_df = pd.DataFrame(active_rows)
+inactive_df = pd.DataFrame(inactive_rows)
 
 # =========================
-# TOP OPS BAR (IMPORTANT)
+# TOP KPIs
 # =========================
-col1, col2, col3 = st.columns([2,2,2])
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.metric("👥 Total Workers", len(data))
@@ -121,37 +139,33 @@ with col2:
     st.metric("🔴 Active Now", len(active_df))
 
 with col3:
-    st.metric("⚡ Inactive", len(inactive_df))
+    st.metric("⚪ Inactive", len(inactive_df))
 
 st.divider()
 
 # =========================
-# ACTIVE LIST (HIGHLIGHTED)
+# ACTIVE LIST
 # =========================
-st.subheader("🔥 Active Staff (Working Now)")
+st.subheader("🔥 Active Staff")
 
 if not active_df.empty:
-    st.dataframe(
-        active_df[["Name","Role","Branch"]],
-        use_container_width=True,
-        height=250
-    )
+    st.dataframe(active_df[["Name","Role","Branch"]], use_container_width=True)
 else:
-    st.info("No staff currently active")
+    st.info("No active staff right now")
 
 # =========================
-# SORTED MASTER VIEW (ACTIVE FIRST)
+# FULL VIEW SAFE
 # =========================
-st.subheader("📊 Branch Staff Overview (Active Priority)")
+st.subheader("📊 Staff Overview")
 
-combined = pd.concat([active_df, inactive_df])
+combined = pd.concat([active_df, inactive_df], ignore_index=True)
 
 if not combined.empty:
-
     combined["Status"] = ["ACTIVE"] * len(active_df) + ["INACTIVE"] * len(inactive_df)
 
     st.dataframe(
         combined[["Name","Role","Status"]],
-        use_container_width=True,
-        height=500
+        use_container_width=True
     )
+else:
+    st.warning("No data available")
