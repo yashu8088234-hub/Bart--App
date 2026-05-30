@@ -1,51 +1,103 @@
 import streamlit as st
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime
 
-st.set_page_config(layout="wide", page_title="Management Dashboard")
+# =========================
+# GOOGLE SHEET CONNECT
+# =========================
+SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
+SHEET_NAME = "StaffSchedule"
 
-# 1. AUTH CHECK (Same as main page)
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.warning("Unauthorized access.")
-    st.stop()
+scope = ["https://spreadsheets.google.com/feeds",
+         "https://www.googleapis.com/auth/drive"]
 
-# 2. DATA LOADING (Reuse your load_data function)
-# Ensure your load_data() handles the connection efficiently
-df = st.session_state.get("cached_df") 
+creds = Credentials.from_service_account_file(
+    "service_account.json",
+    scopes=scope
+)
 
-# 3. ADVANCED METRICS DASHBOARD
-st.title("📈 Management Analytics Dashboard")
+client = gspread.authorize(creds)
+sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
 
-# Top Level KPIs
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total Active Staff", len(df["Name"].unique()))
-with col2:
-    st.metric("Total Branches", len(df["Branch"].unique()))
-with col3:
-    # Logic: Calculate total OT hours from your dataframe
-    st.metric("Total Weekly OT", "45 hrs") 
-with col4:
-    st.metric("Coverage Health", "92%")
+data = sheet.get_all_values()
+df = pd.DataFrame(data)
 
-# 4. TABBED ANALYTICS
-tab1, tab2, tab3 = st.tabs(["Branch Breakdown", "Role Distribution", "Coverage Gaps"])
+# =========================
+# CLEAN HEADER
+# =========================
+df.columns = df.iloc[0]
+df = df[1:]
 
-with tab1:
-    st.subheader("Performance by Branch")
-    # Use st.bar_chart or st.dataframe with formatting
-    branch_stats = df.groupby("Branch").count() # Example aggregation
-    st.bar_chart(branch_stats["Name"])
+# Column mapping
+branch_col = "Branch"
+name_col = "Name"
 
-with tab2:
-    st.subheader("Role Composition")
-    # Pie chart of roles
-    role_counts = df["Role"].value_counts()
-    st.pie_chart(role_counts)
+schedule_cols = df.columns[3:-1]  # all days
 
-with tab3:
-    st.subheader("Identify Coverage Gaps")
-    # Logic: Show rows where shifts are empty or marked "Needs Coverage"
-    st.warning("Feature: Flagging empty slots or roles missing from schedule.")
+# =========================
+# TODAY COLUMN (AUTO DETECT LAST FILLED DAY)
+# =========================
+today_col = schedule_cols[-2]  # second last column usually a day
 
-if st.button("⬅ Return to Schedule"):
-    st.switch_page("main_schedule_file.py") # Use your filename here
+# =========================
+# LIVE STATUS LOGIC
+# =========================
+def is_live(row):
+    val = str(row[today_col]).strip()
+    return val != "" and val.upper() != "OFF"
+
+df["Live"] = df.apply(is_live, axis=1)
+
+# =========================
+# STATS
+# =========================
+total_staff = len(df)
+live_staff = df["Live"].sum()
+
+# =========================
+# UI
+# =========================
+st.set_page_config(page_title="Live Staff Dashboard", layout="wide")
+
+st.title("🏢 Live Staff Management Dashboard")
+
+col1, col2 = st.columns(2)
+
+col1.metric("👥 Total Staff", total_staff)
+col2.metric("🟢 Live Now", int(live_staff))
+
+st.divider()
+
+# =========================
+# BRANCH WISE VIEW
+# =========================
+st.subheader("📍 Branch Wise Live Staff")
+
+branches = df[branch_col].unique()
+
+for b in branches:
+
+    branch_df = df[df[branch_col] == b]
+
+    live_df = branch_df[branch_df["Live"]]
+
+    st.markdown(f"### 🏬 {b}")
+
+    st.write(f"🟢 Live: {len(live_df)} / {len(branch_df)}")
+
+    if len(live_df) > 0:
+        st.write("👷 Working Now:")
+        st.write(", ".join(live_df[name_col].tolist()))
+    else:
+        st.write("🔴 No staff working currently")
+
+    st.divider()
+
+# =========================
+# FULL LIVE TABLE
+# =========================
+st.subheader("📊 Live Staff Table")
+
+st.dataframe(df[[branch_col, name_col, "Live"]])
