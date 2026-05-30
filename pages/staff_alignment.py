@@ -6,17 +6,20 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # =========================
-# APP
+# APP CONFIG
 # =========================
-st.set_page_config(layout="wide", page_title="Ops System")
+st.set_page_config(layout="wide", page_title="Ops Intelligence System")
 st.title("⚡ Ops Control Center")
 
 # =========================
-# SHEET
+# SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
+# =========================
+# GOOGLE CLIENT
+# =========================
 @st.cache_resource
 def get_client():
     creds = Credentials.from_service_account_info(
@@ -32,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=60)
 def load_data():
@@ -43,14 +46,17 @@ def load_data():
 df = load_data()
 
 # =========================
-# PARSE SHIFT
+# CLEAN + PARSE SHIFT
 # =========================
-def clean(t):
-    t = str(t).replace("–", "-").replace("—", "-")
-    return re.sub(r"\s+", " ", t).strip()
+def clean(text):
+    text = str(text)
+    text = text.replace("–", "-").replace("—", "-")
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
-def extract(t):
-    return re.findall(r"(\d{1,2})\s*(AM|PM)", t, re.I)
+def extract_times(text):
+    return re.findall(r"(\d{1,2})\s*(AM|PM)", text, re.IGNORECASE)
 
 def to_minutes(h, ap):
     h = int(h)
@@ -63,14 +69,19 @@ def to_minutes(h, ap):
 
     return h * 60
 
-def get_shift(cell):
-    if not cell or "OFF" in cell.upper():
+def parse_shift(cell):
+    if not cell:
         return None
 
-    cell = clean(cell)
-    cell = re.sub(r"\(.*?\)", "", cell)
+    text = clean(cell)
 
-    times = extract(cell)
+    if "OFF" in text.upper():
+        return None
+
+    text = re.sub(r"\(.*?\)", "", text)
+
+    times = extract_times(text)
+
     if len(times) < 2:
         return None
 
@@ -80,10 +91,10 @@ def get_shift(cell):
     return start, end
 
 # =========================
-# 🔥 SIMPLE CORRECT LOGIC
+# 🔥 FIXED ACTIVE LOGIC
 # =========================
 def is_active(cell):
-    shift = get_shift(cell)
+    shift = parse_shift(cell)
     if not shift:
         return False
 
@@ -92,51 +103,60 @@ def is_active(cell):
     now = datetime.now()
     now_m = now.hour * 60 + now.minute
 
-    # NORMAL SHIFT
+    # NORMAL SHIFT (1 PM - 10 PM)
     if start < end:
-        return start <= now_m < end
+        return start <= now_m < end   # STRICT CUT-OFF FIX
 
-    # OVERNIGHT SHIFT
+    # OVERNIGHT SHIFT (10 PM - 5 AM)
     return now_m >= start or now_m < end
 
 # =========================
 # UI
 # =========================
-branches = sorted(df["Branch"].unique()) if not df.empty else []
-branch = st.selectbox("Branch", branches)
+branches = sorted(df["Branch"].dropna().unique().tolist()) if not df.empty else []
+branch = st.selectbox("🏢 Select Branch", branches)
 
-data = df[df["Branch"] == branch]
+data = df[df["Branch"] == branch].copy()
 
-shift_cols = [c for c in df.columns if c not in ["Branch","Name","Role"]]
-col = st.selectbox("Shift Column", shift_cols)
+shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
+selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
 
 # =========================
-# SPLIT
+# OPS ENGINE (FIXED)
 # =========================
-active, inactive = [], []
+active = []
+inactive = []
 
 for _, row in data.iterrows():
-    cell = row[col]
+    cell = row.get(selected_col, "")
+
+    row_dict = row.to_dict()   # 🔥 IMPORTANT FIX (prevents InvalidIndexError)
+    row_dict["Shift"] = cell
 
     if is_active(cell):
-        active.append(row)
+        active.append(row_dict)
     else:
-        inactive.append(row)
+        inactive.append(row_dict)
 
-active_df = pd.DataFrame(active)
-inactive_df = pd.DataFrame(inactive)
+# =========================
+# SAFE DATAFRAMES (FIXED)
+# =========================
+active_df = pd.DataFrame(active).reset_index(drop=True)
+inactive_df = pd.DataFrame(inactive).reset_index(drop=True)
 
 # =========================
 # KPI
 # =========================
-c1, c2, c3 = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-with c1:
-    st.metric("Total", len(data))
-with c2:
-    st.metric("Active", len(active_df))
-with c3:
-    st.metric("Inactive", len(inactive_df))
+with col1:
+    st.metric("👥 Total Staff", len(data))
+
+with col2:
+    st.metric("🟢 Active Now", len(active_df))
+
+with col3:
+    st.metric("⚪ Inactive", len(inactive_df))
 
 st.divider()
 
@@ -146,13 +166,16 @@ st.divider()
 st.subheader("🔥 Active Staff")
 
 if not active_df.empty:
-    st.dataframe(active_df[["Name","Role",col]])
+    st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
 else:
-    st.warning("No active staff")
+    st.warning("No active staff right now")
 
 # =========================
 # FULL VIEW
 # =========================
-st.subheader("📊 Full View")
+st.subheader("📊 Full Ops View")
 
-st.dataframe(pd.concat([active_df, inactive_df], ignore_index=True)[["Name","Role",col]])
+full_df = pd.concat([active_df, inactive_df], ignore_index=True)
+
+if not full_df.empty:
+    st.dataframe(full_df[["Name", "Role", selected_col]], use_container_width=True)
