@@ -22,7 +22,7 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.stop()
 
 # =========================
-# INITIALIZE GOOGLE CLIENT
+# GOOGLE CLIENT
 # =========================
 if "gspread_client" not in st.session_state:
     try:
@@ -106,7 +106,7 @@ def duplicate_submission_dialog():
         st.rerun()
 
 # =========================
-# LOGIC FUNCTIONS
+# FUNCTIONS
 # =========================
 def load_data(force_reload=False):
     if force_reload or st.session_state.get("cached_df") is None:
@@ -125,7 +125,6 @@ def load_data(force_reload=False):
 
                 df = df.rename(columns=new_cols)
 
-                # FIX: always recompute OT
                 df["Over-Time"] = df.apply(calculate_row_ot, axis=1)
 
             if df.empty:
@@ -168,7 +167,9 @@ def format_shift(start, end):
     return (f"{start} - {end}", hrs)
 
 
-# FIXED OT CALC (IMPORTANT)
+# =========================
+# 🔥 FIXED OT CALCULATION
+# =========================
 def calculate_row_ot(row):
     total_ot = 0
 
@@ -226,15 +227,20 @@ day_labels = {
     for i, d in enumerate(DAYS)
 }
 
+# =========================
+# EXISTING WEEK CHECK
+# =========================
 existing_week_data = pd.DataFrame()
 
 if not st.session_state.cached_df.empty:
     temp_df = st.session_state.cached_df.copy()
     week_cols = [day_labels[d] for d in DAYS]
+
     available_cols = [c for c in week_cols if c in temp_df.columns]
 
     if available_cols:
         branch_data = temp_df[temp_df["Branch"] == st.session_state.selected_branch]
+
         existing_week_data = branch_data[
             branch_data[available_cols]
             .fillna("")
@@ -333,12 +339,17 @@ if edit_mode:
             new_data = edited_df.copy()
             new_data["Branch"] = st.session_state.selected_branch
 
+            # 🔥 IMPORTANT FIX
             new_data["Over-Time"] = new_data.apply(calculate_row_ot, axis=1)
 
             final = pd.concat([others, new_data], ignore_index=True)
 
             final = final.rename(columns={day: day_labels[day] for day in DAYS})
             final = final.fillna("")
+
+            # 🔥 FIX COLUMN ALIGNMENT (VERY IMPORTANT)
+            expected_cols = ["Branch", "Name", "Role"] + list(day_labels.values()) + ["Over-Time"]
+            final = final.reindex(columns=expected_cols)
 
             ws.update([final.columns.tolist()] + final.values.tolist())
 
@@ -376,7 +387,11 @@ else:
 
     column_defs.append({"headerName": "Over-Time", "field": "Over-Time", "width": 90})
 
-    AgGrid(df_display, gridOptions={"columnDefs": column_defs, "defaultColDef": {"resizable": True}}, height=500)
+    AgGrid(
+        df_display,
+        gridOptions={"columnDefs": column_defs, "defaultColDef": {"resizable": True}},
+        height=500
+    )
 
 if st.button("⬅ Back"):
     st.switch_page("pages/staff_dashboard.py")
