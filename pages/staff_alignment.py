@@ -101,8 +101,14 @@ if "active_df" not in st.session_state:
 if "inactive_df" not in st.session_state:
     st.session_state.inactive_df = pd.DataFrame()
 
+if "universal_active_df" not in st.session_state:
+    st.session_state.universal_active_df = pd.DataFrame()
+
+if "universal_inactive_df" not in st.session_state:
+    st.session_state.universal_inactive_df = pd.DataFrame()
+
 # =========================
-# FILTER ROW (COMPACT)
+# FILTER UI (ROW)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
@@ -121,63 +127,82 @@ with c3:
     calculate = st.button("⚡ Calculate", use_container_width=True)
 
 # =========================
-# CALCULATION
+# CALCULATION (FIXED)
 # =========================
 if calculate:
     now = datetime.now()
     now_min = now.hour * 60 + now.minute
 
-    active, inactive = [], []
+    # =========================
+    # UNIVERSAL (ALL DATA)
+    # =========================
+    u_active, u_inactive = [], []
 
-    for _, row in data.iterrows():
+    for _, row in df.iterrows():
         cell = row.get(selected_col, "")
+
         row_dict = row.to_dict()
         row_dict["Shift"] = cell
 
         if is_active(cell, now_min):
-            active.append(row_dict)
+            u_active.append(row_dict)
         else:
-            inactive.append(row_dict)
+            u_inactive.append(row_dict)
 
-    st.session_state.active_df = pd.DataFrame(active)
-    st.session_state.inactive_df = pd.DataFrame(inactive)
+    st.session_state.universal_active_df = pd.DataFrame(u_active)
+    st.session_state.universal_inactive_df = pd.DataFrame(u_inactive)
+
+    # =========================
+    # BRANCH (SELECTED ONLY)
+    # =========================
+    b_active, b_inactive = [], []
+
+    for _, row in data.iterrows():
+        cell = row.get(selected_col, "")
+
+        row_dict = row.to_dict()
+        row_dict["Shift"] = cell
+
+        if is_active(cell, now_min):
+            b_active.append(row_dict)
+        else:
+            b_inactive.append(row_dict)
+
+    st.session_state.active_df = pd.DataFrame(b_active)
+    st.session_state.inactive_df = pd.DataFrame(b_inactive)
 
     st.toast("✅ Updated Successfully")
     st.toast(f"🕒 {now.strftime('%H:%M:%S')}")
 
 # =========================
-# UNIVERSAL OVERVIEW (ALL BRANCHES)
+# UNIVERSAL OVERVIEW
 # =========================
-total_branches = df["Branch"].nunique()
-total_staff = len(df)
-
-universal_active = len(st.session_state.active_df)
-universal_inactive = len(st.session_state.inactive_df)
+u_active_df = st.session_state.universal_active_df
+u_inactive_df = st.session_state.universal_inactive_df
 
 st.subheader("🌍 Universal Overview")
 
 u1, u2, u3, u4 = st.columns(4)
 
 with u1:
-    st.metric("🏢 Total Branches", total_branches)
+    st.metric("🏢 Total Branches", df["Branch"].nunique())
 
 with u2:
-    st.metric("👥 Total Staff", total_staff)
+    st.metric("👥 Total Staff", len(df))
 
 with u3:
-    st.metric("🟢 Active (All)", universal_active)
+    st.metric("🟢 Active (All)", len(u_active_df))
 
 with u4:
-    st.metric("⚪ Inactive (All)", universal_inactive)
+    st.metric("⚪ Inactive (All)", len(u_inactive_df))
 
 st.divider()
 
 # =========================
-# BRANCH OVERVIEW (SELECTED)
+# BRANCH OVERVIEW
 # =========================
-branch_staff = len(data)
-branch_active = len(st.session_state.active_df)
-branch_inactive = len(st.session_state.inactive_df)
+b_active_df = st.session_state.active_df
+b_inactive_df = st.session_state.inactive_df
 
 st.subheader("🏢 Branch Overview")
 
@@ -187,13 +212,13 @@ with b1:
     st.metric("🏢 Branch", branch)
 
 with b2:
-    st.metric("👥 Branch Staff", branch_staff)
+    st.metric("👥 Branch Staff", len(data))
 
 with b3:
-    st.metric("🟢 Active", branch_active)
+    st.metric("🟢 Active", len(b_active_df))
 
 with b4:
-    st.metric("⚪ Inactive", branch_inactive)
+    st.metric("⚪ Inactive", len(b_inactive_df))
 
 st.divider()
 
@@ -202,14 +227,12 @@ st.divider()
 # =========================
 st.subheader("🔥 Active Staff")
 
-active_df = st.session_state.active_df
-
-if not active_df.empty:
+if not b_active_df.empty:
     cols = ["Name", "Role"]
-    if selected_col in active_df.columns:
+    if selected_col in b_active_df.columns:
         cols.append(selected_col)
 
-    st.dataframe(active_df[cols], use_container_width=True, hide_index=True)
+    st.dataframe(b_active_df[cols], use_container_width=True, hide_index=True)
 else:
     st.info("No active staff")
 
@@ -218,8 +241,7 @@ else:
 # =========================
 st.subheader("📊 Full View")
 
-inactive_df = st.session_state.inactive_df
-full_df = pd.concat([active_df, inactive_df], ignore_index=True)
+full_df = pd.concat([b_active_df, b_inactive_df], ignore_index=True)
 
 if not full_df.empty:
     cols = ["Name", "Role"]
