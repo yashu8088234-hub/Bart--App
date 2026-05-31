@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA LOAD (15 MIN CACHE)
+# DATA LOAD (CACHE 15 MIN)
 # =========================
 @st.cache_data(ttl=900)
 def fetch_sheet():
@@ -89,7 +89,7 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# UI CONTROLS (AUTO DEFAULT TODAY)
+# UI CONTROLS
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
@@ -102,7 +102,10 @@ with c1:
 with c2:
     selected_date = st.date_input("📅 Select Date", value=date.today())
 
-selected_col = shift_cols[0]  # or keep dynamic if needed
+# FIXED SAFE DISPLAY
+st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
+
+selected_col = shift_cols[0]
 
 data = df[df["Branch"] == branch].copy()
 
@@ -113,14 +116,14 @@ now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# UNIVERSAL (ALL DATA - SELECTED DATE CONTEXT)
+# UNIVERSAL CALCULATION
 # =========================
 u_active, u_inactive = [], []
 
 for _, row in df.iterrows():
     cell = row.get(selected_col, "")
     r = row.to_dict()
-    r["Date"] = selected_date  # IMPORTANT FOR WEEK EXPANSION
+    r["Date"] = selected_date
 
     if is_active(cell, now_min):
         u_active.append(r)
@@ -128,7 +131,7 @@ for _, row in df.iterrows():
         u_inactive.append(r)
 
 # =========================
-# BRANCH (FILTERED BY DATE)
+# BRANCH CALCULATION
 # =========================
 b_active, b_inactive = [], []
 
@@ -167,7 +170,7 @@ with c4:
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS TABLE (DATE SAFE)
+# 🪟 BRANCH STATUS
 # =========================
 st.subheader("🪟 Branch Status")
 
@@ -196,7 +199,7 @@ st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 st.divider()
 
 # =========================
-# 🏢 BRANCH OVERVIEW (DATE FIXED)
+# 🏢 BRANCH OVERVIEW
 # =========================
 st.subheader("🏢 Branch Overview")
 
@@ -206,7 +209,7 @@ with c1:
     st.metric("🏢 Branch", branch)
 
 with c2:
-    st.metric("📅 Date", selected_date)
+    st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
 
 with c3:
     st.metric("🟢 Active", len(branch_active_df))
