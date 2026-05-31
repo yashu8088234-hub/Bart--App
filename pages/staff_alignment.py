@@ -46,7 +46,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# SHIFT PARSER
+# CLEAN + SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -81,7 +81,7 @@ def get_shift(cell):
     return convert(matches[0]), convert(matches[1])
 
 # =========================
-# 🔥 FIXED ACTIVE LOGIC (REAL CLOCK + DATE TRIGGER)
+# ACTIVE LOGIC
 # =========================
 def is_active(cell, now_min):
     shift = get_shift(cell)
@@ -90,14 +90,28 @@ def is_active(cell, now_min):
 
     start, end = shift
 
-    # normal same-day + overnight shift support
     if start < end:
         return start <= now_min < end
     else:
         return now_min >= start or now_min < end
 
 # =========================
-# UI
+# SHIFT COLUMN SELECTION (IMPORTANT FIX)
+# =========================
+meta_cols = ["Branch", "Name", "Role"]
+shift_cols = [c for c in df.columns if c not in meta_cols]
+
+if not shift_cols:
+    st.error("No shift column found")
+    st.stop()
+
+shift_col = st.selectbox("⏰ Select Shift Column", shift_cols)
+
+# Normalize
+df = df.rename(columns={shift_col: "Shift"})
+
+# =========================
+# UI CONTROLS
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 
@@ -113,37 +127,17 @@ st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 branch_df = df[df["Branch"] == branch]
 
-# =========================
-# 🔥 IMPORTANT FIX
-# =========================
-# Date triggers rerun automatically in Streamlit,
-# but we still use REAL current time for shifts
-now = datetime.now()
-now_min = now.hour * 60 + now.minute
+# real-time clock (Streamlit reruns on interaction anyway)
+now_min = datetime.now().hour * 60 + datetime.now().minute
 
 # =========================
-# SHIFT COLUMN DETECTION
+# CORE ENGINE (UNIFIED)
 # =========================
-shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
-
-if not shift_cols:
-    st.error("No shift column found")
-    st.stop()
-
-shift_col = shift_cols[0]
-
-df = df.rename(columns={shift_col: "Shift"})
-branch_df = branch_df.rename(columns={shift_col: "Shift"})
-
-# =========================
-# ENGINE
-# =========================
-def compute_all(df, branch_df):
-
+def compute_all(df_full, df_branch):
     u_active, u_inactive = [], []
     b_active, b_inactive = [], []
 
-    for _, row in df.iterrows():
+    for _, row in df_full.iterrows():
         r = row.to_dict()
         r["Date"] = selected_date
 
@@ -152,7 +146,7 @@ def compute_all(df, branch_df):
         else:
             u_inactive.append(r)
 
-    for _, row in branch_df.iterrows():
+    for _, row in df_branch.iterrows():
         r = row.to_dict()
         r["Date"] = selected_date
 
@@ -192,7 +186,7 @@ with c4:
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS
+# 🪟 BRANCH STATUS (FIXED LOGIC)
 # =========================
 st.subheader("🪟 Branch Status")
 
