@@ -11,10 +11,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# =========================
-# APP CONFIG
-# =========================
-st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("STAFF Schedule Control Center")
 
 st.markdown("""
@@ -33,9 +29,7 @@ div[data-testid="collapsedControl"] {
 }
 </style>
 """, unsafe_allow_html=True)
-# =========================
-# CSS FIX
-# =========================
+
 st.markdown("""
 <style>
 div[data-testid="stHorizontalBlock"] {
@@ -52,15 +46,9 @@ div[data-testid="stButton"] > button {
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# SHEET CONFIG
-# =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
-# =========================
-# GOOGLE CLIENT
-# =========================
 @st.cache_resource
 def get_client():
     creds = Credentials.from_service_account_info(
@@ -75,9 +63,6 @@ def get_client():
 client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
-# =========================
-# LOAD DATA
-# =========================
 @st.cache_data(ttl=900)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
@@ -88,9 +73,6 @@ def load_data():
 df_full = load_data()
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
-# =========================
-# SHIFT PARSER
-# =========================
 def clean(text):
     text = str(text).replace("–", "-").replace("—", "-")
     text = re.sub(r"\(.*?\)", "", text)
@@ -134,24 +116,16 @@ def is_active(cell, now_min):
     else:
         return now_min >= start or now_min < end
 
-# =========================
-# 🔥 SMART DATE COLUMN MATCHER
-# =========================
 meta_cols = ["Branch", "Name", "Role"]
-
 shift_cols = [c.strip() for c in df_full.columns if c not in meta_cols]
 
 def extract_day_month(col):
-    """
-    Extract '29 Apr' from 'Thursday (29 Apr)'
-    """
     match = re.search(r"\((\d{1,2}\s\w{3})\)", col)
     if match:
         return match.group(1).strip()
     return None
 
-today_day_month = date.today().strftime("%d %b")  # 31 May format
-
+today_day_month = date.today().strftime("%d %b")
 default_index = len(shift_cols) - 1
 
 for i, col in enumerate(shift_cols):
@@ -161,7 +135,7 @@ for i, col in enumerate(shift_cols):
 
 st.markdown("### KINDLY SELECT THE DATE")
 
-col1, col2 = st.columns([4, 1], vertical_alignment="center")
+col1, col2, col3 = st.columns([4, 1, 1], vertical_alignment="center")
 
 with col1:
     shift_col = st.selectbox(
@@ -174,22 +148,22 @@ with col1:
 with col2:
     refresh = st.button("🔄", use_container_width=True)
 
+with col3:
+    back = st.button("⬅", use_container_width=True)
+
+if back:
+    st.switch_page("pages/management_dashboard.py")
+
 if refresh:
     st.cache_data.clear()
     st.cache_resource.clear()
     st.rerun()
 
-# =========================
-# APPLY SHIFT COLUMN
-# =========================
 if "Shift" in df_full.columns:
     df_full = df_full.drop(columns=["Shift"])
 
 df_full["Shift"] = df_full[shift_col]
 
-# =========================
-# TIME
-# =========================
 now_min = datetime.now().hour * 60 + datetime.now().minute
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
@@ -218,9 +192,6 @@ def compute(df):
 
 u_act, u_inact = compute(df_full)
 
-# =========================
-# UNIVERSAL OVERVIEW
-# =========================
 st.subheader("STAFF Universal Overview")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -236,9 +207,6 @@ with c4:
 
 st.divider()
 
-# =========================
-# BRANCH STATUS
-# =========================
 st.subheader("👥 Branchwise Status")
 
 summary = []
@@ -256,9 +224,6 @@ st.dataframe(safe_df(pd.DataFrame(summary)), use_container_width=True, hide_inde
 
 st.divider()
 
-# =========================
-# BRANCH FILTER
-# =========================
 col1, col2 = st.columns(2)
 
 with col1:
@@ -270,9 +235,6 @@ with col2:
 df_branch = df_full[df_full["Branch"] == selected_branch]
 b_act, b_inact = compute(df_branch)
 
-# =========================
-# BRANCH OVERVIEW
-# =========================
 st.subheader("🏢 Branch Overview")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -288,15 +250,9 @@ with c4:
 
 st.divider()
 
-# =========================
-# ACTIVE STAFF
-# =========================
 st.subheader("🔥 Active Staff")
 st.dataframe(safe_df(b_act), use_container_width=True, hide_index=True)
 
-# =========================
-# FULL VIEW
-# =========================
 st.subheader("📊 Full View")
 
 full_view = pd.concat([b_act, b_inact], ignore_index=True)
