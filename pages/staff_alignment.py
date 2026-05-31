@@ -15,7 +15,7 @@ SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
 # =========================
-# GOOGLE SHEETS
+# GOOGLE CLIENT (ONLY ONCE)
 # =========================
 @st.cache_resource
 def get_client():
@@ -32,18 +32,30 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# DATA CACHE (15 MIN CACHE)
 # =========================
-@st.cache_data(ttl=None)
+@st.cache_data(ttl=900)  # 15 minutes
 def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
+# =========================
+# MANUAL REFRESH CONTROL
+# =========================
+colA, colB = st.columns([1, 4])
+
+with colA:
+    refresh = st.button("🔄 Refresh Data")
+
+if refresh:
+    st.cache_data.clear()   # clear only sheet cache
+    st.toast("🔄 Data Refreshed from Google Sheets")
+
 df = fetch_sheet()
 
 # =========================
-# CLEAN SHIFT
+# SHIFT LOGIC
 # =========================
 def clean(text):
     text = str(text)
@@ -86,135 +98,110 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# SESSION
-# =========================
-if "active_df" not in st.session_state:
-    st.session_state.active_df = pd.DataFrame()
-
-if "inactive_df" not in st.session_state:
-    st.session_state.inactive_df = pd.DataFrame()
-
-# =========================
-# FILTERS
+# UI FILTERS (NO API CALLS HERE)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
-c1, c2, c3 = st.columns([2, 2, 1])
+c1, c2 = st.columns([2, 2])
 
 with c1:
-    branch = st.selectbox("Branch", branches, label_visibility="collapsed")
+    branch = st.selectbox("🏢 Branch", branches)
+
+with c2:
+    selected_col = st.selectbox("📅 Shift Column", shift_cols)
 
 data = df[df["Branch"] == branch].copy()
 
-with c2:
-    selected_col = st.selectbox("Shift", shift_cols, label_visibility="collapsed")
+# =========================
+# CALCULATION (LOCAL ONLY)
+# =========================
+now = datetime.now()
+now_min = now.hour * 60 + now.minute
 
-with c3:
-    calculate = st.button("⚡ Calculate", use_container_width=True)
+u_active, u_inactive = [], []
+b_active, b_inactive = [], []
+
+for _, row in df.iterrows():
+    cell = row.get(selected_col, "")
+    r = row.to_dict()
+
+    if is_active(cell, now_min):
+        u_active.append(r)
+    else:
+        u_inactive.append(r)
+
+for _, row in data.iterrows():
+    cell = row.get(selected_col, "")
+    r = row.to_dict()
+
+    if is_active(cell, now_min):
+        b_active.append(r)
+    else:
+        b_inactive.append(r)
 
 # =========================
-# CALCULATION
+# STORE RESULTS (NO API CALLS AFTER THIS)
 # =========================
-if calculate:
-    now = datetime.now()
-    now_min = now.hour * 60 + now.minute
+st.session_state.universal_active = pd.DataFrame(u_active)
+st.session_state.universal_inactive = pd.DataFrame(u_inactive)
 
-    # ---------- UNIVERSAL ----------
-    u_active, u_inactive = [], []
-
-    for _, row in df.iterrows():
-        cell = row.get(selected_col, "")
-        r = row.to_dict()
-        r["Shift"] = cell
-
-        if is_active(cell, now_min):
-            u_active.append(r)
-        else:
-            u_inactive.append(r)
-
-    st.session_state.universal_active = pd.DataFrame(u_active)
-    st.session_state.universal_inactive = pd.DataFrame(u_inactive)
-
-    # ---------- BRANCH ----------
-    b_active, b_inactive = [], []
-
-    for _, row in data.iterrows():
-        cell = row.get(selected_col, "")
-        r = row.to_dict()
-        r["Shift"] = cell
-
-        if is_active(cell, now_min):
-            b_active.append(r)
-        else:
-            b_inactive.append(r)
-
-    st.session_state.active_df = pd.DataFrame(b_active)
-    st.session_state.inactive_df = pd.DataFrame(b_inactive)
-
-    st.toast("✅ Updated")
+st.session_state.active_df = pd.DataFrame(b_active)
+st.session_state.inactive_df = pd.DataFrame(b_inactive)
 
 # =========================
-# 🌍 UNIVERSAL TOP DASHBOARD
+# 🌍 UNIVERSAL DASHBOARD
 # =========================
-u_active = st.session_state.get("universal_active", pd.DataFrame())
-u_inactive = st.session_state.get("universal_inactive", pd.DataFrame())
-
 st.subheader("🌍 Universal Overview")
 
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    st.metric("🏢 Total Branches", df["Branch"].nunique())
+    st.metric("🏢 Total Branches", len(branches))
 
 with c2:
     st.metric("👥 Total Staff", len(df))
 
 with c3:
-    st.metric("🟢 Active (All)", len(u_active))
+    st.metric("🟢 Active (All)", len(st.session_state.universal_active))
 
 with c4:
-    st.metric("⚪ Inactive (All)", len(u_inactive))
+    st.metric("⚪ Inactive (All)", len(st.session_state.universal_inactive))
 
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS MINI WINDOW
+# 🪟 BRANCH SUMMARY
 # =========================
 st.subheader("🪟 Branch Status")
 
-branch_summary = []
+summary = []
 
 for b in branches:
     temp = df[df["Branch"] == b]
 
-    active_count = 0
-    inactive_count = 0
+    a = 0
+    i = 0
 
     for _, row in temp.iterrows():
-        if is_active(row[selected_col], datetime.now().hour * 60 + datetime.now().minute):
-            active_count += 1
+        if is_active(row[selected_col], now_min):
+            a += 1
         else:
-            inactive_count += 1
+            i += 1
 
-    branch_summary.append({
+    summary.append({
         "Branch": b,
-        "Active": active_count,
-        "Inactive": inactive_count
+        "Active": a,
+        "Inactive": i
     })
 
-summary_df = pd.DataFrame(branch_summary)
-
-st.dataframe(summary_df, use_container_width=True, hide_index=True)
+st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
 st.divider()
 
 # =========================
 # 🏢 BRANCH OVERVIEW
 # =========================
-b_active = st.session_state.get("active_df", pd.DataFrame())
-b_inactive = st.session_state.get("inactive_df", pd.DataFrame())
-
 st.subheader("🏢 Branch Overview")
 
 c1, c2, c3, c4 = st.columns(4)
@@ -226,39 +213,26 @@ with c2:
     st.metric("👥 Branch Staff", len(data))
 
 with c3:
-    st.metric("🟢 Active", len(b_active))
+    st.metric("🟢 Active", len(st.session_state.active_df))
 
 with c4:
-    st.metric("⚪ Inactive", len(b_inactive))
+    st.metric("⚪ Inactive", len(st.session_state.inactive_df))
 
 st.divider()
 
 # =========================
-# ACTIVE TABLE
+# TABLES
 # =========================
 st.subheader("🔥 Active Staff")
 
-if not b_active.empty:
-    cols = ["Name", "Role"]
-    if selected_col in b_active.columns:
-        cols.append(selected_col)
-
-    st.dataframe(b_active[cols], use_container_width=True, hide_index=True)
+if not st.session_state.active_df.empty:
+    st.dataframe(st.session_state.active_df, use_container_width=True, hide_index=True)
 else:
     st.info("No active staff")
 
-# =========================
-# FULL VIEW
-# =========================
 st.subheader("📊 Full View")
 
-full = pd.concat([b_active, b_inactive], ignore_index=True)
+full = pd.concat([st.session_state.active_df, st.session_state.inactive_df], ignore_index=True)
 
 if not full.empty:
-    cols = ["Name", "Role"]
-    if selected_col in full.columns:
-        cols.append(selected_col)
-
-    st.dataframe(full[cols], use_container_width=True, hide_index=True)
-else:
-    st.info("Click Calculate")
+    st.dataframe(full, use_container_width=True, hide_index=True)
