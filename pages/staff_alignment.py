@@ -9,7 +9,7 @@ from datetime import datetime, date
 # APP CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Control Center")
-st.title("⚡ Ops Control Center")
+st.title("STAFF Schedule Control Center")
 
 # =========================
 # CSS FIX (ALIGN BUTTON + SIZE CONTROL)
@@ -127,7 +127,7 @@ def is_active(cell, now_min):
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-st.markdown("### ⏰ Shift Control")
+st.markdown("### KINDLY SELECT THE DATE  ")
 
 col1, col2 = st.columns([4, 1], vertical_alignment="center")
 
@@ -135,7 +135,7 @@ with col1:
     shift_col = st.selectbox("Shift Column", shift_cols, label_visibility="collapsed")
 
 with col2:
-    refresh = st.button("🔄 Refresh", use_container_width=True)
+    refresh = st.button("🔄", use_container_width=True)
 
 # refresh logic
 if refresh:
@@ -191,7 +191,7 @@ u_act, u_inact = compute(df_full)
 # =========================
 # UNIVERSAL OVERVIEW
 # =========================
-st.subheader("🌍 Universal Overview")
+st.subheader("STAFF Universal Overview")
 
 c1, c2, c3, c4 = st.columns(4)
 
@@ -212,7 +212,7 @@ st.divider()
 # =========================
 # BRANCH STATUS
 # =========================
-st.subheader("🪟 Branch Status")
+st.subheader("👥 Branchwise Status")
 
 summary = []
 for b in branches:
