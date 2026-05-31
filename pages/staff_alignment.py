@@ -12,22 +12,6 @@ st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
 # =========================
-# 🔥 UI CSS (make selector compact)
-# =========================
-st.markdown("""
-<style>
-div[data-testid="stSelectbox"] {
-    max-width: 220px;
-}
-
-div[data-testid="stButton"] button {
-    height: 38px;
-    font-size: 13px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================
 # SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
@@ -62,17 +46,14 @@ def load_data():
 
 df_full = load_data()
 
-# =========================
-# 🔥 FIX DUPLICATE COLUMNS
-# =========================
+# remove duplicate columns safety
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
 # SHIFT PARSER
 # =========================
 def clean(text):
-    text = str(text)
-    text = text.replace("–", "-").replace("—", "-")
+    text = str(text).replace("–", "-").replace("—", "-")
     text = re.sub(r"\(.*?\)", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
@@ -115,36 +96,34 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# 🔥 SHIFT TOOLBAR (FIXED ALIGNMENT)
+# 🔥 TOP TOOLBAR (FIXED ALIGNMENT + BIGGER UI)
 # =========================
-toolbar1, toolbar2, toolbar3 = st.columns([2, 2, 1], vertical_alignment="center")
-
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
+
+toolbar1, toolbar2, toolbar3 = st.columns([3, 4, 2], vertical_alignment="center")
 
 with toolbar1:
     st.markdown("### ⏰ Shift Control")
 
 with toolbar2:
     shift_col = st.selectbox(
-        "Shift Column",
+        "Select Shift Column",
         shift_cols,
-        label_visibility="collapsed"
+        label_visibility="visible"
     )
 
 with toolbar3:
-    refresh = st.button("🔄 Refresh", use_container_width=True)
+    refresh = st.button("🔄 Refresh Data", use_container_width=True)
 
-# =========================
-# 🔄 REFRESH LOGIC
-# =========================
+# refresh logic
 if refresh:
     st.cache_data.clear()
     st.cache_resource.clear()
     st.rerun()
 
 # =========================
-# SAFE SHIFT COLUMN
+# SHIFT COLUMN APPLY
 # =========================
 if "Shift" in df_full.columns:
     df_full = df_full.drop(columns=["Shift"])
@@ -152,10 +131,9 @@ if "Shift" in df_full.columns:
 df_full["Shift"] = df_full[shift_col]
 
 # =========================
-# TIME
+# TIME + BRANCHES
 # =========================
 now_min = datetime.now().hour * 60 + datetime.now().minute
-
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
 # =========================
@@ -190,17 +168,17 @@ def compute(df):
 u_act, u_inact = compute(df_full)
 
 # =========================
-# UNIVERSAL OVERVIEW
+# OVERVIEW
 # =========================
 st.subheader("🌍 Universal Overview")
 
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    st.metric("🏢 Total Branches", len(branches))
+    st.metric("🏢 Branches", len(branches))
 
 with c2:
-    st.metric("👥 Total Staff", len(df_full))
+    st.metric("👥 Staff", len(df_full))
 
 with c3:
     st.metric("🟢 Active", len(u_act))
@@ -216,7 +194,6 @@ st.divider()
 st.subheader("🪟 Branch Status")
 
 summary = []
-
 for b in branches:
     temp = df_full[df_full["Branch"] == b]
     a, i = compute(temp)
@@ -232,7 +209,7 @@ st.dataframe(safe_df(pd.DataFrame(summary)), use_container_width=True, hide_inde
 st.divider()
 
 # =========================
-# CONTROLS
+# BRANCH FILTER
 # =========================
 col1, col2 = st.columns(2)
 
@@ -242,13 +219,7 @@ with col1:
 with col2:
     selected_date = st.date_input("📅 Date", value=date.today())
 
-st.divider()
-
-# =========================
-# BRANCH FILTER
-# =========================
 df_branch = df_full[df_full["Branch"] == selected_branch]
-
 b_act, b_inact = compute(df_branch)
 
 # =========================
@@ -259,16 +230,16 @@ st.subheader("🏢 Branch Overview")
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    st.metric("🏢 Branch", selected_branch)
+    st.metric("Branch", selected_branch)
 
 with c2:
-    st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
+    st.metric("Date", selected_date.strftime("%d-%m-%Y"))
 
 with c3:
-    st.metric("🟢 Active", len(b_act))
+    st.metric("Active", len(b_act))
 
 with c4:
-    st.metric("⚪ Inactive", len(b_inact))
+    st.metric("Inactive", len(b_inact))
 
 st.divider()
 
