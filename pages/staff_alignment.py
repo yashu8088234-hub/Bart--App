@@ -12,6 +12,22 @@ st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
 # =========================
+# 🔥 UI CSS (make selector compact)
+# =========================
+st.markdown("""
+<style>
+div[data-testid="stSelectbox"] {
+    max-width: 220px;
+}
+
+div[data-testid="stButton"] button {
+    height: 38px;
+    font-size: 13px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
 # SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
@@ -35,7 +51,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA (CACHEABLE)
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -44,32 +60,15 @@ def load_data():
     df = pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
     return df
 
-# =========================
-# 🔄 REFRESH BUTTON LOGIC
-# =========================
-colA, colB = st.columns([4, 1])
-
-with colA:
-    st.subheader("⏰ Shift Control")
-
-with colB:
-    refresh = st.button("🔄 Refresh", use_container_width=True)
-
-if refresh:
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    st.rerun()
-
-# =========================
-# LOAD DATA AFTER REFRESH LOGIC
-# =========================
 df_full = load_data()
 
-# REMOVE DUPLICATES SAFETY
+# =========================
+# 🔥 FIX DUPLICATE COLUMNS
+# =========================
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
-# CLEAN SHIFT PARSER
+# SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -116,21 +115,37 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN SELECTOR (SMALL UI)
+# 🔥 SHIFT TOOLBAR (FIXED ALIGNMENT)
 # =========================
+toolbar1, toolbar2, toolbar3 = st.columns([2, 2, 1], vertical_alignment="center")
+
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-col1, col2 = st.columns([3, 1])
+with toolbar1:
+    st.markdown("### ⏰ Shift Control")
 
-with col1:
-    shift_col = st.selectbox("Shift Column", shift_cols)
+with toolbar2:
+    shift_col = st.selectbox(
+        "Shift Column",
+        shift_cols,
+        label_visibility="collapsed"
+    )
 
-with col2:
-    st.write("")  # spacing
-    st.caption("🔄 updates live")
+with toolbar3:
+    refresh = st.button("🔄 Refresh", use_container_width=True)
 
-# Inject Shift safely
+# =========================
+# 🔄 REFRESH LOGIC
+# =========================
+if refresh:
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
+
+# =========================
+# SAFE SHIFT COLUMN
+# =========================
 if "Shift" in df_full.columns:
     df_full = df_full.drop(columns=["Shift"])
 
