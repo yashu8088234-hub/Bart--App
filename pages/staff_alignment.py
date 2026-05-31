@@ -41,12 +41,18 @@ sheet = client.open_by_key(SHEET_ID)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
-    return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
+    df = pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
+    return df
 
 df_full = load_data()
 
 # =========================
-# SHIFT PARSER
+# 🔥 FIX: REMOVE DUPLICATE COLUMNS FROM SHEET
+# =========================
+df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
+
+# =========================
+# CLEAN FUNCTION
 # =========================
 def clean(text):
     text = str(text)
@@ -55,6 +61,9 @@ def clean(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
+# =========================
+# SHIFT PARSER
+# =========================
 def get_shift(cell):
     if not cell:
         return None
@@ -93,22 +102,38 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN SETUP (FIXED)
+# SHIFT COLUMN SELECTION
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
 shift_col = st.selectbox("⏰ Shift Column", shift_cols)
 
-# ✅ SAFE SHIFT COLUMN (NO RENAMING)
+# =========================
+# SAFE SHIFT INJECTION (NO DUPLICATES)
+# =========================
+if "Shift" in df_full.columns:
+    df_full = df_full.drop(columns=["Shift"])
+
 df_full["Shift"] = df_full[shift_col]
 
+# =========================
+# CURRENT TIME
+# =========================
 now_min = datetime.now().hour * 60 + datetime.now().minute
 
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
 # =========================
-# ENGINE (FIXED SCHEMA)
+# SAFE DF WRAPPER (CRITICAL FOR STREAMLIT)
+# =========================
+def safe_df(df):
+    df = df.copy()
+    df = df.loc[:, ~df.columns.duplicated()]
+    return df
+
+# =========================
+# ENGINE
 # =========================
 def compute(df):
     active, inactive = [], []
@@ -168,7 +193,7 @@ for b in branches:
         "Inactive": len(i)
     })
 
-st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
+st.dataframe(safe_df(pd.DataFrame(summary)), use_container_width=True, hide_index=True)
 
 st.divider()
 
@@ -217,16 +242,16 @@ st.divider()
 # ACTIVE STAFF
 # =========================
 st.subheader("🔥 Active Staff")
-st.dataframe(b_act, use_container_width=True, hide_index=True)
+st.dataframe(safe_df(b_act), use_container_width=True, hide_index=True)
 
 # =========================
-# FULL VIEW (FIXED)
+# FULL VIEW (FIXED + SAFE)
 # =========================
 st.subheader("📊 Full View")
 
 full_view = pd.concat([b_act, b_inact], ignore_index=True)
 
-# enforce consistent columns (IMPORTANT FIX)
+# enforce schema consistency
 full_view = full_view[df_branch.columns]
 
-st.dataframe(full_view, use_container_width=True, hide_index=True)
+st.dataframe(safe_df(full_view), use_container_width=True, hide_index=True)
