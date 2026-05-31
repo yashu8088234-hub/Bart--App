@@ -27,10 +27,6 @@ div[data-testid="stButton"] > button {
     font-size: 14px;
     border-radius: 8px;
 }
-
-div[data-testid="stSelectbox"] > div {
-    padding-top: 2px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -71,7 +67,7 @@ df_full = load_data()
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
-# CLEAN SHIFT PARSER
+# SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text).replace("–", "-").replace("—", "-")
@@ -117,33 +113,33 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMNS
+# 🔥 SMART DATE COLUMN MATCHER
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
+
 shift_cols = [c.strip() for c in df_full.columns if c not in meta_cols]
+
+def extract_day_month(col):
+    """
+    Extract '29 Apr' from 'Thursday (29 Apr)'
+    """
+    match = re.search(r"\((\d{1,2}\s\w{3})\)", col)
+    if match:
+        return match.group(1).strip()
+    return None
+
+today_day_month = date.today().strftime("%d %b")  # 31 May format
+
+default_index = len(shift_cols) - 1
+
+for i, col in enumerate(shift_cols):
+    if extract_day_month(col) == today_day_month:
+        default_index = i
+        break
 
 st.markdown("### KINDLY SELECT THE DATE")
 
 col1, col2 = st.columns([4, 1], vertical_alignment="center")
-
-# =========================
-# 🔥 ROBUST TODAY MATCHING FIX
-# =========================
-today = date.today()
-
-possible_formats = [
-    today.strftime("%d-%m-%Y"),
-    today.strftime("%d/%m/%Y"),
-    today.strftime("%Y-%m-%d"),
-    today.strftime("%d-%m-%y")
-]
-
-default_index = len(shift_cols) - 1  # fallback
-
-for fmt in possible_formats:
-    if fmt in shift_cols:
-        default_index = shift_cols.index(fmt)
-        break
 
 with col1:
     shift_col = st.selectbox(
