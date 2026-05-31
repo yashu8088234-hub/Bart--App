@@ -96,25 +96,20 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# 🔥 TOP TOOLBAR (FIXED ALIGNMENT + BIGGER UI)
+# 🔥 SHIFT CONTROL (2 ROW TOOLBAR)
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-toolbar1, toolbar2, toolbar3 = st.columns([3, 4, 2], vertical_alignment="center")
+st.markdown("### ⏰ Shift Control")
 
-with toolbar1:
-    st.markdown("### ⏰ Shift Control")
+col1, col2 = st.columns([3, 1])
 
-with toolbar2:
-    shift_col = st.selectbox(
-        "Select Shift Column",
-        shift_cols,
-        label_visibility="visible"
-    )
+with col1:
+    shift_col = st.selectbox("Shift Column", shift_cols)
 
-with toolbar3:
-    refresh = st.button("🔄 Refresh Data", use_container_width=True)
+with col2:
+    refresh = st.button("🔄", help="Refresh Data")
 
 # refresh logic
 if refresh:
@@ -123,7 +118,7 @@ if refresh:
     st.rerun()
 
 # =========================
-# SHIFT COLUMN APPLY
+# APPLY SHIFT COLUMN
 # =========================
 if "Shift" in df_full.columns:
     df_full = df_full.drop(columns=["Shift"])
@@ -131,7 +126,7 @@ if "Shift" in df_full.columns:
 df_full["Shift"] = df_full[shift_col]
 
 # =========================
-# TIME + BRANCHES
+# TIME
 # =========================
 now_min = datetime.now().hour * 60 + datetime.now().minute
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
@@ -168,7 +163,7 @@ def compute(df):
 u_act, u_inact = compute(df_full)
 
 # =========================
-# OVERVIEW
+# UNIVERSAL OVERVIEW
 # =========================
 st.subheader("🌍 Universal Overview")
 
