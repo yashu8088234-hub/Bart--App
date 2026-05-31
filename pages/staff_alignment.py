@@ -102,26 +102,9 @@ shift_col = st.selectbox("⏰ Shift Column", shift_cols)
 
 df_full = df_full.rename(columns={shift_col: "Shift"})
 
-# =========================
-# FILTER CONTROLS (TOGETHER)
-# =========================
-col1, col2 = st.columns(2)
-
-with col1:
-    branches = sorted(df_full["Branch"].dropna().unique().tolist())
-    selected_branch = st.selectbox("🏢 Branch", branches)
-
-with col2:
-    selected_date = st.date_input("📅 Date", value=date.today())
-
-st.divider()
-
-# =========================
-# FILTERED DATA
-# =========================
-df_branch = df_full[df_full["Branch"] == selected_branch]
-
 now_min = datetime.now().hour * 60 + datetime.now().minute
+
+branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
 # =========================
 # ENGINE
@@ -131,7 +114,6 @@ def compute(df):
 
     for _, row in df.iterrows():
         r = row.to_dict()
-        r["Date"] = selected_date
 
         if is_active(row["Shift"], now_min):
             active.append(r)
@@ -141,7 +123,6 @@ def compute(df):
     return pd.DataFrame(active), pd.DataFrame(inactive)
 
 u_act, u_inact = compute(df_full)
-b_act, b_inact = compute(df_branch)
 
 # =========================
 # 🌍 UNIVERSAL OVERVIEW
@@ -184,6 +165,26 @@ for b in branches:
 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
 st.divider()
+
+# =========================
+# ✅ MOVED CONTROLS HERE
+# =========================
+col1, col2 = st.columns(2)
+
+with col1:
+    selected_branch = st.selectbox("🏢 Branch", branches)
+
+with col2:
+    selected_date = st.date_input("📅 Date", value=date.today())
+
+st.divider()
+
+# =========================
+# BRANCH FILTER
+# =========================
+df_branch = df_full[df_full["Branch"] == selected_branch]
+
+b_act, b_inact = compute(df_branch)
 
 # =========================
 # 🏢 BRANCH OVERVIEW
