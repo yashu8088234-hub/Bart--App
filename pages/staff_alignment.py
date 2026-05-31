@@ -93,21 +93,22 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN
+# SHIFT COLUMN SETUP (FIXED)
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
 shift_col = st.selectbox("⏰ Shift Column", shift_cols)
 
-df_full = df_full.rename(columns={shift_col: "Shift"})
+# ✅ SAFE SHIFT COLUMN (NO RENAMING)
+df_full["Shift"] = df_full[shift_col]
 
 now_min = datetime.now().hour * 60 + datetime.now().minute
 
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
 # =========================
-# ENGINE
+# ENGINE (FIXED SCHEMA)
 # =========================
 def compute(df):
     active, inactive = [], []
@@ -120,12 +121,17 @@ def compute(df):
         else:
             inactive.append(r)
 
-    return pd.DataFrame(active), pd.DataFrame(inactive)
+    cols = df.columns.tolist()
+
+    return (
+        pd.DataFrame(active, columns=cols),
+        pd.DataFrame(inactive, columns=cols)
+    )
 
 u_act, u_inact = compute(df_full)
 
 # =========================
-# 🌍 UNIVERSAL OVERVIEW
+# UNIVERSAL OVERVIEW
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -146,7 +152,7 @@ with c4:
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS
+# BRANCH STATUS
 # =========================
 st.subheader("🪟 Branch Status")
 
@@ -167,7 +173,7 @@ st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 st.divider()
 
 # =========================
-# ✅ MOVED CONTROLS HERE
+# CONTROLS
 # =========================
 col1, col2 = st.columns(2)
 
@@ -187,7 +193,7 @@ df_branch = df_full[df_full["Branch"] == selected_branch]
 b_act, b_inact = compute(df_branch)
 
 # =========================
-# 🏢 BRANCH OVERVIEW
+# BRANCH OVERVIEW
 # =========================
 st.subheader("🏢 Branch Overview")
 
@@ -208,13 +214,19 @@ with c4:
 st.divider()
 
 # =========================
-# 🔥 ACTIVE STAFF
+# ACTIVE STAFF
 # =========================
 st.subheader("🔥 Active Staff")
 st.dataframe(b_act, use_container_width=True, hide_index=True)
 
 # =========================
-# 📊 FULL VIEW
+# FULL VIEW (FIXED)
 # =========================
 st.subheader("📊 Full View")
-st.dataframe(pd.concat([b_act, b_inact]), use_container_width=True, hide_index=True)
+
+full_view = pd.concat([b_act, b_inact], ignore_index=True)
+
+# enforce consistent columns (IMPORTANT FIX)
+full_view = full_view[df_branch.columns]
+
+st.dataframe(full_view, use_container_width=True, hide_index=True)
