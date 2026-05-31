@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA CACHE
+# DATA LOAD
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -46,7 +46,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# SHIFT PARSER
+# CLEAN SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -92,9 +92,18 @@ def is_active(cell, now_min):
 # UI CONTROLS
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
-shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
-col1, col2 = st.columns(2)
+# ✅ FIX: safer shift column detection
+shift_cols = [
+    c for c in df.columns
+    if c not in ["Branch", "Name", "Role"]
+]
+
+if not shift_cols:
+    st.error("No shift columns found in sheet!")
+    st.stop()
+
+col1, col2, col3 = st.columns(3)
 
 with col1:
     branch = st.selectbox("🏢 Branch", branches)
@@ -102,22 +111,22 @@ with col1:
 with col2:
     selected_date = st.date_input("📅 Date", value=date.today())
 
-st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
+with col3:
+    selected_col = st.selectbox("⏱ Shift Column", shift_cols)
 
-selected_col = shift_cols[0]
+st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 branch_df = df[df["Branch"] == branch]
 
 # =========================
-# 🔥 FIX: DATE-AWARE TIME CONTEXT
+# TIME FIX (IMPORTANT)
 # =========================
-# IMPORTANT FIX: bind current time to selected date
 now = datetime.now()
-reference_datetime = datetime.combine(selected_date, now.time())
-now_min = reference_datetime.hour * 60 + reference_datetime.minute
+reference_time = datetime.combine(selected_date, now.time())
+now_min = reference_time.hour * 60 + reference_time.minute
 
 # =========================
-# 🔥 SINGLE ENGINE (FIXED)
+# COMPUTE ENGINE
 # =========================
 def compute_all(df, branch_df, col, now_min):
 
@@ -152,7 +161,7 @@ def compute_all(df, branch_df, col, now_min):
 u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, selected_col, now_min)
 
 # =========================
-# 🌍 UNIVERSAL OVERVIEW (NOW FIXED)
+# 🌍 UNIVERSAL OVERVIEW (FIXED)
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -182,19 +191,19 @@ summary = []
 for b in branches:
     temp = df[df["Branch"] == b]
 
-    a = 0
-    i = 0
+    active = 0
+    inactive = 0
 
     for _, row in temp.iterrows():
         if is_active(row[selected_col], now_min):
-            a += 1
+            active += 1
         else:
-            i += 1
+            inactive += 1
 
     summary.append({
         "Branch": b,
-        "Active": a,
-        "Inactive": i
+        "Active": active,
+        "Inactive": inactive
     })
 
 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
