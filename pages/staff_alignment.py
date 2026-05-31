@@ -8,7 +8,11 @@ from datetime import datetime
 # =========================
 # APP CONFIG
 # =========================
-st.set_page_config(layout="wide", page_title="Ops Control Center")
+st.set_page_config(
+    layout="wide",
+    page_title="Ops Control Center"
+)
+
 st.title("⚡ Ops Control Center")
 
 # =========================
@@ -41,22 +45,30 @@ sheet = client.open_by_key(SHEET_ID)
 def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
+
+    if not raw:
+        return pd.DataFrame()
+
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
 df = fetch_sheet()
 
+if df.empty:
+    st.error("No data found in sheet.")
+    st.stop()
+
 # =========================
-# CLEAN
+# CLEAN SHIFT TEXT
 # =========================
 def clean(text):
     text = str(text)
     text = text.replace("–", "-").replace("—", "-")
-    text = re.sub(r"\(.*?\)", "", text)  # remove OT
+    text = re.sub(r"\(.*?\)", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 # =========================
-# 🔥 FIXED SHIFT PARSER (MAIN FIX)
+# SHIFT PARSER
 # =========================
 def get_shift(cell):
     if not cell:
@@ -64,25 +76,28 @@ def get_shift(cell):
 
     text = clean(cell)
 
-    # Extract full time tokens correctly
-    matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.I)
+    matches = re.findall(
+        r"\d{1,2}\s*(?:AM|PM)",
+        text,
+        re.I
+    )
 
     if len(matches) < 2:
         return None
 
     def convert(t):
         t = t.upper().replace(" ", "")
-        h = int(re.findall(r"\d{1,2}", t)[0])
-        ap = "AM" if "AM" in t else "PM"
 
-        if ap == "AM":
-            if h == 12:
-                h = 0
+        hour = int(re.findall(r"\d{1,2}", t)[0])
+
+        if "AM" in t:
+            if hour == 12:
+                hour = 0
         else:
-            if h != 12:
-                h += 12
+            if hour != 12:
+                hour += 12
 
-        return h * 60
+        return hour * 60
 
     start = convert(matches[0])
     end = convert(matches[1])
@@ -90,45 +105,116 @@ def get_shift(cell):
     return start, end
 
 # =========================
-# ACTIVE LOGIC
+# ACTIVE CHECK
 # =========================
 def is_active(cell, now_min):
     shift = get_shift(cell)
+
     if not shift:
         return False
 
     start, end = shift
 
-    # normal shift
+    # Normal shift
     if start < end:
         return start <= now_min < end
 
-    # overnight shift
+    # Overnight shift
     return now_min >= start or now_min < end
 
 # =========================
-# UI
+# SESSION DEFAULTS
 # =========================
-branches = sorted(df["Branch"].dropna().unique().tolist())
-branch = st.selectbox("🏢 Select Branch", branches)
+if "active_df" not in st.session_state:
+    st.session_state.active_df = pd.DataFrame()
+
+if "inactive_df" not in st.session_state:
+    st.session_state.inactive_df = pd.DataFrame()
+
+# =========================
+# UNIVERSAL COUNTS
+# =========================
+total_staff = len(df)
+total_branches = df["Branch"].nunique()
+
+# =========================
+# TOP OVERVIEW
+# =========================
+st.subheader("📈 Overview")
+
+m1, m2, m3, m4 = st.columns(4)
+
+with m1:
+    st.metric("👥 Total Staff", total_staff)
+
+with m2:
+    st.metric("🏢 Total Branches", total_branches)
+
+with m3:
+    st.metric(
+        "🟢 Active",
+        len(st.session_state.active_df)
+    )
+
+with m4:
+    st.metric(
+        "⚪ Inactive",
+        len(st.session_state.inactive_df)
+    )
+
+st.divider()
+
+# =========================
+# FILTER BAR
+# =========================
+branches = sorted(
+    [b for b in df["Branch"].dropna().unique().tolist() if str(b).strip()]
+)
+
+c1, c2, c3 = st.columns([2, 2, 1])
+
+with c1:
+    branch = st.selectbox(
+        "Branch",
+        branches,
+        label_visibility="collapsed",
+        key="branch_selector"
+    )
 
 data = df[df["Branch"] == branch].copy()
 
-shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
-selected_col = st.selectbox("📅 Select Shift Column", shift_cols)
+shift_cols = [
+    c for c in df.columns
+    if c not in ["Branch", "Name", "Role"]
+]
+
+with c2:
+    selected_col = st.selectbox(
+        "Shift Column",
+        shift_cols,
+        label_visibility="collapsed",
+        key="shift_selector"
+    )
+
+with c3:
+    calculate = st.button(
+        "⚡ Calculate",
+        use_container_width=True
+    )
 
 # =========================
-# CALCULATE BUTTON
+# CALCULATE
 # =========================
-if st.button("⚡ Calculate Active / Inactive"):
+if calculate:
 
     now = datetime.now()
-    now_min = now.hour * 60 + now.minute
+    now_min = (now.hour * 60) + now.minute
 
     active = []
     inactive = []
 
     for _, row in data.iterrows():
+
         cell = row.get(selected_col, "")
 
         row_dict = row.to_dict()
@@ -141,40 +227,77 @@ if st.button("⚡ Calculate Active / Inactive"):
 
     st.session_state.active_df = pd.DataFrame(active)
     st.session_state.inactive_df = pd.DataFrame(inactive)
-    st.session_state.last_calc = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    st.success("Updated Successfully!")
+    st.toast("✅ Updated Successfully")
+    st.toast(f"🕒 {now.strftime('%H:%M:%S')}")
 
 # =========================
-# OUTPUT
+# CURRENT RESULTS
 # =========================
-active_df = st.session_state.get("active_df", pd.DataFrame())
-inactive_df = st.session_state.get("inactive_df", pd.DataFrame())
+active_df = st.session_state.active_df
+inactive_df = st.session_state.inactive_df
 
-st.info(f"🕒 Last Calculation: {st.session_state.get('last_calc')}")
+# =========================
+# BRANCH SUMMARY
+# =========================
+branch_total = len(data)
 
-col1, col2, col3 = st.columns(3)
+bc1, bc2, bc3 = st.columns(3)
 
-with col1:
-    st.metric("👥 Total Staff", len(data))
+with bc1:
+    st.metric("👥 Branch Staff", branch_total)
 
-with col2:
+with bc2:
     st.metric("🟢 Active", len(active_df))
 
-with col3:
+with bc3:
     st.metric("⚪ Inactive", len(inactive_df))
 
 st.divider()
 
+# =========================
+# ACTIVE STAFF
+# =========================
 st.subheader("🔥 Active Staff")
-if not active_df.empty:
-    st.dataframe(active_df[["Name", "Role", selected_col]], use_container_width=True)
-else:
-    st.warning("No active staff")
 
+if not active_df.empty:
+
+    cols = ["Name", "Role"]
+
+    if selected_col in active_df.columns:
+        cols.append(selected_col)
+
+    st.dataframe(
+        active_df[cols],
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+    st.info("No active staff found.")
+
+# =========================
+# FULL VIEW
+# =========================
 st.subheader("📊 Full View")
 
-full_df = pd.concat([active_df, inactive_df], ignore_index=True)
+full_df = pd.concat(
+    [active_df, inactive_df],
+    ignore_index=True
+)
 
 if not full_df.empty:
-    st.dataframe(full_df[["Name", "Role", selected_col]], use_container_width=True)
+
+    cols = ["Name", "Role"]
+
+    if selected_col in full_df.columns:
+        cols.append(selected_col)
+
+    st.dataframe(
+        full_df[cols],
+        use_container_width=True,
+        hide_index=True
+    )
+
+else:
+    st.info("Click Calculate to load staff status.")
