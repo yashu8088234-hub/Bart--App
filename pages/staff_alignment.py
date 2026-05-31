@@ -71,7 +71,7 @@ df_full = load_data()
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
-# SHIFT PARSER
+# CLEAN SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text).replace("–", "-").replace("—", "-")
@@ -117,22 +117,33 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT CONTROL
+# SHIFT COLUMNS
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
-shift_cols = [c for c in df_full.columns if c not in meta_cols]
+shift_cols = [c.strip() for c in df_full.columns if c not in meta_cols]
 
 st.markdown("### KINDLY SELECT THE DATE")
 
 col1, col2 = st.columns([4, 1], vertical_alignment="center")
 
-# 🔥 AUTO SELECT TODAY COLUMN
-today_str = date.today().strftime("%d-%m-%Y")  # change format if needed
+# =========================
+# 🔥 ROBUST TODAY MATCHING FIX
+# =========================
+today = date.today()
 
-if today_str in shift_cols:
-    default_index = shift_cols.index(today_str)
-else:
-    default_index = len(shift_cols) - 1  # fallback to last column
+possible_formats = [
+    today.strftime("%d-%m-%Y"),
+    today.strftime("%d/%m/%Y"),
+    today.strftime("%Y-%m-%d"),
+    today.strftime("%d-%m-%y")
+]
+
+default_index = len(shift_cols) - 1  # fallback
+
+for fmt in possible_formats:
+    if fmt in shift_cols:
+        default_index = shift_cols.index(fmt)
+        break
 
 with col1:
     shift_col = st.selectbox(
