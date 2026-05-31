@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA CACHE (ONLY GOOGLE CALL)
+# DATA CACHE
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -109,15 +109,17 @@ selected_col = shift_cols[0]
 branch_df = df[df["Branch"] == branch]
 
 # =========================
-# CURRENT TIME
+# 🔥 FIX: DATE-AWARE TIME CONTEXT
 # =========================
+# IMPORTANT FIX: bind current time to selected date
 now = datetime.now()
-now_min = now.hour * 60 + now.minute
+reference_datetime = datetime.combine(selected_date, now.time())
+now_min = reference_datetime.hour * 60 + reference_datetime.minute
 
 # =========================
-# 🔥 SINGLE ENGINE (FINAL TRUTH)
+# 🔥 SINGLE ENGINE (FIXED)
 # =========================
-def compute_all(df, branch_df, col):
+def compute_all(df, branch_df, col, now_min):
 
     u_active, u_inactive = [], []
     b_active, b_inactive = [], []
@@ -147,10 +149,10 @@ def compute_all(df, branch_df, col):
         pd.DataFrame(b_inactive),
     )
 
-u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, selected_col)
+u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, selected_col, now_min)
 
 # =========================
-# 🌍 UNIVERSAL OVERVIEW (FIXED)
+# 🌍 UNIVERSAL OVERVIEW (NOW FIXED)
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -224,12 +226,10 @@ st.divider()
 # 🔥 ACTIVE STAFF
 # =========================
 st.subheader("🔥 Active Staff")
-
 st.dataframe(b_act, use_container_width=True, hide_index=True)
 
 # =========================
 # 📊 FULL VIEW
 # =========================
 st.subheader("📊 Full View")
-
 st.dataframe(pd.concat([b_act, b_inact]), use_container_width=True, hide_index=True)
