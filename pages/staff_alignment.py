@@ -46,7 +46,7 @@ def fetch_sheet():
 df = fetch_sheet()
 
 # =========================
-# CLEAN FUNCTION
+# CLEAN + SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -55,15 +55,11 @@ def clean(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# =========================
-# SHIFT PARSER
-# =========================
 def get_shift(cell):
     if not cell:
         return None
 
     text = clean(cell)
-
     matches = re.findall(r"\d{1,2}\s*(?:AM|PM)", text, re.I)
 
     if len(matches) < 2:
@@ -82,14 +78,8 @@ def get_shift(cell):
 
         return h * 60
 
-    start = convert(matches[0])
-    end = convert(matches[1])
+    return convert(matches[0]), convert(matches[1])
 
-    return start, end
-
-# =========================
-# ACTIVE CHECK
-# =========================
 def is_active(cell, now_min):
     shift = get_shift(cell)
     if not shift:
@@ -112,7 +102,7 @@ if "inactive_df" not in st.session_state:
     st.session_state.inactive_df = pd.DataFrame()
 
 # =========================
-# FILTERS (COMPACT ROW)
+# FILTER ROW (COMPACT)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
@@ -137,12 +127,10 @@ if calculate:
     now = datetime.now()
     now_min = now.hour * 60 + now.minute
 
-    active = []
-    inactive = []
+    active, inactive = [], []
 
     for _, row in data.iterrows():
         cell = row.get(selected_col, "")
-
         row_dict = row.to_dict()
         row_dict["Shift"] = cell
 
@@ -158,32 +146,54 @@ if calculate:
     st.toast(f"🕒 {now.strftime('%H:%M:%S')}")
 
 # =========================
-# OVERVIEW METRICS
+# UNIVERSAL OVERVIEW (ALL BRANCHES)
 # =========================
 total_branches = df["Branch"].nunique()
+total_staff = len(df)
 
+universal_active = len(st.session_state.active_df)
+universal_inactive = len(st.session_state.inactive_df)
+
+st.subheader("🌍 Universal Overview")
+
+u1, u2, u3, u4 = st.columns(4)
+
+with u1:
+    st.metric("🏢 Total Branches", total_branches)
+
+with u2:
+    st.metric("👥 Total Staff", total_staff)
+
+with u3:
+    st.metric("🟢 Active (All)", universal_active)
+
+with u4:
+    st.metric("⚪ Inactive (All)", universal_inactive)
+
+st.divider()
+
+# =========================
+# BRANCH OVERVIEW (SELECTED)
+# =========================
 branch_staff = len(data)
-active_count = len(st.session_state.active_df)
-inactive_count = len(st.session_state.inactive_df)
+branch_active = len(st.session_state.active_df)
+branch_inactive = len(st.session_state.inactive_df)
 
-st.subheader("📈 Overview")
+st.subheader("🏢 Branch Overview")
 
-m1, m2, m3, m4, m5 = st.columns(5)
+b1, b2, b3, b4 = st.columns(4)
 
-with m1:
+with b1:
     st.metric("🏢 Branch", branch)
 
-with m2:
-    st.metric("🌍 Total Branches", total_branches)
-
-with m3:
+with b2:
     st.metric("👥 Branch Staff", branch_staff)
 
-with m4:
-    st.metric("🟢 Active", active_count)
+with b3:
+    st.metric("🟢 Active", branch_active)
 
-with m5:
-    st.metric("⚪ Inactive", inactive_count)
+with b4:
+    st.metric("⚪ Inactive", branch_inactive)
 
 st.divider()
 
