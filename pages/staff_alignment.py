@@ -12,16 +12,14 @@ st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("STAFF Schedule Control Center")
 
 # =========================
-# CSS FIX (ALIGN BUTTON + SIZE CONTROL)
+# CSS FIX
 # =========================
 st.markdown("""
 <style>
-/* align selectbox and button vertically */
 div[data-testid="stHorizontalBlock"] {
     align-items: center;
 }
 
-/* make refresh button compact */
 div[data-testid="stButton"] > button {
     height: 38px;
     width: 60px;
@@ -30,7 +28,6 @@ div[data-testid="stButton"] > button {
     border-radius: 8px;
 }
 
-/* reduce selectbox height slightly for better alignment */
 div[data-testid="stSelectbox"] > div {
     padding-top: 2px;
 }
@@ -71,8 +68,6 @@ def load_data():
     return df
 
 df_full = load_data()
-
-# remove duplicate columns safety
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
@@ -122,22 +117,34 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT CONTROL (FIXED TOOLBAR)
+# SHIFT CONTROL
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-st.markdown("### KINDLY SELECT THE DATE  ")
+st.markdown("### KINDLY SELECT THE DATE")
 
 col1, col2 = st.columns([4, 1], vertical_alignment="center")
 
+# 🔥 AUTO SELECT TODAY COLUMN
+today_str = date.today().strftime("%d-%m-%Y")  # change format if needed
+
+if today_str in shift_cols:
+    default_index = shift_cols.index(today_str)
+else:
+    default_index = len(shift_cols) - 1  # fallback to last column
+
 with col1:
-    shift_col = st.selectbox("Shift Column", shift_cols, label_visibility="collapsed")
+    shift_col = st.selectbox(
+        "Shift Column",
+        shift_cols,
+        index=default_index,
+        label_visibility="collapsed"
+    )
 
 with col2:
     refresh = st.button("🔄", use_container_width=True)
 
-# refresh logic
 if refresh:
     st.cache_data.clear()
     st.cache_resource.clear()
@@ -157,17 +164,11 @@ df_full["Shift"] = df_full[shift_col]
 now_min = datetime.now().hour * 60 + datetime.now().minute
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
-# =========================
-# SAFE DF
-# =========================
 def safe_df(df):
     df = df.copy()
     df = df.loc[:, ~df.columns.duplicated()]
     return df
 
-# =========================
-# ENGINE
-# =========================
 def compute(df):
     active, inactive = [], []
 
@@ -197,13 +198,10 @@ c1, c2, c3, c4 = st.columns(4)
 
 with c1:
     st.metric("🏢 Branches", len(branches))
-
 with c2:
     st.metric("👥 Staff", len(df_full))
-
 with c3:
     st.metric("🟢 Active", len(u_act))
-
 with c4:
     st.metric("⚪ Inactive", len(u_inact))
 
@@ -252,13 +250,10 @@ c1, c2, c3, c4 = st.columns(4)
 
 with c1:
     st.metric("Branch", selected_branch)
-
 with c2:
     st.metric("Date", selected_date.strftime("%d-%m-%Y"))
-
 with c3:
     st.metric("Active", len(b_act))
-
 with c4:
     st.metric("Inactive", len(b_inact))
 
