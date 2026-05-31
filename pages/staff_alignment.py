@@ -46,7 +46,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# CLEAN + SHIFT PARSER
+# SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -96,7 +96,7 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN SELECTION (IMPORTANT FIX)
+# SHIFT COLUMN SELECTION
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df.columns if c not in meta_cols]
@@ -107,7 +107,6 @@ if not shift_cols:
 
 shift_col = st.selectbox("⏰ Select Shift Column", shift_cols)
 
-# Normalize
 df = df.rename(columns={shift_col: "Shift"})
 
 # =========================
@@ -127,11 +126,10 @@ st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 branch_df = df[df["Branch"] == branch]
 
-# real-time clock (Streamlit reruns on interaction anyway)
 now_min = datetime.now().hour * 60 + datetime.now().minute
 
 # =========================
-# CORE ENGINE (UNIFIED)
+# ENGINE
 # =========================
 def compute_all(df_full, df_branch):
     u_active, u_inactive = [], []
@@ -186,7 +184,7 @@ with c4:
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS (FIXED LOGIC)
+# 🪟 BRANCH STATUS
 # =========================
 st.subheader("🪟 Branch Status")
 
@@ -215,7 +213,7 @@ st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 st.divider()
 
 # =========================
-# 🏢 BRANCH OVERVIEW
+# 🏢 BRANCH OVERVIEW (MOVED HERE ✅)
 # =========================
 st.subheader("🏢 Branch Overview")
 
