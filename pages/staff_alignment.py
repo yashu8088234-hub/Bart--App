@@ -12,6 +12,32 @@ st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
 # =========================
+# CSS FIX (ALIGN BUTTON + SIZE CONTROL)
+# =========================
+st.markdown("""
+<style>
+/* align selectbox and button vertically */
+div[data-testid="stHorizontalBlock"] {
+    align-items: center;
+}
+
+/* make refresh button compact */
+div[data-testid="stButton"] > button {
+    height: 38px;
+    width: 60px;
+    padding: 0px;
+    font-size: 14px;
+    border-radius: 8px;
+}
+
+/* reduce selectbox height slightly for better alignment */
+div[data-testid="stSelectbox"] > div {
+    padding-top: 2px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
 # SHEET CONFIG
 # =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
@@ -96,20 +122,20 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# 🔥 SHIFT CONTROL (2 ROW TOOLBAR)
+# SHIFT CONTROL (FIXED TOOLBAR)
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
 st.markdown("### ⏰ Shift Control")
 
-col1, col2 = st.columns([3, 1])
+col1, col2 = st.columns([4, 1], vertical_alignment="center")
 
 with col1:
-    shift_col = st.selectbox("Shift Column", shift_cols)
+    shift_col = st.selectbox("Shift Column", shift_cols, label_visibility="collapsed")
 
 with col2:
-    refresh = st.button("🔄", help="Refresh Data")
+    refresh = st.button("🔄 Refresh", use_container_width=True)
 
 # refresh logic
 if refresh:
