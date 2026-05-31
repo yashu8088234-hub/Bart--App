@@ -6,14 +6,11 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, date
 
 # =========================
-# APP CONFIG
+# CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
-# =========================
-# SHEET CONFIG
-# =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
@@ -35,7 +32,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA LOAD (CACHE 15 MIN)
+# DATA (CACHE 15 MIN ONLY)
 # =========================
 @st.cache_data(ttl=900)
 def fetch_sheet():
@@ -46,7 +43,7 @@ def fetch_sheet():
 df = fetch_sheet()
 
 # =========================
-# SHIFT PARSER
+# SHIFT LOGIC
 # =========================
 def clean(text):
     text = str(text)
@@ -89,7 +86,7 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# UI CONTROLS
+# UI (IMPORTANT: USE KEYS FOR AUTO REFRESH)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
@@ -97,12 +94,11 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 c1, c2 = st.columns([2, 2])
 
 with c1:
-    branch = st.selectbox("🏢 Branch", branches)
+    branch = st.selectbox("🏢 Branch", branches, key="branch_select")
 
 with c2:
-    selected_date = st.date_input("📅 Select Date", value=date.today())
+    selected_date = st.date_input("📅 Select Date", value=date.today(), key="date_select")
 
-# FIXED SAFE DISPLAY
 st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
 
 selected_col = shift_cols[0]
@@ -110,13 +106,13 @@ selected_col = shift_cols[0]
 data = df[df["Branch"] == branch].copy()
 
 # =========================
-# CURRENT TIME
+# ALWAYS RECALCULATE ON CHANGE
 # =========================
 now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# UNIVERSAL CALCULATION
+# UNIVERSAL (ALL DATA)
 # =========================
 u_active, u_inactive = [], []
 
@@ -131,7 +127,7 @@ for _, row in df.iterrows():
         u_inactive.append(r)
 
 # =========================
-# BRANCH CALCULATION
+# BRANCH (SELECTED ONLY)
 # =========================
 b_active, b_inactive = [], []
 
@@ -170,7 +166,7 @@ with c4:
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS
+# 🪟 BRANCH STATUS TABLE
 # =========================
 st.subheader("🪟 Branch Status")
 
@@ -224,10 +220,7 @@ st.divider()
 # =========================
 st.subheader("🔥 Active Staff")
 
-if not branch_active_df.empty:
-    st.dataframe(branch_active_df, use_container_width=True, hide_index=True)
-else:
-    st.info("No active staff")
+st.dataframe(branch_active_df, use_container_width=True, hide_index=True)
 
 # =========================
 # 📊 FULL VIEW
@@ -236,7 +229,4 @@ st.subheader("📊 Full View")
 
 full = pd.concat([branch_active_df, branch_inactive_df], ignore_index=True)
 
-if not full.empty:
-    st.dataframe(full, use_container_width=True, hide_index=True)
-else:
-    st.info("No data available")
+st.dataframe(full, use_container_width=True, hide_index=True)
