@@ -6,14 +6,11 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, date
 
 # =========================
-# APP CONFIG
+# CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
-# =========================
-# SHEET CONFIG
-# =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
@@ -35,28 +32,16 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# SHEET DATA (ONLY CACHE HERE)
+# SHEET CACHE ONLY (15 min)
 # =========================
-@st.cache_data(ttl=900)  # 15 min cache
-def fetch_sheet():
+@st.cache_data(ttl=900)
+def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
 # =========================
-# MANUAL REFRESH BUTTON (ONLY API CONTROL)
-# =========================
-colA, colB = st.columns([1, 5])
-
-with colA:
-    if st.button("🔄 Refresh Sheet"):
-        st.cache_data.clear()
-        st.toast("🔄 Data Refreshed from Google Sheets")
-
-df = fetch_sheet()
-
-# =========================
-# SHIFT LOGIC
+# SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -99,71 +84,80 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# UI (IMPORTANT: NO SESSION STATE)
+# 🔥 PURE ENGINE (MOST IMPORTANT FIX)
+# =========================
+def compute_dashboard(df, branch, selected_col, now_min, selected_date):
+
+    branch_df = df[df["Branch"] == branch]
+
+    u_active, u_inactive = [], []
+    b_active, b_inactive = [], []
+
+    # UNIVERSAL
+    for _, row in df.iterrows():
+        r = row.to_dict()
+        r["Date"] = selected_date
+
+        if is_active(row[selected_col], now_min):
+            u_active.append(r)
+        else:
+            u_inactive.append(r)
+
+    # BRANCH
+    for _, row in branch_df.iterrows():
+        r = row.to_dict()
+        r["Date"] = selected_date
+
+        if is_active(row[selected_col], now_min):
+            b_active.append(r)
+        else:
+            b_inactive.append(r)
+
+    return (
+        pd.DataFrame(u_active),
+        pd.DataFrame(u_inactive),
+        pd.DataFrame(b_active),
+        pd.DataFrame(b_inactive),
+    )
+
+# =========================
+# LOAD DATA
+# =========================
+df = load_data()
+
+# =========================
+# UI (FORCES STREAMLIT RERUN)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
-c1, c2 = st.columns([2, 2])
+col1, col2 = st.columns(2)
 
-with c1:
-    branch = st.selectbox("🏢 Branch", branches)
+with col1:
+    branch = st.selectbox("🏢 Branch", branches, key="branch")
 
-with c2:
-    selected_date = st.date_input("📅 Select Date", value=date.today())
+with col2:
+    selected_date = st.date_input("📅 Date", value=date.today(), key="date")
 
 st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 selected_col = shift_cols[0]
 
-branch_df = df[df["Branch"] == branch]
-
 # =========================
-# ALWAYS RECOMPUTE (KEY FIX)
+# CURRENT TIME
 # =========================
 now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# UNIVERSAL CALCULATION
+# RUN ENGINE (ALWAYS FRESH ON CHANGE)
 # =========================
-u_active = []
-u_inactive = []
-
-for _, row in df.iterrows():
-    cell = row.get(selected_col, "")
-    r = row.to_dict()
-    r["Date"] = selected_date
-
-    if is_active(cell, now_min):
-        u_active.append(r)
-    else:
-        u_inactive.append(r)
-
-universal_active_df = pd.DataFrame(u_active)
-universal_inactive_df = pd.DataFrame(u_inactive)
+u_act, u_inact, b_act, b_inact = compute_dashboard(
+    df, branch, selected_col, now_min, selected_date
+)
 
 # =========================
-# BRANCH CALCULATION
-# =========================
-b_active = []
-b_inactive = []
-
-for _, row in branch_df.iterrows():
-    cell = row.get(selected_col, "")
-    r = row.to_dict()
-    r["Date"] = selected_date
-
-    if is_active(cell, now_min):
-        b_active.append(r)
-    else:
-        b_inactive.append(r)
-
-branch_active_df = pd.DataFrame(b_active)
-branch_inactive_df = pd.DataFrame(b_inactive)
-
-# =========================
-# 🌍 UNIVERSAL DASHBOARD
+# 🌍 UNIVERSAL
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -176,15 +170,15 @@ with c2:
     st.metric("👥 Total Staff", len(df))
 
 with c3:
-    st.metric("🟢 Active (All)", len(universal_active_df))
+    st.metric("🟢 Active (All)", len(u_act))
 
 with c4:
-    st.metric("⚪ Inactive (All)", len(universal_inactive_df))
+    st.metric("⚪ Inactive (All)", len(u_inact))
 
 st.divider()
 
 # =========================
-# 🪟 BRANCH STATUS TABLE
+# 🪟 BRANCH STATUS
 # =========================
 st.subheader("🪟 Branch Status")
 
@@ -202,11 +196,7 @@ for b in branches:
         else:
             i += 1
 
-    summary.append({
-        "Branch": b,
-        "Active": a,
-        "Inactive": i
-    })
+    summary.append({"Branch": b, "Active": a, "Inactive": i})
 
 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
@@ -226,10 +216,10 @@ with c2:
     st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
 
 with c3:
-    st.metric("🟢 Active", len(branch_active_df))
+    st.metric("🟢 Active", len(b_act))
 
 with c4:
-    st.metric("⚪ Inactive", len(branch_inactive_df))
+    st.metric("⚪ Inactive", len(b_inact))
 
 st.divider()
 
@@ -238,13 +228,13 @@ st.divider()
 # =========================
 st.subheader("🔥 Active Staff")
 
-st.dataframe(branch_active_df, use_container_width=True, hide_index=True)
+st.dataframe(b_act, use_container_width=True, hide_index=True)
 
 # =========================
 # 📊 FULL VIEW
 # =========================
 st.subheader("📊 Full View")
 
-full = pd.concat([branch_active_df, branch_inactive_df], ignore_index=True)
+full = pd.concat([b_act, b_inact], ignore_index=True)
 
 st.dataframe(full, use_container_width=True, hide_index=True)
