@@ -6,11 +6,14 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, date
 
 # =========================
-# CONFIG
+# APP CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
+# =========================
+# SHEET CONFIG
+# =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
@@ -32,13 +35,23 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA (CACHE 15 MIN ONLY)
+# SHEET DATA (ONLY CACHE HERE)
 # =========================
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900)  # 15 min cache
 def fetch_sheet():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
+
+# =========================
+# MANUAL REFRESH BUTTON (ONLY API CONTROL)
+# =========================
+colA, colB = st.columns([1, 5])
+
+with colA:
+    if st.button("🔄 Refresh Sheet"):
+        st.cache_data.clear()
+        st.toast("🔄 Data Refreshed from Google Sheets")
 
 df = fetch_sheet()
 
@@ -86,7 +99,7 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# UI (IMPORTANT: USE KEYS FOR AUTO REFRESH)
+# UI (IMPORTANT: NO SESSION STATE)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
@@ -94,27 +107,28 @@ shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 c1, c2 = st.columns([2, 2])
 
 with c1:
-    branch = st.selectbox("🏢 Branch", branches, key="branch_select")
+    branch = st.selectbox("🏢 Branch", branches)
 
 with c2:
-    selected_date = st.date_input("📅 Select Date", value=date.today(), key="date_select")
+    selected_date = st.date_input("📅 Select Date", value=date.today())
 
-st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
+st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 selected_col = shift_cols[0]
 
-data = df[df["Branch"] == branch].copy()
+branch_df = df[df["Branch"] == branch]
 
 # =========================
-# ALWAYS RECALCULATE ON CHANGE
+# ALWAYS RECOMPUTE (KEY FIX)
 # =========================
 now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# UNIVERSAL (ALL DATA)
+# UNIVERSAL CALCULATION
 # =========================
-u_active, u_inactive = [], []
+u_active = []
+u_inactive = []
 
 for _, row in df.iterrows():
     cell = row.get(selected_col, "")
@@ -126,12 +140,16 @@ for _, row in df.iterrows():
     else:
         u_inactive.append(r)
 
-# =========================
-# BRANCH (SELECTED ONLY)
-# =========================
-b_active, b_inactive = [], []
+universal_active_df = pd.DataFrame(u_active)
+universal_inactive_df = pd.DataFrame(u_inactive)
 
-for _, row in data.iterrows():
+# =========================
+# BRANCH CALCULATION
+# =========================
+b_active = []
+b_inactive = []
+
+for _, row in branch_df.iterrows():
     cell = row.get(selected_col, "")
     r = row.to_dict()
     r["Date"] = selected_date
@@ -145,7 +163,7 @@ branch_active_df = pd.DataFrame(b_active)
 branch_inactive_df = pd.DataFrame(b_inactive)
 
 # =========================
-# 🌍 UNIVERSAL OVERVIEW
+# 🌍 UNIVERSAL DASHBOARD
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -158,10 +176,10 @@ with c2:
     st.metric("👥 Total Staff", len(df))
 
 with c3:
-    st.metric("🟢 Active (All)", len(u_active))
+    st.metric("🟢 Active (All)", len(universal_active_df))
 
 with c4:
-    st.metric("⚪ Inactive (All)", len(u_inactive))
+    st.metric("⚪ Inactive (All)", len(universal_inactive_df))
 
 st.divider()
 
