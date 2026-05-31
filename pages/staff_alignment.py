@@ -81,21 +81,20 @@ def get_shift(cell):
     return convert(matches[0]), convert(matches[1])
 
 # =========================
-# 🔥 FIXED ACTIVE LOGIC (DATE-TRIGGER BASED)
+# 🔥 FIXED ACTIVE LOGIC (REAL CLOCK + DATE TRIGGER)
 # =========================
-def is_active(cell, selected_date):
+def is_active(cell, now_min):
     shift = get_shift(cell)
     if not shift:
         return False
 
     start, end = shift
 
-    # IMPORTANT:
-    # We remove real-time dependency completely
-    # and use stable evaluation so DATE triggers recompute
-    simulated_min = 12 * 60  # midpoint of day (stable reference)
-
-    return (start <= simulated_min < end) if start < end else True
+    # normal same-day + overnight shift support
+    if start < end:
+        return start <= now_min < end
+    else:
+        return now_min >= start or now_min < end
 
 # =========================
 # UI
@@ -115,12 +114,20 @@ st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 branch_df = df[df["Branch"] == branch]
 
 # =========================
-# AUTO SHIFT COLUMN
+# 🔥 IMPORTANT FIX
+# =========================
+# Date triggers rerun automatically in Streamlit,
+# but we still use REAL current time for shifts
+now = datetime.now()
+now_min = now.hour * 60 + now.minute
+
+# =========================
+# SHIFT COLUMN DETECTION
 # =========================
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
 if not shift_cols:
-    st.error("No shift column found in sheet")
+    st.error("No shift column found")
     st.stop()
 
 shift_col = shift_cols[0]
@@ -140,7 +147,7 @@ def compute_all(df, branch_df):
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row["Shift"], selected_date):
+        if is_active(row["Shift"], now_min):
             u_active.append(r)
         else:
             u_inactive.append(r)
@@ -149,7 +156,7 @@ def compute_all(df, branch_df):
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row["Shift"], selected_date):
+        if is_active(row["Shift"], now_min):
             b_active.append(r)
         else:
             b_inactive.append(r)
@@ -198,7 +205,7 @@ for b in branches:
     inactive = 0
 
     for _, row in temp.iterrows():
-        if is_active(row["Shift"], selected_date):
+        if is_active(row["Shift"], now_min):
             active += 1
         else:
             inactive += 1
