@@ -11,6 +11,18 @@ from datetime import datetime, date
 st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("STAFF Schedule Control Center")
 
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {
+    display: none;
+}
+
+[data-testid="collapsedControl"] {
+    display: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # =========================
 # CSS FIX
 # =========================
