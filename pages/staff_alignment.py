@@ -13,7 +13,7 @@ st.set_page_config(
     page_title="Ops Control Center"
 )
 
-st.title("⚡ Ops Control Center")
+st.title("Staff Schedule Center")
 
 # =========================
 # SHEET CONFIG
@@ -138,32 +138,34 @@ total_staff = len(df)
 total_branches = df["Branch"].nunique()
 
 # =========================
-# TOP OVERVIEW
+# OVERVIEW
 # =========================
+total_branches = df["Branch"].nunique()
+
+branch_total_staff = len(data)
+branch_active_count = len(st.session_state.active_df)
+branch_inactive_count = len(st.session_state.inactive_df)
+
 st.subheader("📈 Overview")
 
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3, m4, m5 = st.columns(5)
 
 with m1:
-    st.metric("👥 Total Staff", total_staff)
+    st.metric("🏢 Branch", branch)
 
 with m2:
-    st.metric("🏢 Total Branches", total_branches)
+    st.metric("🌍 Total Branches", total_branches)
 
 with m3:
-    st.metric(
-        "🟢 Active",
-        len(st.session_state.active_df)
-    )
+    st.metric("👥 Branch Staff", branch_total_staff)
 
 with m4:
-    st.metric(
-        "⚪ Inactive",
-        len(st.session_state.inactive_df)
-    )
+    st.metric("🟢 Active", branch_active_count)
+
+with m5:
+    st.metric("⚪ Inactive", branch_inactive_count)
 
 st.divider()
-
 # =========================
 # FILTER BAR
 # =========================
