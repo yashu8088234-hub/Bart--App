@@ -43,7 +43,7 @@ def load_data():
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
 
-df = load_data()
+df_full = load_data()
 
 # =========================
 # SHIFT PARSER
@@ -80,9 +80,6 @@ def get_shift(cell):
 
     return convert(matches[0]), convert(matches[1])
 
-# =========================
-# ACTIVE LOGIC
-# =========================
 def is_active(cell, now_min):
     shift = get_shift(cell)
     if not shift:
@@ -96,71 +93,55 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN SELECTION
+# SHIFT COLUMN
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
-shift_cols = [c for c in df.columns if c not in meta_cols]
+shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-if not shift_cols:
-    st.error("No shift column found")
-    st.stop()
+shift_col = st.selectbox("⏰ Shift Column", shift_cols)
 
-shift_col = st.selectbox("⏰ Select Shift Column", shift_cols)
-
-df = df.rename(columns={shift_col: "Shift"})
+df_full = df_full.rename(columns={shift_col: "Shift"})
 
 # =========================
-# UI CONTROLS
+# FILTER CONTROLS (TOGETHER)
 # =========================
-branches = sorted(df["Branch"].dropna().unique().tolist())
-
 col1, col2 = st.columns(2)
 
 with col1:
-    branch = st.selectbox("🏢 Branch", branches)
+    branches = sorted(df_full["Branch"].dropna().unique().tolist())
+    selected_branch = st.selectbox("🏢 Branch", branches)
 
 with col2:
     selected_date = st.date_input("📅 Date", value=date.today())
 
-st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
+st.divider()
 
-branch_df = df[df["Branch"] == branch]
+# =========================
+# FILTERED DATA
+# =========================
+df_branch = df_full[df_full["Branch"] == selected_branch]
 
 now_min = datetime.now().hour * 60 + datetime.now().minute
 
 # =========================
 # ENGINE
 # =========================
-def compute_all(df_full, df_branch):
-    u_active, u_inactive = [], []
-    b_active, b_inactive = [], []
+def compute(df):
+    active, inactive = [], []
 
-    for _, row in df_full.iterrows():
+    for _, row in df.iterrows():
         r = row.to_dict()
         r["Date"] = selected_date
 
         if is_active(row["Shift"], now_min):
-            u_active.append(r)
+            active.append(r)
         else:
-            u_inactive.append(r)
+            inactive.append(r)
 
-    for _, row in df_branch.iterrows():
-        r = row.to_dict()
-        r["Date"] = selected_date
+    return pd.DataFrame(active), pd.DataFrame(inactive)
 
-        if is_active(row["Shift"], now_min):
-            b_active.append(r)
-        else:
-            b_inactive.append(r)
-
-    return (
-        pd.DataFrame(u_active),
-        pd.DataFrame(u_inactive),
-        pd.DataFrame(b_active),
-        pd.DataFrame(b_inactive),
-    )
-
-u_act, u_inact, b_act, b_inact = compute_all(df, branch_df)
+u_act, u_inact = compute(df_full)
+b_act, b_inact = compute(df_branch)
 
 # =========================
 # 🌍 UNIVERSAL OVERVIEW
@@ -173,7 +154,7 @@ with c1:
     st.metric("🏢 Total Branches", len(branches))
 
 with c2:
-    st.metric("👥 Total Staff", len(df))
+    st.metric("👥 Total Staff", len(df_full))
 
 with c3:
     st.metric("🟢 Active (All)", len(u_act))
@@ -191,21 +172,13 @@ st.subheader("🪟 Branch Status")
 summary = []
 
 for b in branches:
-    temp = df[df["Branch"] == b]
-
-    active = 0
-    inactive = 0
-
-    for _, row in temp.iterrows():
-        if is_active(row["Shift"], now_min):
-            active += 1
-        else:
-            inactive += 1
+    temp = df_full[df_full["Branch"] == b]
+    a, i = compute(temp)
 
     summary.append({
         "Branch": b,
-        "Active": active,
-        "Inactive": inactive
+        "Active": len(a),
+        "Inactive": len(i)
     })
 
 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
@@ -213,14 +186,14 @@ st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 st.divider()
 
 # =========================
-# 🏢 BRANCH OVERVIEW (MOVED HERE ✅)
+# 🏢 BRANCH OVERVIEW
 # =========================
 st.subheader("🏢 Branch Overview")
 
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    st.metric("🏢 Branch", branch)
+    st.metric("🏢 Branch", selected_branch)
 
 with c2:
     st.metric("📅 Date", selected_date.strftime("%d-%m-%Y"))
