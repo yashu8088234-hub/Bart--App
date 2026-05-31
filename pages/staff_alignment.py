@@ -6,11 +6,14 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, date
 
 # =========================
-# CONFIG
+# APP CONFIG
 # =========================
 st.set_page_config(layout="wide", page_title="Ops Control Center")
 st.title("⚡ Ops Control Center")
 
+# =========================
+# SHEET CONFIG
+# =========================
 SHEET_ID = "1UtHUn7miqYzaP-NnrwMR_5wnSgLnaYPRQX2c4I7_9B0"
 TAB_NAME = "StaffSchedule"
 
@@ -32,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# SHEET CACHE ONLY (15 min)
+# LOAD DATA (CACHE 15 MIN)
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -84,40 +87,40 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# 🔥 PURE ENGINE (MOST IMPORTANT FIX)
+# 🔥 SINGLE ENGINE (SOURCE OF TRUTH)
 # =========================
-def compute_dashboard(df, branch, selected_col, now_min, selected_date):
+def compute(df, branch, col, now_min, selected_date):
 
     branch_df = df[df["Branch"] == branch]
 
-    u_active, u_inactive = [], []
-    b_active, b_inactive = [], []
+    u_act, u_inact = [], []
+    b_act, b_inact = [], []
 
     # UNIVERSAL
     for _, row in df.iterrows():
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row[selected_col], now_min):
-            u_active.append(r)
+        if is_active(row[col], now_min):
+            u_act.append(r)
         else:
-            u_inactive.append(r)
+            u_inact.append(r)
 
     # BRANCH
     for _, row in branch_df.iterrows():
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row[selected_col], now_min):
-            b_active.append(r)
+        if is_active(row[col], now_min):
+            b_act.append(r)
         else:
-            b_inactive.append(r)
+            b_inact.append(r)
 
     return (
-        pd.DataFrame(u_active),
-        pd.DataFrame(u_inactive),
-        pd.DataFrame(b_active),
-        pd.DataFrame(b_inactive),
+        pd.DataFrame(u_act),
+        pd.DataFrame(u_inact),
+        pd.DataFrame(b_act),
+        pd.DataFrame(b_inact),
     )
 
 # =========================
@@ -126,38 +129,38 @@ def compute_dashboard(df, branch, selected_col, now_min, selected_date):
 df = load_data()
 
 # =========================
-# UI (FORCES STREAMLIT RERUN)
+# UI CONTROLS
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
-col1, col2 = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col1:
-    branch = st.selectbox("🏢 Branch", branches, key="branch")
+with c1:
+    branch = st.selectbox("🏢 Branch", branches)
 
-with col2:
-    selected_date = st.date_input("📅 Date", value=date.today(), key="date")
+with c2:
+    selected_date = st.date_input("📅 Date", value=date.today())
 
 st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 selected_col = shift_cols[0]
 
 # =========================
-# CURRENT TIME
+# TIME
 # =========================
 now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# RUN ENGINE (ALWAYS FRESH ON CHANGE)
+# RUN ENGINE
 # =========================
-u_act, u_inact, b_act, b_inact = compute_dashboard(
+u_act, u_inact, b_act, b_inact = compute(
     df, branch, selected_col, now_min, selected_date
 )
 
 # =========================
-# 🌍 UNIVERSAL
+# 🌍 UNIVERSAL OVERVIEW (FIXED)
 # =========================
 st.subheader("🌍 Universal Overview")
 
@@ -196,7 +199,11 @@ for b in branches:
         else:
             i += 1
 
-    summary.append({"Branch": b, "Active": a, "Inactive": i})
+    summary.append({
+        "Branch": b,
+        "Active": a,
+        "Inactive": i
+    })
 
 st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
