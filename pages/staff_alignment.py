@@ -5,6 +5,12 @@ import re
 from google.oauth2.service_account import Credentials
 from datetime import datetime, date
 
+st.set_page_config(
+    layout="wide",
+    page_title="Ops Control Center",
+    initial_sidebar_state="collapsed"
+)
+
 # =========================
 # APP CONFIG
 # =========================
@@ -13,16 +19,20 @@ st.title("STAFF Schedule Control Center")
 
 st.markdown("""
 <style>
-[data-testid="stSidebar"] {
-    display: none;
+section[data-testid="stSidebar"] {
+    display: none !important;
 }
 
-[data-testid="collapsedControl"] {
-    display: none;
+div[data-testid="collapsedControl"] {
+    display: none !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 </style>
 """, unsafe_allow_html=True)
-
 # =========================
 # CSS FIX
 # =========================
