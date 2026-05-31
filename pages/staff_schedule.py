@@ -10,6 +10,19 @@ from st_aggrid import AgGrid
 
 st.set_page_config(layout="wide", page_title="BART Master Schedule")
 
+
+st.markdown("""
+<style>
+[data-testid="stSidebar"] {
+    display: none;
+}
+
+[data-testid="collapsedControl"] {
+    display: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # =========================
 # AUTH CHECK
 # =========================
