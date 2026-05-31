@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA
+# LOAD DATA (CACHEABLE)
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -44,15 +44,32 @@ def load_data():
     df = pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
     return df
 
-df_full = load_data()
+# =========================
+# 🔄 REFRESH BUTTON LOGIC
+# =========================
+colA, colB = st.columns([4, 1])
+
+with colA:
+    st.subheader("⏰ Shift Control")
+
+with colB:
+    refresh = st.button("🔄 Refresh", use_container_width=True)
+
+if refresh:
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    st.rerun()
 
 # =========================
-# 🔥 FIX: REMOVE DUPLICATE COLUMNS FROM SHEET
+# LOAD DATA AFTER REFRESH LOGIC
 # =========================
+df_full = load_data()
+
+# REMOVE DUPLICATES SAFETY
 df_full = df_full.loc[:, ~df_full.columns.duplicated()].copy()
 
 # =========================
-# CLEAN FUNCTION
+# CLEAN SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -61,9 +78,6 @@ def clean(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# =========================
-# SHIFT PARSER
-# =========================
 def get_shift(cell):
     if not cell:
         return None
@@ -102,30 +116,35 @@ def is_active(cell, now_min):
         return now_min >= start or now_min < end
 
 # =========================
-# SHIFT COLUMN SELECTION
+# SHIFT COLUMN SELECTOR (SMALL UI)
 # =========================
 meta_cols = ["Branch", "Name", "Role"]
 shift_cols = [c for c in df_full.columns if c not in meta_cols]
 
-shift_col = st.selectbox("⏰ Shift Column", shift_cols)
+col1, col2 = st.columns([3, 1])
 
-# =========================
-# SAFE SHIFT INJECTION (NO DUPLICATES)
-# =========================
+with col1:
+    shift_col = st.selectbox("Shift Column", shift_cols)
+
+with col2:
+    st.write("")  # spacing
+    st.caption("🔄 updates live")
+
+# Inject Shift safely
 if "Shift" in df_full.columns:
     df_full = df_full.drop(columns=["Shift"])
 
 df_full["Shift"] = df_full[shift_col]
 
 # =========================
-# CURRENT TIME
+# TIME
 # =========================
 now_min = datetime.now().hour * 60 + datetime.now().minute
 
 branches = sorted(df_full["Branch"].dropna().unique().tolist())
 
 # =========================
-# SAFE DF WRAPPER (CRITICAL FOR STREAMLIT)
+# SAFE DF
 # =========================
 def safe_df(df):
     df = df.copy()
@@ -169,10 +188,10 @@ with c2:
     st.metric("👥 Total Staff", len(df_full))
 
 with c3:
-    st.metric("🟢 Active (All)", len(u_act))
+    st.metric("🟢 Active", len(u_act))
 
 with c4:
-    st.metric("⚪ Inactive (All)", len(u_inact))
+    st.metric("⚪ Inactive", len(u_inact))
 
 st.divider()
 
@@ -245,13 +264,11 @@ st.subheader("🔥 Active Staff")
 st.dataframe(safe_df(b_act), use_container_width=True, hide_index=True)
 
 # =========================
-# FULL VIEW (FIXED + SAFE)
+# FULL VIEW
 # =========================
 st.subheader("📊 Full View")
 
 full_view = pd.concat([b_act, b_inact], ignore_index=True)
-
-# enforce schema consistency
 full_view = full_view[df_branch.columns]
 
 st.dataframe(safe_df(full_view), use_container_width=True, hide_index=True)
