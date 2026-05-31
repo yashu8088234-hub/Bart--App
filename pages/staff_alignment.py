@@ -35,7 +35,7 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# DATA LOAD
+# LOAD DATA
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
@@ -46,7 +46,7 @@ def load_data():
 df = load_data()
 
 # =========================
-# CLEAN SHIFT PARSER
+# SHIFT PARSER
 # =========================
 def clean(text):
     text = str(text)
@@ -89,21 +89,11 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# UI CONTROLS
+# UI CONTROLS (ONLY DATE MATTERS NOW)
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 
-# ✅ FIX: safer shift column detection
-shift_cols = [
-    c for c in df.columns
-    if c not in ["Branch", "Name", "Role"]
-]
-
-if not shift_cols:
-    st.error("No shift columns found in sheet!")
-    st.stop()
-
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     branch = st.selectbox("🏢 Branch", branches)
@@ -111,24 +101,23 @@ with col1:
 with col2:
     selected_date = st.date_input("📅 Date", value=date.today())
 
-with col3:
-    selected_col = st.selectbox("⏱ Shift Column", shift_cols)
-
 st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 branch_df = df[df["Branch"] == branch]
 
 # =========================
-# TIME FIX (IMPORTANT)
+# 🔥 DATE-DRIVEN TIME ENGINE (FIXED CORE)
 # =========================
 now = datetime.now()
+
+# FIX: bind computation strictly to selected date context
 reference_time = datetime.combine(selected_date, now.time())
 now_min = reference_time.hour * 60 + reference_time.minute
 
 # =========================
-# COMPUTE ENGINE
+# ENGINE
 # =========================
-def compute_all(df, branch_df, col, now_min):
+def compute_all(df, branch_df, now_min):
 
     u_active, u_inactive = [], []
     b_active, b_inactive = [], []
@@ -137,7 +126,7 @@ def compute_all(df, branch_df, col, now_min):
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row[col], now_min):
+        if is_active(row["Shift"], now_min):
             u_active.append(r)
         else:
             u_inactive.append(r)
@@ -146,7 +135,7 @@ def compute_all(df, branch_df, col, now_min):
         r = row.to_dict()
         r["Date"] = selected_date
 
-        if is_active(row[col], now_min):
+        if is_active(row["Shift"], now_min):
             b_active.append(r)
         else:
             b_inactive.append(r)
@@ -158,7 +147,28 @@ def compute_all(df, branch_df, col, now_min):
         pd.DataFrame(b_inactive),
     )
 
-u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, selected_col, now_min)
+# =========================
+# AUTO SHIFT COLUMN DETECTION (IMPORTANT FIX)
+# =========================
+# We assume ONLY ONE shift column exists now OR pick best candidate
+possible_shift_cols = [
+    c for c in df.columns
+    if c not in ["Branch", "Name", "Role"]
+]
+
+if not possible_shift_cols:
+    st.error("No shift column found in sheet")
+    st.stop()
+
+# 👉 AUTO-USE FIRST SHIFT COLUMN (since you removed selector)
+shift_col = possible_shift_cols[0]
+
+# rename internally for safety
+df = df.rename(columns={shift_col: "Shift"})
+branch_df = branch_df.rename(columns={shift_col: "Shift"})
+
+# recompute
+u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, now_min)
 
 # =========================
 # 🌍 UNIVERSAL OVERVIEW (FIXED)
@@ -195,7 +205,7 @@ for b in branches:
     inactive = 0
 
     for _, row in temp.iterrows():
-        if is_active(row[selected_col], now_min):
+        if is_active(row["Shift"], now_min):
             active += 1
         else:
             inactive += 1
