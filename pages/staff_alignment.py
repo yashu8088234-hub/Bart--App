@@ -35,13 +35,15 @@ client = get_client()
 sheet = client.open_by_key(SHEET_ID)
 
 # =========================
-# LOAD DATA (CACHE 15 MIN)
+# DATA CACHE (ONLY GOOGLE CALL)
 # =========================
 @st.cache_data(ttl=900)
 def load_data():
     ws = sheet.worksheet(TAB_NAME)
     raw = ws.get_all_values()
     return pd.DataFrame(raw[1:], columns=raw[0]).fillna("")
+
+df = load_data()
 
 # =========================
 # SHIFT PARSER
@@ -87,77 +89,65 @@ def is_active(cell, now_min):
     return (start <= now_min < end) if start < end else (now_min >= start or now_min < end)
 
 # =========================
-# 🔥 SINGLE ENGINE (SOURCE OF TRUTH)
-# =========================
-def compute(df, branch, col, now_min, selected_date):
-
-    branch_df = df[df["Branch"] == branch]
-
-    u_act, u_inact = [], []
-    b_act, b_inact = [], []
-
-    # UNIVERSAL
-    for _, row in df.iterrows():
-        r = row.to_dict()
-        r["Date"] = selected_date
-
-        if is_active(row[col], now_min):
-            u_act.append(r)
-        else:
-            u_inact.append(r)
-
-    # BRANCH
-    for _, row in branch_df.iterrows():
-        r = row.to_dict()
-        r["Date"] = selected_date
-
-        if is_active(row[col], now_min):
-            b_act.append(r)
-        else:
-            b_inact.append(r)
-
-    return (
-        pd.DataFrame(u_act),
-        pd.DataFrame(u_inact),
-        pd.DataFrame(b_act),
-        pd.DataFrame(b_inact),
-    )
-
-# =========================
-# LOAD DATA
-# =========================
-df = load_data()
-
-# =========================
 # UI CONTROLS
 # =========================
 branches = sorted(df["Branch"].dropna().unique().tolist())
 shift_cols = [c for c in df.columns if c not in ["Branch", "Name", "Role"]]
 
-c1, c2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-with c1:
+with col1:
     branch = st.selectbox("🏢 Branch", branches)
 
-with c2:
+with col2:
     selected_date = st.date_input("📅 Date", value=date.today())
 
 st.metric("📅 Selected Date", selected_date.strftime("%d-%m-%Y"))
 
 selected_col = shift_cols[0]
 
+branch_df = df[df["Branch"] == branch]
+
 # =========================
-# TIME
+# CURRENT TIME
 # =========================
 now = datetime.now()
 now_min = now.hour * 60 + now.minute
 
 # =========================
-# RUN ENGINE
+# 🔥 SINGLE ENGINE (FINAL TRUTH)
 # =========================
-u_act, u_inact, b_act, b_inact = compute(
-    df, branch, selected_col, now_min, selected_date
-)
+def compute_all(df, branch_df, col):
+
+    u_active, u_inactive = [], []
+    b_active, b_inactive = [], []
+
+    for _, row in df.iterrows():
+        r = row.to_dict()
+        r["Date"] = selected_date
+
+        if is_active(row[col], now_min):
+            u_active.append(r)
+        else:
+            u_inactive.append(r)
+
+    for _, row in branch_df.iterrows():
+        r = row.to_dict()
+        r["Date"] = selected_date
+
+        if is_active(row[col], now_min):
+            b_active.append(r)
+        else:
+            b_inactive.append(r)
+
+    return (
+        pd.DataFrame(u_active),
+        pd.DataFrame(u_inactive),
+        pd.DataFrame(b_active),
+        pd.DataFrame(b_inactive),
+    )
+
+u_act, u_inact, b_act, b_inact = compute_all(df, branch_df, selected_col)
 
 # =========================
 # 🌍 UNIVERSAL OVERVIEW (FIXED)
@@ -242,6 +232,4 @@ st.dataframe(b_act, use_container_width=True, hide_index=True)
 # =========================
 st.subheader("📊 Full View")
 
-full = pd.concat([b_act, b_inact], ignore_index=True)
-
-st.dataframe(full, use_container_width=True, hide_index=True)
+st.dataframe(pd.concat([b_act, b_inact]), use_container_width=True, hide_index=True)
